@@ -1,2 +1,2 @@
-// 담당 모듈의 공개 인터페이스를 추가할 위치입니다.
-export {};
+export { createMcpPlugin, MCP_PATH } from './plugin.js';
+export type { McpPluginDependencies } from './plugin.js';
