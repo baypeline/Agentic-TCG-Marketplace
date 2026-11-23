@@ -5,5 +5,21 @@
   "name": "@tcg/mcp-client",
   "exports": {
     ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@openai/agents": "0.22.0",
+    "@tcg/contracts": "workspace:*",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@tcg/aggregator": "workspace:*",
+    "@tcg/mcp-server": "workspace:*",
+    "@tcg/valuation": "workspace:*",
+    "fastify": "5.12.8"
   }
 }

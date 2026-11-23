@@ -19,6 +19,7 @@
     "@tcg/aggregator": "workspace:*",
     "@tcg/valuation": "workspace:*",
     "@tcg/db": "workspace:*",
+    "@tcg/mcp-server": "workspace:*",
     "fastify": "5.12.8",
     "zod": "4.6.7",
     "dotenv": "^17.2.3"
