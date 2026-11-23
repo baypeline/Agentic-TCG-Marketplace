@@ -35,7 +35,7 @@ Payment가 Trading Service 또는 정산 완료 콜백을 받는 단방향 연�
 
 카드·시세 조회는 공개입니다. 기본 `request.auth`는 null이며, 클라이언트의 사용자·Agent ID 헤더를 신뢰하지 않습니다. 검증된 인증 제공자를 `resolveAuth`로 주입하고, 보호된 라우트에서 `requireAuth(request)`를 호출하세요. 인증 provider와 Agent 소유권 인가는 아직 미구현입니다.
 
-Web은 Server Component를 통해 Core API를 호출하므로 API 주소·비밀값을 브라우저에 노출할 필요가 없습니다. Agent 세션 HTTP/SSE는 검증된 인증 제공자를 주입한 Core API에서 등록할 수 있습니다. [Agent 세션 플러그인 등록 방법](../apps/agent/README.md#세션-httpsse)을 참고하세요. 변경 요청용 BFF는 후속 통합 범위입니다.
+Web은 Server Component를 통해 Core API를 호출하므로 API 주소·비밀값을 브라우저에 노출할 필요가 없습니다. 로컬 웹 채팅은 서명된 브라우저 쿠키로 Agent 세션을 열고 SSE를 중계합니다. 운영 환경의 Agent 세션은 검증된 인증 제공자를 주입한 Core API에서 등록할 수 있습니다. [Agent 세션 플러그인 등록 방법](../apps/agent/README.md#세션-httpsse)을 참고하세요.
 
 ## DB 소유권
 

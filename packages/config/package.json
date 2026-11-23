@@ -5,6 +5,7 @@
   "name": "@tcg/config",
   "exports": {
     ".": "./src/index.ts",
+    "./local-agent-auth": "./src/local-agent-auth.ts",
     "./tsconfig.base.json": "./tsconfig.base.json"
   },
   "scripts": {

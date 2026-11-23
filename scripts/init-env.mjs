@@ -35,6 +35,7 @@ try {
     'CARD_DATA_SOURCE=mock',
     'PRICE_DATA_SOURCE=mock',
     'DATABASE_ENABLED=false',
+    `AGENT_LOCAL_SECRET=${randomBytes(32).toString('base64url')}`,
     `POSTGRES_USER=${user}`,
     `POSTGRES_PASSWORD=${password}`,
     `POSTGRES_DB=${database}`,
