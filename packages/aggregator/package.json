@@ -9,10 +9,21 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "collect": "tsx scripts/collect-cards.ts",
+    "collect:set": "tsx scripts/collect-set.ts",
+    "localize": "tsx scripts/localize-cards.ts",
+    "check:external": "tsx scripts/check-tcgdex.ts",
+    "check:external:db": "tsx scripts/check-tcgdex.ts --database"
   },
   "dependencies": {
+    "@tcg/db": "workspace:*",
     "@tcg/contracts": "workspace:*",
-    "fastify": "5.12.8"
+    "fastify": "5.12.8",
+    "zod": "4.6.7",
+    "csv-parse": "7.0.3"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0"
   }
 }

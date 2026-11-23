@@ -1,0 +1,2 @@
+# 스냅샷 SHA-256이 Windows checkout에서도 동일하도록 줄바꿈을 고정한다.
+packages/db/fixtures/** text eol=lf

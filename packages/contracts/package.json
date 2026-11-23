@@ -4,7 +4,8 @@
   "type": "module",
   "name": "@tcg/contracts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./fixtures": "./src/fixtures.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",

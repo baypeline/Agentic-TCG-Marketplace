@@ -12,4 +12,12 @@ describe('공통 계약', () => {
   it('가격 부족 상태에 숫자 가격을 넣을 수 없다', () => {
     expect(valuationSchema.safeParse({ cardVariantId: '00000000-0000-4000-8000-000000000001', status: 'INSUFFICIENT_DATA', estimatedPrice: '0', currency: 'USDC', sampleSize: 0, confidence: 'LOW', dataSource: 'MARKET', evaluatedAt: new Date().toISOString() }).success).toBe(false);
   });
+  it('가격이 있는 평가에는 표본과 출처가 필요하다', () => {
+    const value = { cardVariantId: '00000000-0000-4000-8000-000000000001', status: 'AVAILABLE', estimatedPrice: '1000000', currency: 'USDC', sampleSize: 1, confidence: 'LOW', dataSource: 'MOCK', evaluatedAt: '2026-11-20T00:00:00.000Z', sourceSummary: ['demo'] };
+    expect(valuationSchema.safeParse(value).success).toBe(true);
+    expect(valuationSchema.safeParse({ ...value, sampleSize: 0 }).success).toBe(false);
+    expect(valuationSchema.safeParse({ ...value, sourceSummary: [] }).success).toBe(false);
+    expect(valuationSchema.safeParse({ ...value, evaluatedAt: 'invalid' }).success).toBe(false);
+    expect(valuationSchema.safeParse({ ...value, status: 'INSUFFICIENT_DATA', estimatedPrice: null }).success).toBe(false);
+  });
 });
