@@ -5,5 +5,14 @@
   "name": "@tcg/payment-server",
   "exports": {
     ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@x402/core": "^2.31.0",
+    "@x402/evm": "^2.31.0"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json"
   }
 }
