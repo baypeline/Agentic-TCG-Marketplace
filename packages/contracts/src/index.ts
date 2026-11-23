@@ -85,7 +85,7 @@ export const cardSearchQuerySchema = z.object({
 export const cardParamsSchema = z.object({ id: idSchema });
 export const cardSearchResponseSchema = z.object({ items: z.array(cardVariantSchema), nextCursor: z.null() });
 export const errorCodeSchema = z.enum([
-  'VALIDATION_ERROR', 'UNAUTHORIZED', 'FORBIDDEN', 'CARD_NOT_FOUND',
+  'VALIDATION_ERROR', 'UNAUTHORIZED', 'FORBIDDEN', 'CARD_NOT_FOUND', 'SESSION_NOT_FOUND', 'SESSION_BUSY',
   'LISTING_UNAVAILABLE', 'PRICE_LIMIT_EXCEEDED', 'ORDER_NOT_ACTIVE',
   'INVENTORY_CONFLICT', 'BUDGET_EXCEEDED', 'POLICY_VIOLATION',
   'PAYMENT_REQUIRED', 'PAYMENT_FAILED', 'PAYMENT_UNKNOWN', 'QUOTE_EXPIRED', 'INTERNAL_ERROR',

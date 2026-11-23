@@ -1,7 +1,7 @@
 # Agentic TCG Marketplace
 
 AI Agent × MCP × x402 기반 TCG 거래 PoC의 개발 시작용 모노레포입니다.
-정연한 담당 범위의 실행 가능한 최소 구조를 제공하며, 거래·결제·Agent 구현은 각 담당자가 추가합니다.
+카드 조회 API와 Agent 조회 런타임의 실행 기반을 제공합니다.
 
 ## 빠른 시작
 
@@ -28,7 +28,7 @@ Mock 모드는 외부 API 키·PostgreSQL·체인 연결 없이 실행됩니다.
 apps/
   web/                 Next.js 16 / React 19, 서버 측 API 조회
   api/                 Fastify 5 통합 호스트
-  agent/               [예약] 최재민 Agent Runtime
+  agent/               최재민 Agent Runtime, 카드 검색·Mock 적정가 조회
 packages/
   aggregator/          카드 데이터 어댑터, Service, REST Plugin
   valuation/           가격 어댑터, 기본 중앙값 평가, REST Plugin
@@ -128,6 +128,8 @@ pnpm --filter @tcg/aggregator test
 
 ## 현재 범위
 
-카드 검색·상세 화면·Mock 적정가, API 오류 처리, 인증 컨텍스트 주입 지점, PostgreSQL 조회 어댑터·시연 seed·실제 DB 통합 테스트를 구현했습니다. [TCGdex 외부 카드 수집·영구 UUID 매핑·DB 저장](packages/aggregator/README.md) 후 기존 REST 경로에서 조회할 수 있습니다. [외부 참고 시세 수집과 검증 표본 평가](packages/valuation/README.md)도 지원합니다. 전체 카탈로그 동기화, 거래 가능한 카드 변형·상태 확정, 자동 환율 수집, 상용 인증, 매물·주문·정책 API, MCP, Agent Runtime, x402 결제 및 전체 거래 E2E는 아직 구현하지 않았습니다. 기존 DB/Mock 모드는 유지합니다.
+카드 검색·상세 화면·Mock 적정가, API 오류 처리, 인증 컨텍스트 주입 지점, PostgreSQL 조회 어댑터·시연 seed·실제 DB 통합 테스트를 구현했습니다. [TCGdex 외부 카드 수집·영구 UUID 매핑·DB 저장](packages/aggregator/README.md) 후 기존 REST 경로에서 조회할 수 있으며 [외부 참고 시세 수집과 검증 표본 평가](packages/valuation/README.md)도 지원합니다. [Agent Runtime](apps/agent/README.md)은 카드 검색과 적정가를 조회하며, MCP 클라이언트 연결과 인증 컨텍스트 기반 세션 HTTP/SSE 플러그인을 제공합니다. 기존 DB/Mock 모드는 유지하며 미구현 live 모드로 조용히 대체하지 않습니다.
+
+전체 카탈로그 동기화, 거래 가능한 카드 변형·상태 확정, 자동 환율 수집, 상용 인증, 매물·주문·정책 API, 팀 MCP 서버, 세션 영속화, Agent와 Core API·Web의 실제 연결, x402 결제 및 전체 거래 E2E는 후속 통합 범위입니다. Web의 거래·대화 화면은 미리보기이며 Agent 패키지 병합만으로 실제 요청·결제를 실행하지 않습니다.
 
 가격은 USDC 최소 단위 정수 문자열입니다. UUID 및 UTC ISO 8601을 사용합니다. Mock 가격은 `dataSource: "MOCK"`로 구분하고, 표본이 없으면 `status: "INSUFFICIENT_DATA"`, `estimatedPrice: null`을 반환합니다. 이 확장은 초안 계약의 미정 부분을 구체화한 **팀 검토 대상**입니다. [계약 결정 사항](docs/contracts.md), [통합 가이드](docs/integration.md)를 확인하세요.
