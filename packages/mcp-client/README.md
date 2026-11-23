@@ -4,7 +4,7 @@
 
 ## 카드 검색
 
-MCP 서버가 실행 중인 URL을 넘긴다. 아래 주소는 Core API의 기본 포트를 쓸 때의 예시다. 인증 헤더가 필요한 호스트는 `headers`에 전달한다.
+저장소 루트에서 `pnpm --filter @tcg/api dev`로 Core API를 실행한다. 포트 기본값은 4000이다. `pnpm env:init`으로 환경을 만들었다면 루트 `.env`의 `API_PORT`에 맞춰 예시 주소를 바꾼다. 인증 헤더가 필요한 호스트는 `headers`에 전달한다.
 
 ```ts
 import { cardSearchResponseSchema } from '@tcg/contracts';
@@ -36,7 +36,7 @@ try {
 
 ## 독립 검증
 
-저장소 루트에서 Node 24와 pnpm 12.9.1을 사용한다. 네트워크 테스트는 로컬 임의 포트에 SDK 테스트 서버를 띄운다. OpenAI API 키와 DB 연결은 필요 없다.
+저장소 루트에서 Node 24와 pnpm 12.9.1을 사용한다. 연동 테스트는 로컬 임의 포트에 팀 Fastify 플러그인을 띄워 두 도구의 목록, Mock 검색과 가격, 업무 오류와 인증 헤더를 확인한다. OpenAI API 키와 DB 연결은 필요 없다.
 
 ```sh
 pnpm install --frozen-lockfile

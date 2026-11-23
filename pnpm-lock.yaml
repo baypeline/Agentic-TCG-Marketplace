@@ -355,12 +355,18 @@ importers:
         specifier: 4.6.7
         version: 4.6.7
     devDependencies:
-      '@modelcontextprotocol/node':
-        specifier: 2.1.2
-        version: 2.1.2(@modelcontextprotocol/server@2.4.0)
-      '@modelcontextprotocol/server':
-        specifier: 2.4.0
-        version: 2.4.0
+      '@tcg/aggregator':
+        specifier: workspace:*
+        version: link:../aggregator
+      '@tcg/mcp-server':
+        specifier: workspace:*
+        version: link:../mcp-server
+      '@tcg/valuation':
+        specifier: workspace:*
+        version: link:../valuation
+      fastify:
+        specifier: 5.12.8
+        version: 5.12.8
 
   packages/mcp-server:
     dependencies:
