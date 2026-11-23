@@ -1,0 +1,27 @@
+// Aggregator의 세트 수집 진행 상태. 거래·결제 데이터와 분리한다.
+model CatalogCollectionRun {
+  id String @id @default(uuid()) @db.Uuid
+  provider CardProvider
+  language String @db.VarChar(16)
+  setId String @db.VarChar(128)
+  setName String
+  externalIds Json
+  nextIndex Int @default(0)
+  status CatalogCollectionStatus @default(PENDING)
+  leaseToken String? @db.Uuid
+  leaseUntil DateTime? @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  @@unique([provider, language, setId], name: "collectionTarget")
+  @@schema("catalog")
+}
+
+enum CatalogCollectionStatus {
+  PENDING
+  RUNNING
+  FAILED
+  COMPLETED
+
+  @@schema("catalog")
+}

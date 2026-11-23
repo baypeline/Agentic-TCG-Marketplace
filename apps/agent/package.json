@@ -5,5 +5,23 @@
   "name": "@tcg/agent",
   "exports": {
     ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "demo": "tsx scripts/demo.ts",
+    "eval:intents": "tsx scripts/eval-intents.ts"
+  },
+  "dependencies": {
+    "@openai/agents": "0.22.0",
+    "@tcg/contracts": "workspace:*",
+    "zod": "4.6.7",
+    "fastify": "5.12.8"
+  },
+  "devDependencies": {
+    "@tcg/aggregator": "workspace:*",
+    "@tcg/valuation": "workspace:*",
+    "tsx": "^4.21.0"
   }
 }

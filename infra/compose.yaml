@@ -3,15 +3,15 @@ services:
   postgres:
     image: postgres:17-alpine
     environment:
-      POSTGRES_USER: tcg
-      POSTGRES_PASSWORD: tcg_local
-      POSTGRES_DB: tcg
+      POSTGRES_USER: ${POSTGRES_USER:?Generate root .env with pnpm env:init}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Generate root .env with pnpm env:init}
+      POSTGRES_DB: ${POSTGRES_DB:?Generate root .env with pnpm env:init}
     ports:
-      - '127.0.0.1:5432:5432'
+      - '127.0.0.1:${POSTGRES_PORT:?Generate root .env with pnpm env:init}:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U tcg -d tcg']
+      test: ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
       interval: 5s
       timeout: 3s
       retries: 10

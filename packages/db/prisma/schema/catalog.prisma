@@ -1,0 +1,135 @@
+// 정연한 담당: 카드 카탈로그와 가격 표본.
+model CardVariant {
+  id         String  @id @default(uuid()) @db.Uuid
+  game       String  @default("POKEMON")
+  name       String
+  setCode    String
+  cardNumber String
+  language   String
+  edition    String
+  condition  String
+  imageUrl   String?
+  externalIdentityId String? @unique @db.Uuid
+  externalIdentity ExternalCardIdentity? @relation(fields: [externalIdentityId], references: [id], onDelete: Restrict)
+  lastCollectedAt DateTime? @db.Timestamptz(3)
+  priceObservations PriceObservation[]
+  localizedNames CardLocalizedName[]
+  marketPrices MarketPriceSnapshot[]
+
+  @@unique([game, setCode, cardNumber, language, edition, condition])
+  @@index([name])
+  @@schema("catalog")
+}
+
+// 제공자 집계 가격. 개별 체결가 및 기존 Mock 표본과 분리한다.
+model MarketPriceSnapshot {
+  id String @id @default(uuid()) @db.Uuid
+  cardVariantId String @db.Uuid
+  cardVariant CardVariant @relation(fields: [cardVariantId], references: [id], onDelete: Restrict)
+  provider String @db.VarChar(32)
+  externalId String @db.VarChar(128)
+  providerVariant String @db.VarChar(64)
+  priceType String @db.VarChar(32)
+  originalCurrency String @db.VarChar(3)
+  originalAmount String
+  sourceUrl String
+  observedAt DateTime @db.Timestamptz(3)
+  collectedAt DateTime @db.Timestamptz(3)
+  assessment MarketPriceAssessment?
+
+  @@unique([cardVariantId, provider, providerVariant, priceType, observedAt], name: "marketSnapshot")
+  @@index([cardVariantId, observedAt])
+  @@schema("catalog")
+}
+
+// 운영자가 카드 속성과 환율 근거를 확인한 기록. 외부 수집은 이 테이블을 쓰지 않는다.
+model MarketPriceAssessment {
+  snapshotId String @id @db.Uuid
+  snapshot MarketPriceSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  language String
+  edition String
+  condition String
+  matchEvidenceUrl String
+  usdcAmount String
+  fxRate String
+  fxSourceUrl String
+  fxObservedAt DateTime @db.Timestamptz(3)
+  assessedAt DateTime @db.Timestamptz(3)
+
+  @@schema("catalog")
+}
+
+enum PriceDataSource {
+  MOCK
+  MARKET
+
+  @@schema("catalog")
+}
+
+enum CardProvider {
+  TCGDEX
+
+  @@schema("catalog")
+}
+
+// 외부 식별자에 대한 내부 UUID 예약. 수집된 CardVariant.id와 동일한 UUID를 사용한다.
+model ExternalCardIdentity {
+  id         String       @id @default(uuid()) @db.Uuid
+  provider   CardProvider
+  externalId String       @db.VarChar(128)
+  language   String       @db.VarChar(16)
+  edition    String       @db.VarChar(64)
+  condition  String       @db.VarChar(64)
+  createdAt  DateTime     @default(now()) @db.Timestamptz(3)
+  cardVariant CardVariant?
+
+  @@unique([provider, externalId, language, edition, condition], name: "externalCardReference", map: "ExternalCardIdentity_reference_key")
+  @@schema("catalog")
+}
+
+model PriceObservation {
+  id            String          @id @default(uuid()) @db.Uuid
+  cardVariantId String          @db.Uuid
+  cardVariant   CardVariant     @relation(fields: [cardVariantId], references: [id], onDelete: Restrict)
+  amount        String
+  dataSource    PriceDataSource
+  source        String
+  observedAt    DateTime        @db.Timestamptz(3)
+
+  @@index([cardVariantId, dataSource, observedAt])
+  @@schema("catalog")
+}
+
+enum CardNameSource {
+  POKEAPI_SPECIES
+
+  @@schema("catalog")
+}
+
+model PokemonNameTranslation {
+  speciesId   Int      @id
+  englishName String
+  englishKey  String   @unique
+  koreanName  String
+  sourceUrl   String
+  importedAt  DateTime @db.Timestamptz(3)
+  cardNames   CardLocalizedName[]
+
+  @@index([koreanName])
+  @@schema("catalog")
+}
+
+model CardLocalizedName {
+  cardVariantId String @db.Uuid
+  cardVariant CardVariant @relation(fields: [cardVariantId], references: [id], onDelete: Cascade)
+  locale      String @db.VarChar(16)
+  name        String
+  source      CardNameSource
+  sourceUrl   String
+  speciesId   Int
+  species     PokemonNameTranslation @relation(fields: [speciesId], references: [speciesId], onDelete: Restrict)
+
+  @@id([cardVariantId, locale])
+  @@index([locale, name])
+  @@schema("catalog")
+}

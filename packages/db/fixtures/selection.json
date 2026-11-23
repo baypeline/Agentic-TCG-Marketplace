@@ -1,0 +1,16 @@
+{
+  "legacyCardIds": [
+    "044f4a6d-386b-4bbc-9eb1-046266917174",
+    "153ce175-5434-4a80-ad9f-a6737e380aa6",
+    "24511913-a201-437a-a7cd-5c73d48ef058",
+    "9257498a-187e-49e1-bb69-84f38d7f2e24",
+    "af6aca2b-f957-496a-b874-17e980759354"
+  ],
+  "sets": [
+    { "id": "base1", "expectedCards": 102 },
+    { "id": "base2", "expectedCards": 64 },
+    { "id": "SV5K", "language": "KO", "expectedCards": 49 },
+    { "id": "SV4K", "language": "KO", "expectedCards": 95 },
+    { "id": "SV4M", "language": "KO", "expectedCards": 95 }
+  ]
+}
