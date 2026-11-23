@@ -218,6 +218,9 @@ importers:
       '@tcg/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@tcg/mcp-server':
+        specifier: workspace:*
+        version: link:../../packages/mcp-server
       '@tcg/valuation':
         specifier: workspace:*
         version: link:../../packages/valuation
