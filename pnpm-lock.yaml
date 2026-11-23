@@ -343,7 +343,24 @@ importers:
         specifier: ^4.21.0
         version: 4.23.15
 
-  packages/mcp-client: {}
+  packages/mcp-client:
+    dependencies:
+      '@openai/agents':
+        specifier: 0.22.0
+        version: 0.22.0(ws@8.23.0)(zod@4.6.7)
+      '@tcg/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@modelcontextprotocol/node':
+        specifier: 2.1.2
+        version: 2.1.2(@modelcontextprotocol/server@2.4.0)
+      '@modelcontextprotocol/server':
+        specifier: 2.4.0
+        version: 2.4.0
 
   packages/mcp-server:
     dependencies:
