@@ -37,10 +37,13 @@ export function createMcpPlugin({
     app.addContentTypeParser('*', (_request, _payload, done) => { done(null); });
 
     // DNS rebinding 방지. 서버 간 호출에는 Origin 헤더가 없다.
+    // 헤더가 아예 없을 때만 통과시킨다. SDK 검사는 빈 값을 통과시키므로 먼저 거절한다.
     app.addHook('onRequest', async (request, reply) => {
       const { origin } = request.headers;
       if (origin === undefined) return;
-      if (allowedOrigins.length === 0 || !validateOriginHeader(origin, [...allowedOrigins]).ok) return rejectOrigin(reply);
+      if (origin === '' || allowedOrigins.length === 0 || !validateOriginHeader(origin, [...allowedOrigins]).ok) {
+        return rejectOrigin(reply);
+      }
     });
 
     app.route({

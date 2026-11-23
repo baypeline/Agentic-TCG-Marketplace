@@ -44,14 +44,15 @@ describe('MCP 도구', () => {
     expect(tools[1]!.inputSchema).toMatchObject({ required: ['cardVariantId'] });
   });
 
-  it('search_cards는 계약 형식으로 카드 목록을 돌려준다', async () => {
+  it('search_cards는 검색어를 서비스에 넘기고 계약 형식으로 카드 목록을 돌려준다', async () => {
     const { client } = await connect();
-    const result = await client.callTool({ name: 'search_cards', arguments: { query: 'pika', limit: 1 } });
+    // 첫 번째 Mock 카드(Pikachu)가 아닌 카드를 찾아야 검색어 전달을 확인할 수 있다.
+    const result = await client.callTool({ name: 'search_cards', arguments: { query: '이브이', limit: 1 } });
     expect(result.isError).toBeFalsy();
     expect(result.structuredContent).toMatchObject({
       ok: true,
       requestId: 'req-test',
-      data: { nextCursor: null, items: [{ id: PIKACHU, name: 'Pikachu' }] },
+      data: { nextCursor: null, items: [{ id: EEVEE, name: 'Eevee' }] },
     });
     expect(JSON.parse((result.content as Array<{ text: string }>)[0]!.text)).toEqual(result.structuredContent);
   });

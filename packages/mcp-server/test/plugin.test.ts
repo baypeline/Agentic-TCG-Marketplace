@@ -72,11 +72,28 @@ describe('MCP Fastify 플러그인', () => {
     expect(plain.statusCode).toBe(415);
   });
 
+  it('본문은 SDK 기본 한도 4MiB까지만 받는다', async () => {
+    const app = await createHost();
+    const LIMIT = 4 * 1024 * 1024;
+    const bodyOfSize = (size: number) => {
+      const base = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'search_cards', arguments: { query: '' } } });
+      return base.replace('"query":""', `"query":"${'x'.repeat(size - base.length)}"`);
+    };
+    const atLimit = bodyOfSize(LIMIT);
+    expect(Buffer.byteLength(atLimit)).toBe(LIMIT);
+    // 한도 안의 본문은 도구까지 가서 검색어 길이 때문에 업무 오류가 된다.
+    const accepted = await post(app, atLimit);
+    expect(accepted.statusCode).toBe(200);
+    expect(readJsonRpc(accepted.body).result.structuredContent).toMatchObject({ ok: false, error: { code: 'VALIDATION_ERROR' } });
+    expect((await post(app, bodyOfSize(LIMIT + 1))).statusCode).toBe(413);
+  });
+
   it('Origin은 기본으로 거절하고 허용 목록의 호스트 이름만 통과시킨다', async () => {
     const closed = await createHost();
     expect((await post(closed, initialize, { ...mcpHeaders, origin: 'http://localhost:3000' })).statusCode).toBe(403);
     const open = await createHost({ allowedOrigins: ['localhost'] });
     expect((await post(open, initialize, { ...mcpHeaders, origin: 'https://evil.example' })).statusCode).toBe(403);
+    expect((await post(open, initialize, { ...mcpHeaders, origin: '' })).statusCode).toBe(403);
     expect((await post(open, initialize, { ...mcpHeaders, origin: 'http://localhost:3000' })).statusCode).toBe(200);
   });
 

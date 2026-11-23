@@ -54,13 +54,17 @@ await app.register(createMcpPlugin({
 - SDK 공식 `createMcpHandler` + `toNodeHandler` 사용. 2026-07-28 방식과 2025 방식(`initialize`)을 모두 받음
 - 무상태: 요청마다 새 서버를 만들고 세션 ID는 없음. 2025 방식 응답은 SSE 한 건, GET/DELETE는 405
 - 본문은 SDK가 직접 읽음. 플러그인 범위에서 Fastify 본문 파서를 끔
-- `allowedOrigins`(호스트 이름)에 없는 `Origin`은 403. 기본값은 빈 목록이라 브라우저 요청은 모두 거절하고, Origin 없는 서버 간 호출은 통과
+- `allowedOrigins`(호스트 이름)에 없는 `Origin`은 403. 기본값은 빈 목록이라 `Origin`이 붙은 요청은 모두 거절함. 값이 빈 `Origin`도 403이고, 헤더가 없는 서버 간 호출만 통과
+- 배포 전제: Core API 기본 바인딩은 루프백(`API_HOST=127.0.0.1`). 루프백 밖에 노출하면 플러그인이나 앞단 프록시에서 허용 Host를 검증해야 함
 - 카드 조회 도구는 인증 없이 호출 가능. 사용자/Agent ID는 도구 인수나 헤더에서 읽지 않음
 
 ## 확인
 
+저장소 루트에서 실행함. `.env`가 없으면 기본 포트 4000을 씀.
+
 ```bash
-curl -s -X POST http://127.0.0.1:<API_PORT>/mcp \
+api_port=$(node --env-file-if-exists=.env -p 'process.env.API_PORT || 4000')
+curl -sS -X POST "http://127.0.0.1:${api_port}/mcp" \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json, text/event-stream' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
@@ -69,7 +73,7 @@ pnpm --filter @tcg/mcp-server test
 pnpm --filter @tcg/mcp-server typecheck
 ```
 
-- 테스트 16개: 도구 동작(메모리 전송), HTTP 동작(`inject`), 실제 포트에서 SDK 클라이언트와 `apps/agent`의 `connectMcpCardServices` 호환
+- 테스트 17개: 도구 동작(메모리 전송), HTTP 동작(`inject`, 본문 4MiB 경계 포함), 실제 포트에서 SDK 클라이언트와 `apps/agent`의 `connectMcpCardServices` 호환
 
 ## 1차 범위 밖
 
@@ -78,4 +82,4 @@ pnpm --filter @tcg/mcp-server typecheck
 | Trading 도구(`list_listings`, `get_listing`, 주문/구매 도구) | TradingService 조회 함수와 입출력 계약 (이채영) |
 | 도구별 인증 요구, 승인되지 않은 호출 차단 | Core API 인증 provider (정연한) |
 | x402 결제 요구와 재호출 | PaymentService `preparePayment`/`processSignedPayment` 계약 (최승원) |
-| Host 헤더 검사 | 1차는 도구 호출이 POST뿐이고 브라우저 POST에는 항상 Origin이 붙어서 Origin 검사로 대신함 |
+| Host 헤더 검사 | 1차는 Origin 허용 목록만 검사함. 배포 주소가 정해지면 허용 Host 목록과 함께 추가 |
