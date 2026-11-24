@@ -23,7 +23,9 @@
     "@tcg/trading": "workspace:*",
     "fastify": "5.12.8",
     "zod": "4.6.7",
-    "dotenv": "^17.2.3"
+    "dotenv": "^17.2.3",
+    "@tcg/payment-server": "workspace:*",
+    "@tcg/agent": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.21.0"

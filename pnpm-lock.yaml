@@ -209,6 +209,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@tcg/agent':
+        specifier: workspace:*
+        version: link:../agent
       '@tcg/aggregator':
         specifier: workspace:*
         version: link:../../packages/aggregator
@@ -224,6 +227,9 @@ importers:
       '@tcg/mcp-server':
         specifier: workspace:*
         version: link:../../packages/mcp-server
+      '@tcg/payment-server':
+        specifier: workspace:*
+        version: link:../../packages/payment-server
       '@tcg/trading':
         specifier: workspace:*
         version: link:../../packages/trading
@@ -385,6 +391,12 @@ importers:
       '@tcg/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@tcg/payment-server':
+        specifier: workspace:*
+        version: link:../payment-server
+      '@tcg/trading':
+        specifier: workspace:*
+        version: link:../trading
       fastify:
         specifier: 5.12.8
         version: 5.12.8
@@ -419,12 +431,31 @@ importers:
 
   packages/payment-server:
     dependencies:
+      '@tcg/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@tcg/trading':
+        specifier: workspace:*
+        version: link:../trading
       '@x402/core':
         specifier: ^2.31.0
         version: 2.32.0
       '@x402/evm':
         specifier: ^2.31.0
         version: 2.32.0(typescript@5.9.3)
+      fastify:
+        specifier: 5.12.8
+        version: 5.12.8
+      viem:
+        specifier: ^2.58.2
+        version: 2.58.4(typescript@5.9.3)(zod@4.6.7)
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@tcg/db':
+        specifier: workspace:*
+        version: link:../db
 
   packages/trading:
     dependencies:

@@ -24,7 +24,7 @@ it('운영 진입점과 같은 통합 플러그인으로 /mcp에서 도구 목�
 
   const list = await call(1, 'tools/list', {});
   expect(list.statusCode).toBe(200);
-  expect(readJsonRpc(list.body).result.tools.map((tool: { name: string }) => tool.name)).toEqual(['search_cards', 'get_valuation']);
+  expect(readJsonRpc(list.body).result.tools.map((tool: { name: string }) => tool.name)).toEqual(['search_cards', 'get_valuation', 'list_listings', 'get_listing', 'create_buy_order', 'list_buy_orders', 'cancel_buy_order', 'match_buy_order', 'quote_fixed_purchase', 'quote_market_purchase', 'get_purchase_status', 'execute_purchase']);
 
   const search = await call(2, 'tools/call', { name: 'search_cards', arguments: { query: 'pika', limit: 1 } });
   expect(readJsonRpc(search.body).result.structuredContent).toMatchObject({ ok: true, data: { items: [{ name: 'Pikachu' }] } });
