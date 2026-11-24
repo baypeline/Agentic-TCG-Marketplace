@@ -130,44 +130,26 @@ export function createAgentSessionPlugin({ runtime, requireAuth, onSessionStarte
       }
       session.busy = true;
 
-      const disconnect = new AbortController();
-      session.controller = disconnect;
-      const onClose = () => {
-        disconnect.abort();
-        void stopSession(session).catch(error => request.log.error({ err: error }, 'Agent stop notification failed'));
-      };
-      reply.raw.once('close', onClose);
-      const signal = AbortSignal.any([disconnect.signal, AbortSignal.timeout(turnTimeoutMs)]);
-
-      async function* events() {
+      const execution = new AbortController();
+      session.controller = execution;
+      const signal = AbortSignal.any([execution.signal, AbortSignal.timeout(turnTimeoutMs)]);
+      // 서버가 작업 Promise를 소유한다. 조회 스트림의 수명으로 취소하지 않는다.
+      const task = (async () => {
         try {
-          yield sse('started', { sessionId: session.id });
           const output = await runtime.runAgentTurn(message, { history: session.messages, signal });
           signal.throwIfAborted();
-
           const assistantMessage: AgentMessage = { role: 'assistant', content: output };
-          session.messages = [
-            ...session.messages,
-            { role: 'user', content: message } satisfies AgentMessage,
-            assistantMessage,
-          ].slice(-maxHistoryMessages);
+          session.messages = [...session.messages, { role: 'user', content: message } satisfies AgentMessage, assistantMessage].slice(-maxHistoryMessages);
           session.updatedAt = Date.now();
-          yield sse('completed', { sessionId: session.id, message: assistantMessage });
+          return sse('completed', { sessionId: session.id, message: assistantMessage });
         } catch (error) {
-          if (!disconnect.signal.aborted) {
-            request.log.error({ err: error }, 'Agent turn failed');
-            yield sse('error', {
-              code: 'INTERNAL_ERROR',
-              message: '에이전트 응답을 완료하지 못했습니다.',
-              retryable: true,
-              requestId: request.id,
-            });
-          }
-        } finally {
-          reply.raw.off('close', onClose);
-          session.busy = false;
-          session.controller = undefined;
-        }
+          request.log.error({ err: error }, 'Agent turn failed');
+          return sse('error', { code: 'INTERNAL_ERROR', message: '에이전트 응답을 완료하지 못했습니다.', retryable: true, requestId: request.id });
+        } finally { session.busy = false; session.controller = undefined; }
+      })();
+      async function* events() {
+        yield sse('started', { sessionId: session.id });
+        yield await task;
       }
 
       return reply

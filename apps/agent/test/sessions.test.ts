@@ -111,34 +111,20 @@ it('처리 중인 턴과 겹치는 요청을 막고 실패 후 재요청을 허�
   expect((await send()).body).toContain('event: completed');
 });
 
-it('SSE 연결이 끊기면 실행 중인 턴을 취소한다', async () => {
-  const cancelled = deferred<void>();
-  const app = await setup(async (_message, options) => {
-    expect(options?.signal).toBeDefined();
-    try {
-      return await new Promise<never>((_resolve, reject) => {
-        const signal = options!.signal!;
-        signal.throwIfAborted();
-        signal.addEventListener('abort', () => reject(signal.reason), { once: true });
-      });
-    } finally {
-      cancelled.resolve();
-    }
-  });
+it('SSE 연결이 끊겨도 서버 작업을 계속하고 재접속으로 결과를 조회한다', async () => {
+  const result = deferred<string>();
+  let executionSignal: AbortSignal | undefined;
+  const app = await setup(async (_message, options) => { executionSignal = options?.signal; return result.promise; });
   const base = await app.listen({ port: 0, host: '127.0.0.1' });
   const url = await createSession(app);
-  const response = await fetch(`${base}${url}/messages`, {
-    method: 'POST',
-    headers: { ...owner, 'content-type': 'application/json' },
-    body: JSON.stringify({ message: '피카츄 찾아줘' }),
-  });
+  const response = await fetch(`${base}${url}/messages`, { method: 'POST', headers: { ...owner, 'content-type': 'application/json' }, body: JSON.stringify({ message: '피카츄 찾아줘' }) });
   const reader = response.body!.getReader();
-  const first = await reader.read();
-  expect(new TextDecoder().decode(first.value)).toContain('event: started');
-
+  expect(new TextDecoder().decode((await reader.read()).value)).toContain('event: started');
   await reader.cancel();
-  await cancelled.promise;
-  expect((await app.inject({ url, headers: owner })).json().messages).toEqual([]);
+  expect(executionSignal?.aborted).toBe(false);
+  result.resolve('연결이 없어도 완료');
+  await expect.poll(async () => (await app.inject({ url, headers: owner })).json().messages.length).toBe(2);
+  expect((await app.inject({ url, headers: owner })).json().status).toBe('RUNNING');
 });
 
 it('세션 중단은 호스트에 알리고 실행 중인 턴과 신규 실행을 중단한다', async () => {

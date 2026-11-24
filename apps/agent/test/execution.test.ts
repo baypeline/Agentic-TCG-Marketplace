@@ -6,7 +6,7 @@ import { createMockTradingStore, createTradingService, demoInventory, demoSeller
 import { createAgentExecutionController, createAgentSessionPlugin } from '../src/index.js';
 
 const buyer = { userId: randomUUID(), agentId: randomUUID() };
-const policy: SpendingPolicy = { agentId: buyer.agentId, enabled: true, totalBudget: '100000000', maxPerTrade: '20000000', validUntil: '2099-01-01T00:00:00.000Z' };
+const policy: SpendingPolicy = { id: '00000000-0000-4000-8004-000000000001', version: 1, agentId: buyer.agentId, enabled: true, totalBudget: '100000000', maxPerTrade: '20000000', validUntil: '2099-01-01T00:00:00.000Z' };
 const key = () => ({ idempotencyKey: randomUUID() });
 
 it('실제 세션 중단을 Trading의 미제출 주문 중지에 연결하고 제출된 결제는 유지한다', async () => {
@@ -25,7 +25,7 @@ it('실제 세션 중단을 Trading의 미제출 주문 중지에 연결하고 �
     expect(started.statusCode).toBe(201);
     const quote = (await trading.matchBuyOrder(buyer, order.id))!;
     expect((await app.inject({ method: 'POST', url: `/api/agent/sessions/${started.json().id}/stop` })).statusCode).toBe(200);
-    expect(await trading.getMatch(buyer, quote.id)).toMatchObject({ status: 'RELEASED' });
+    expect(await trading.getMatch(buyer, quote.id)).toMatchObject({ status: 'RESERVED' });
     expect(await trading.listBuyOrders(buyer)).toMatchObject([{ status: 'PAUSED' }]);
     const resumed = await app.inject({ method: 'POST', url: '/api/agent/sessions' });
     await trading.resumeBuyOrder(buyer, order.id);

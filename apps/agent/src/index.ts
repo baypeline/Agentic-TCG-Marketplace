@@ -103,3 +103,5 @@ export function createAgentRuntime({
     },
   };
 }
+export { createServerRunPlugin, type ServerRunService } from './runs.js';
+export { createServerMcpClient } from './actions.js';
