@@ -1,23 +1,26 @@
 # Payment Server
 
-[합의 사항](../../docs/decisions.md)은 정책별 누적 예산, 제출 승인 트랜잭션, UNKNOWN 보호·서버 복구, 결제와 거래 상태 분리를 정의합니다. 아래 고정 테스트 결제 모듈은 이 업무 계약까지 구현한 상태가 아닙니다. 목표 계약은 [API 계약서 v2.1](../../docs/api-contract.md)을 참고하세요.
+`createPolicyService`는 정책 버전 이력, policyId별 누적 예산과 서버 실행을 관리합니다. `createPaymentService`는 MatchQuote에 결합한 x402 요구와 제출·복구를 처리합니다. 두 서비스는 Trading과 같은 저장소·트랜잭션 경계를 사용합니다. [계약서](../../docs/api-contract.md)의 구체 DTO를 따릅니다.
 
-Base Sepolia에서 0.01 테스트 USDC 결제 조건을 생성하고, x402 Facilitator를 통해 지급 승인을 검증·정산한다.
+- 외부 정산 전에 최신 정책·실행·카드·가용 예산을 재검사하고 예산 예약, PENDING, 정책 버전, 카드 보호를 원자적으로 저장합니다.
+- SETTLED는 reserved→spent로 이동하고 체결을 호출합니다. 체결 실패는 지급을 다시 하지 않고 Trade만 복구합니다.
+- PENDING/UNKNOWN은 새 시도·서명을 받지 않습니다. 기존 해시의 체인 영수증과 USDC 전송을 조회하며, 해시가 없으면 UNKNOWN을 유지합니다. 시간만으로 실패 처리하지 않습니다.
+- 확정 실패만 예산을 반환하고 카드를 해제합니다. 장기 미확정·체결 지연은 needsReview로 표시합니다. 운영자 강제 상태 변경 API는 없습니다.
+- 서명 원문은 영속 저장하지 않으며 사용자별 허용 지갑·금액·네트워크·자산·수신자에 지급을 결합합니다.
 
-- `createTestPaymentRequirements()`는 플랫폼 수납 주소와 고정 금액이 담긴 결제 조건을 생성한다.
-- `verifyPayment()`와 `settlePayment()`는 서버가 발행한 원래 견적의 건별 한도와 서명된 금액의 일치 여부를 검사한 뒤 Facilitator를 호출한다.
+`createCommercePlugin`은 정책 CRUD/예산과 구매 상태 조회를 등록합니다. 지급 실행은 MCP 전용이며 임의 정산 REST는 제공하지 않습니다. `createX402SettlementAdapter`는 Base Sepolia·USDC와 x402 Facilitator를 사용합니다. Core API는 명시적인 `PAYMENT_ENABLED=true` 및 DB 거래 설정이 있을 때만 이 어댑터를 연결합니다.
 
-## 결제 모듈 검증
+기존 `createTestPaymentRequirements`/`verifyPayment`/`settlePayment`는 0.01 USDC 독립 검증용 도우미입니다. 거래 금액 결제에는 업무 서비스를 사용합니다.
 
-Node.js 24.x, pnpm 12.9.1 환경에서 레포 루트에서 실행한다.
+## 검증
 
-```bash
+```sh
 pnpm --filter '@tcg/payment-*' typecheck
 pnpm --filter '@tcg/payment-*' test
 pnpm --filter '@tcg/payment-*' build
 ```
 
-클라이언트 테스트 5개와 서버 테스트 2개가 통과했다. 서버 테스트는 한도를 초과한 요청이 `/verify`와 `/settle` 어느 쪽에도 전달되지 않는지 확인한다.
+`DATABASE_TEST_URL`을 설정하면 두 Prisma 연결의 동시 예산 제출과 서비스 재생성 후 원장 보존을 검증합니다. 정책 수정 순서·UNKNOWN 보호·중복 정산·체결 실패 복구는 주입한 어댑터로 검증합니다. 이번 변경에서는 실제 Facilitator 정산을 새로 실행하지 않았습니다.
 
 ## 테스트넷 정산 증빙
 

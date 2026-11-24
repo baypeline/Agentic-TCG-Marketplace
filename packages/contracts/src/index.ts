@@ -155,7 +155,7 @@ export const paymentStatusSchema = z.enum(['REQUIRED', 'PENDING', 'UNKNOWN', 'FA
 export const tradeProgressSchema = z.enum(['NOT_STARTED', 'FINALIZING', 'COMPLETED']);
 export const purchaseStatusSchema = z.object({
   id: idSchema, paymentAttemptId: idSchema.nullable(), policyId: idSchema.nullable(), policyVersion: z.number().int().positive().nullable(),
-  amount: amountSchema, paymentStatus: paymentStatusSchema.nullable(), tradeStatus: tradeProgressSchema,
+  amount: amountSchema, quoteStatus: matchQuoteSchema.shape.status, paymentStatus: paymentStatusSchema.nullable(), tradeStatus: tradeProgressSchema,
   holdReasons: z.array(z.string()), expiresAt: timestampSchema, remainingMs: z.number().nonnegative(),
   transactionHash: z.string().nullable(), needsReview: z.boolean(), retryPaymentAllowed: z.boolean(),
 });

@@ -68,3 +68,7 @@ export async function settlePayment(
     validatePaymentAmount(signedPayment, expectedRequirements);
     return facilitator.settle(signedPayment, expectedRequirements);
 }
+export { createPolicyService, getPolicyExecutionContext, type PolicyService } from './policies.js';
+export { createPaymentService, createPaymentEvidenceReader, type PaymentService, type PaymentServiceOptions, type SettlementAdapter, type SettlementOutcome } from './service.js';
+export { createCommercePlugin } from './plugin.js';
+export { createX402SettlementAdapter } from './adapter.js';

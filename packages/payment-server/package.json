@@ -8,11 +8,19 @@
   },
   "dependencies": {
     "@x402/core": "^2.31.0",
-    "@x402/evm": "^2.31.0"
+    "@x402/evm": "^2.31.0",
+    "@tcg/contracts": "workspace:*",
+    "@tcg/trading": "workspace:*",
+    "fastify": "5.12.8",
+    "zod": "4.6.7",
+    "viem": "^2.58.2"
   },
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.build.json"
+  },
+  "devDependencies": {
+    "@tcg/db": "workspace:*"
   }
 }
