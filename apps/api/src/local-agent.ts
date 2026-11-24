@@ -14,14 +14,36 @@ export function createLocalAgentOptions(env: ApiEnv, variables: NodeJS.ProcessEn
       const userId = header?.startsWith('Bearer ') ? readLocalAgentUserId(header.slice(7), secret) : undefined;
       return userId ? { userId } : null;
     },
-    async createIntegrationPlugins(deps) {
-      const { createAgentRuntime, createAgentSessionPlugin, createOpenAIDecisionApi } = await import('@tcg/agent');
-      const runtime = createAgentRuntime({
-        ...deps,
-        model: variables.OPENAI_MODEL?.trim() || undefined,
-        decisionApi: createOpenAIDecisionApi(variables.OPENAI_DECISION_MODEL?.trim() || undefined),
-      });
+    async createIntegrationPlugins() {
+      const { createAgentRuntime, createAgentSessionPlugin, createOpenAIDecisionApi, connectMcpCardServices } = await import('@tcg/agent');
+      const decisionApi = createOpenAIDecisionApi(variables.OPENAI_DECISION_MODEL?.trim() || undefined);
       return [async host => {
+        const runtime = {
+          async runAgentTurn(message: string, options?: import('@tcg/agent').AgentTurnOptions) {
+            let connection: ReturnType<typeof connectMcpCardServices> | undefined;
+            const connect = () => {
+              // listen 이후 실제 바인딩 주소를 사용한다. 카드 도구를 쓰지 않는 턴은 연결하지 않는다.
+              if (!connection) {
+                const address = host.server.address();
+                if (!address || typeof address === 'string') throw new Error('카드 MCP 서버가 수신 중이 아닙니다.');
+                const hostname = address.family === 'IPv6' ? `[${address.address}]` : address.address;
+                connection = connectMcpCardServices({ url: `http://${hostname}:${address.port}/mcp`, signal: options?.signal });
+              }
+              return connection;
+            };
+            const agent = createAgentRuntime({
+              model: variables.OPENAI_MODEL?.trim() || undefined,
+              decisionApi,
+              aggregatorService: { async searchCards(input) { return (await connect()).aggregatorService.searchCards(input); } },
+              valuationService: { async getValuation(id) { return (await connect()).valuationService.getValuation(id); } },
+            });
+            try { return await agent.runAgentTurn(message, options); }
+            finally {
+              // 조회 연결의 정리 실패로 성공한 답변을 오류로 바꾸지 않는다.
+              if (connection) await connection.then(client => client.close()).catch(error => host.log.warn({ err: error }, 'Card MCP connection cleanup failed'));
+            }
+          },
+        };
         await host.register(createAgentSessionPlugin({ runtime, requireAuth }), { prefix: '/api' });
       }];
     },

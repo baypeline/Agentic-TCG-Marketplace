@@ -103,3 +103,42 @@ it('Streamable HTTP로 세션을 연결하고 카드 도구를 호출한 뒤 세
     });
   }
 });
+
+it.each(['timeout', 'abort'] as const)('응답 없는 MCP 도구 요청을 %s로 종료하고 연결을 정리한다', async mode => {
+  let called!: () => void;
+  const toolCalled = new Promise<void>(resolve => { called = resolve; });
+  const server = createServer(async (request, response) => {
+    if (request.method === 'DELETE') { response.writeHead(204).end(); return; }
+    if (request.method !== 'POST') { response.writeHead(405).end(); return; }
+    const chunks: Buffer[] = [];
+    for await (const chunk of request) chunks.push(chunk);
+    const message = JSON.parse(Buffer.concat(chunks).toString());
+    if (message.method === 'initialize') {
+      response.setHeader('content-type', 'application/json');
+      response.end(JSON.stringify({ jsonrpc: '2.0', id: message.id, result: {
+        protocolVersion: message.params.protocolVersion, serverInfo: { name: 'slow-card-mcp', version: '1.0.0' }, capabilities: { tools: {} },
+      } }));
+    } else if (message.method === 'tools/call') {
+      called(); // 응답을 보내지 않고 클라이언트의 제한 시간을 검증한다.
+    } else if (message.method === 'notifications/initialized') { response.writeHead(202).end(); }
+    else { response.writeHead(400).end(); }
+  });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const controller = new AbortController();
+  let mcp: Awaited<ReturnType<typeof connectMcpCardServices>> | undefined;
+  try {
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('테스트 서버 주소가 없습니다.');
+    mcp = await connectMcpCardServices({ url: `http://127.0.0.1:${address.port}/mcp`, signal: controller.signal, timeoutMs: mode === 'timeout' ? 200 : 2000 });
+    const pending = mcp.aggregatorService.searchCards({ query: 'Pikachu', limit: 10 });
+    const rejected = expect(pending).rejects.toThrow();
+    await toolCalled;
+    if (mode === 'abort') controller.abort();
+    await rejected;
+  } finally {
+    await mcp?.close().catch(() => undefined);
+    server.closeAllConnections();
+    await new Promise<void>(resolve => server.close(() => resolve()));
+  }
+});

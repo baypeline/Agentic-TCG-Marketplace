@@ -6,6 +6,8 @@
 
 카드 조회는 공개입니다. 인증은 `resolveAuth`로 주입하고 보호된 라우트는 `requireAuth`를 호출합니다. 루트 `.env`를 읽으며 기본 포트는 4000입니다. 통합 확장점은 루트 `docs/integration.md`를 확인하세요.
 
+로컬 Web 채팅의 카드 검색·적정가 조회는 `Agent → 같은 호스트의 /mcp → Aggregator/Valuation` 순서로 호출합니다. 서버가 listen한 실제 주소로 카드 도구를 처음 사용할 때 연결하고 턴 종료 시 정리합니다. 브라우저의 세션 토큰은 공개 카드 MCP에 전달하지 않으며 거래 도구는 Agent에 제공하지 않습니다. MCP 연결이나 조회가 실패하면 직접 Service나 Mock으로 우회하지 않습니다. 기본 요청 제한은 10초이며 명시적 중단·턴 제한 신호도 전달합니다. `buildApp()`만 만든 HTTP 통합 테스트는 `listen({ port: 0 })` 후 채팅을 호출해야 합니다.
+
 루트에서 `pnpm --filter @tcg/api test`와 `pnpm --filter @tcg/api typecheck`로 검증합니다.
 
 `GET /api/cards/:id/prices`는 DB에 저장된 외부 참고 시세와 판본·환율 검증 상태를 제공합니다. 쓰기용 공개 API는 없습니다. `PRICE_DATA_SOURCE=market`은 DB 카드 조회가 필요하며 검증된 표본만 평가합니다. 기본 mock과 실제 데이터를 섞지 않고, `/health.priceDataSource`에서 선택 모드를 확인합니다. 수집·검증 정책은 `@tcg/valuation`이 소유하고 호스트는 Service·Plugin만 조립합니다.

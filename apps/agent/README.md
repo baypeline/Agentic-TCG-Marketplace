@@ -37,7 +37,7 @@ pnpm --filter @tcg/agent eval:intents
 
 ## MCP 연결
 
-카드 조회용 Streamable HTTP 서버를 사용할 때는 루트 `.env`에 `AGENT_MCP_URL`을 설정합니다. 서버가 Bearer 인증을 요구하면 `AGENT_MCP_TOKEN`도 설정합니다.
+CLI 데모에서 카드 조회용 Streamable HTTP 서버를 사용할 때는 루트 `.env`에 `AGENT_MCP_URL`을 설정합니다. 서버가 Bearer 인증을 요구하면 `AGENT_MCP_TOKEN`도 설정합니다. 로컬 Web 채팅은 이 설정과 별개로 Core API 자신의 `/mcp`를 자동 사용합니다.
 
 ```dotenv
 AGENT_MCP_URL=http://127.0.0.1:4000/mcp
@@ -52,6 +52,8 @@ pnpm --filter @tcg/agent demo "피카츄 적정가 알려줘"
 서버는 `search_cards({ query, limit })`와 `get_valuation({ cardVariantId })`를 제공해야 합니다. 성공 응답은 `{ ok: true, data }`를 `structuredContent` 또는 단일 JSON 텍스트 블록으로 전달합니다. 검색의 `data`는 `{ items, nextCursor: null }`이며, 적정가는 공통 `Valuation` DTO입니다.
 
 호스트 코드에서는 `await connectMcpCardServices({ url, headers })`의 반환값을 기존 `createAgentRuntime()`에 전달하고, 사용이 끝나면 `close()`를 호출합니다. 에이전트의 의도별 도구 제한과 현재 턴의 카드 ID 검증은 MCP를 사용할 때도 적용됩니다.
+
+선택적 `signal`로 연결·도구 요청을 취소하고 `timeoutMs`로 요청 제한을 설정합니다(기본 10초). Web 호스트는 카드 도구를 처음 사용할 때 턴 전용 연결을 만들고 종료 시 닫습니다. 고정 안내처럼 카드 도구를 쓰지 않는 턴은 MCP에 연결하지 않습니다. MCP 실패를 직접 Service 호출로 우회하지 않습니다.
 
 ## 세션 HTTP/SSE
 

@@ -6,14 +6,25 @@ import type { CardToolDependencies } from './tools.js';
 export interface McpCardConnectionOptions {
   url: string;
   headers?: Record<string, string>;
+  signal?: AbortSignal;
+  timeoutMs?: number;
 }
 
 const searchResultSchema = z.object({ ok: z.literal(true), data: cardSearchResponseSchema });
 const valuationResultSchema = z.object({ ok: z.literal(true), data: valuationSchema });
 
-export async function connectMcpCardServices({ url, headers }: McpCardConnectionOptions) {
+export async function connectMcpCardServices({ url, headers, signal, timeoutMs = 10_000 }: McpCardConnectionOptions) {
   const endpoint = z.url({ protocol: /^https?$/ }).parse(url);
-  const server = new MCPServerStreamableHttp({ url: endpoint, requestInit: { headers } });
+  z.number().int().positive().parse(timeoutMs);
+  signal?.throwIfAborted();
+  const server = new MCPServerStreamableHttp({
+    url: endpoint, requestInit: { headers },
+    timeout: timeoutMs, clientSessionTimeoutSeconds: timeoutMs / 1000,
+    fetch: (input: string | URL | Request, init?: RequestInit) => fetch(input, {
+      ...init,
+      signal: AbortSignal.any([AbortSignal.timeout(timeoutMs), ...(signal ? [signal] : []), ...(init?.signal ? [init.signal] : [])]),
+    }),
+  });
   try {
     await server.connect();
   } catch (error) {
@@ -22,7 +33,8 @@ export async function connectMcpCardServices({ url, headers }: McpCardConnection
   }
 
   async function callCardTool(name: 'search_cards' | 'get_valuation', args: Record<string, unknown>) {
-    const result = await server.callToolResult(name, args);
+    signal?.throwIfAborted();
+    const result = await server.callToolResult(name, args, undefined, { signal });
     if (result.isError) throw new Error(`MCP 도구 호출에 실패했습니다: ${name}`);
     if (result.structuredContent !== undefined) return result.structuredContent;
 
