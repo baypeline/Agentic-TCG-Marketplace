@@ -11,6 +11,15 @@ type QuoteRow = Omit<MatchQuote, 'buyOrderId' | 'currency' | 'expiresAt'> & {
   expiresAt: Date;
 };
 type TradeRow = Omit<Trade, 'status' | 'completedAt'> & { completedAt: Date };
+export interface TradingRequestRow {
+  id: string;
+  userId: string;
+  agentId: string | null;
+  operation: string;
+  requestKey: string;
+  inputHash: string;
+  resultJson: string;
+}
 
 export function listingDto(row: ListingRow): Listing {
   return { ...row, createdAt: row.createdAt.toISOString() };
@@ -44,6 +53,7 @@ export interface TradingTransaction {
   orders: Table<OrderRow>;
   quotes: Table<QuoteRow>;
   trades: Table<TradeRow>;
+  requests: Table<TradingRequestRow>;
   hasCard(id: string): Promise<boolean>;
 }
 
@@ -83,6 +93,7 @@ export function createPrismaTradingStore(prisma: PrismaClient): TradingStore {
             orders: prismaTable<OrderRow>(tx.buyOrder),
             quotes: prismaTable<QuoteRow>(tx.matchQuote),
             trades: prismaTable<TradeRow>(tx.trade),
+            requests: prismaTable<TradingRequestRow>(tx.tradingRequest),
             async hasCard(id) { return (await tx.cardVariant.count({ where: { id } })) > 0; },
           }), { isolationLevel: 'Serializable' });
         } catch (error) {
@@ -132,6 +143,7 @@ export function createMockTradingStore(items: readonly InventoryItem[] = demoInv
     orders: new Map<string, OrderRow>(),
     quotes: new Map<string, QuoteRow>(),
     trades: new Map<string, TradeRow>(),
+    requests: new Map<string, TradingRequestRow>(),
   };
   let queue = Promise.resolve();
   return {
@@ -140,10 +152,12 @@ export function createMockTradingStore(items: readonly InventoryItem[] = demoInv
         const next = {
           inventory: new Map(state.inventory), listings: new Map(state.listings), orders: new Map(state.orders),
           quotes: new Map(state.quotes), trades: new Map(state.trades),
+          requests: new Map(state.requests),
         };
         const value = await work({
           inventory: mockTable(next.inventory), listings: mockTable(next.listings), orders: mockTable(next.orders),
           quotes: mockTable(next.quotes), trades: mockTable(next.trades),
+          requests: mockTable(next.requests),
           async hasCard(id) { return cards.has(id); },
         });
         state = next;

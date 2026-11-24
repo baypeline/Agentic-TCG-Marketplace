@@ -1,3 +1,4 @@
+import { allowExecution } from './helpers.js';
 import { randomUUID } from 'node:crypto';
 import { demoCards } from '@tcg/contracts/fixtures';
 import { createPrismaClient, seedDemoCatalog } from '@tcg/db';
@@ -13,14 +14,14 @@ it.skipIf(!databaseUrl)('enforces reservation and settlement uniqueness across s
   const buyers = Array.from({ length: 2 }, () => ({ userId: randomUUID(), agentId: randomUUID() }));
   const records = new Map<string, PaymentRecord>();
   const payment = { async getPaymentRecord(id: string) { return records.get(id) ?? null; } };
-  const services = [prisma, otherPrisma].map(client => createTradingService({ store: createPrismaTradingStore(client), payment }));
+  const services = [prisma, otherPrisma].map(client => createTradingService({ executionContext: allowExecution, store: createPrismaTradingStore(client), payment }));
   const inventoryItemId = randomUUID();
   const price = '10000000';
 
   try {
     await seedDemoCatalog(prisma);
     await prisma.inventoryItem.create({ data: { id: inventoryItemId, ownerId: seller.userId, cardVariantId: demoCards[0]!.id } });
-    const listings = await Promise.allSettled(services.map(service => service.createListing(seller, { inventoryItemId, price })));
+    const listings = await Promise.allSettled(services.map(service => service.createListing(seller, { inventoryItemId, price }, { idempotencyKey: randomUUID() })));
     const [listing] = listings.flatMap(result => result.status === 'fulfilled' ? [result.value] : []);
     expect(listings.filter(result => result.status === 'fulfilled')).toHaveLength(1);
     await expect(prisma.listing.create({ data: {
@@ -29,7 +30,7 @@ it.skipIf(!databaseUrl)('enforces reservation and settlement uniqueness across s
     } })).rejects.toMatchObject({ code: 'P2002' });
 
     const results = await Promise.allSettled(services.map((service, index) =>
-      service.quoteFixedPurchase(buyers[index]!, { listingId: listing!.id, maxPrice: price }),
+      service.quoteFixedPurchase(buyers[index]!, { listingId: listing!.id, maxPrice: price }, { idempotencyKey: randomUUID() }),
     ));
     expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
     const winner = results.findIndex(result => result.status === 'fulfilled');
@@ -46,6 +47,7 @@ it.skipIf(!databaseUrl)('enforces reservation and settlement uniqueness across s
   } finally {
     try {
       await prisma.$transaction([
+        prisma.tradingRequest.deleteMany({ where: { userId: { in: [seller.userId, ...buyers.map(buyer => buyer.userId)] } } }),
         prisma.trade.deleteMany({ where: { inventoryItemId } }),
         prisma.matchQuote.deleteMany({ where: { inventoryItemId } }),
         prisma.listing.deleteMany({ where: { inventoryItemId } }),

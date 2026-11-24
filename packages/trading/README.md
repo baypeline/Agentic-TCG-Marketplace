@@ -26,6 +26,8 @@ import {
 const tradingService = createTradingService({
   store: prisma ? createPrismaTradingStore(prisma) : createMockTradingStore(),
   payment: paymentEvidenceReader,
+  executionContext: trustedExecutionContextReader,
+  valuationService,
 });
 
 return [async app => {
@@ -33,24 +35,30 @@ return [async app => {
 }];
 ```
 
-`paymentEvidenceReader`는 Payment 모듈 또는 테스트가 주입합니다. 조회와 예약만 시연할 때는 `payment`를 생략할 수 있습니다. Plugin은 호스트의 AppError·ZodError 처리와 Prisma 연결을 사용합니다.
+`trustedExecutionContextReader`는 인증 사용자·Agent 쌍의 현재 online 상태와 사전 승인 정책을 반환합니다. 미주입·오프라인·비활성·만료·카드 불허 정책은 신규 예약을 거부합니다. 건당/전체 승인 상한과 할인 조건을 검사하며 실제 예산 사용액 예약·차감은 후속 Payment 책임입니다. 할인 조건은 MARKET 적정가로만 검증합니다. `paymentEvidenceReader`는 Payment 모듈 또는 테스트가 주입합니다. 조회와 예약만 시연할 때는 `payment`를 생략할 수 있습니다. Plugin은 호스트의 AppError·ZodError 처리와 Prisma 연결을 사용합니다.
 
 | API (접두사 제외) | Service | 동작 |
 | --- | --- | --- |
 | GET /inventory | listInventory | 인증 사용자 소유 카드 조회 |
 | GET /listings | listListings | 활성 매물 조회. 선택 쿼리 `cardVariantId` |
+| GET /listings/:id | getListing | 매물 상세 |
 | GET /listings/lowest/:id | findLowestListing | CardVariant 최저가 매물 한 건 또는 `null` |
 | POST /listings | createListing | `inventoryItemId`, `price` |
 | DELETE /listings/:id | cancelListing | 소유자 매물 취소 |
 | GET /buy-orders | listBuyOrders | 인증 Agent의 주문 조회 |
 | POST /buy-orders | createBuyOrder | `cardVariantId`, `maxPrice`, `expiresAt` |
-| DELETE /buy-orders/:id | cancelBuyOrder | 대기 주문 취소 |
+| POST /buy-orders/:id/cancel | cancelBuyOrder | 대기 주문 취소 |
+| POST /buy-orders/:id/pause | pauseBuyOrder | 미제출 예약 해제 및 주문 중지 |
+| POST /buy-orders/:id/resume | resumeBuyOrder | 활성 Agent·정책 확인 후 재개 |
 | POST /buy-orders/:id/match | matchBuyOrder | 가능하면 예약. 매물 부재·상한 초과 시 `null`을 반환하고 주문 유지 |
-| POST /quotes/fixed | quoteFixedPurchase | `listingId`와 `maxPrice`로 선택 매물 예약 |
-| POST /quotes/market | quoteMarketPurchase | `cardVariantId`와 선택 `maxPrice`로 최저가 예약 또는 `null` |
+| POST /purchases/fixed/quote | quoteFixedPurchase | `listingId`와 `maxPrice`로 선택 매물 예약 |
+| POST /purchases/market/quote | quoteMarketPurchase | `cardVariantId`와 필수 `maxPrice`로 최저가 예약 또는 `null` |
 | DELETE /quotes/:id | releaseQuote | 구매자가 미결제 예약 해제 |
+| GET /matches/:id | getMatch | 구매자·Agent의 예약 상태 |
+| GET /trades | listTrades | 인증 사용자의 매수·매도 내역 |
+| GET /trades/:id | getTrade | 거래 당사자만 상세 조회 |
 
-매칭은 가격, 등록 시각, ID 순으로 이루어지며 구매자 소유 매물을 제외합니다. 이 서비스가 제안하는 요청 필드 및 REST 경로는 팀 통합 인터페이스에 등록할 때 확인합니다. 기본 예약 시간은 2분입니다. 조회·매칭 시 만료된 `RESERVED`를 정리합니다. 호스트에서 별도로 `expireReservations()`를 호출할 수도 있습니다. 한 번 해제된 매수 주문은 주문 만료 시각까지 재시도할 수 있습니다.
+매칭은 가격, 등록 시각, ID 순으로 이루어지며 구매자 소유 매물을 제외합니다. 공통 입력 스키마는 `@tcg/contracts`에서 관리합니다. 기존 `/quotes/fixed`, `/quotes/market`, `DELETE /buy-orders/:id`는 호환 별칭이며 같은 검증을 적용합니다. 기본 예약 시간은 2분입니다. 조회·매칭 시 만료된 `RESERVED`를 정리합니다. 호스트에서 별도로 `expireReservations()`를 호출할 수도 있습니다. 한 번 해제된 매수 주문은 주문 만료 시각까지 재시도할 수 있습니다.
 
 ## 결제 완료와 재시도
 
@@ -60,3 +68,11 @@ return [async app => {
 4. 정산 뒤 DB 쓰기가 실패하면 Payment가 같은 두 ID로 `finalizeTrade`를 다시 호출합니다. 이미 성공한 재시도는 기존 Trade를 반환합니다. 확정 실패 시 `releaseFailedPayment(quoteId, paymentAttemptId)`를 호출합니다. `PENDING`과 `UNKNOWN` 동안 예약을 유지합니다.
 
 결제 상태 변경과 체결 진입점은 서버 내부용입니다. 테스트에서는 메모리 결제 기록을 주입해 10 USDC 매물, 9 USDC 대기 주문, 8 USDC 매칭, 정산과 멱등 체결 흐름을 실행합니다.
+
+## 요청 키와 실행 중단
+
+매물·주문·고정가/시장가 예약 생성 REST는 `Idempotency-Key` 헤더를 필수로 받습니다. Service 호출의 세 번째 인수도 `{ idempotencyKey }`입니다. 같은 사용자·Agent·작업·키와 동일 입력은 최초 성공 DTO를 반환하며, 다른 입력은 `IDEMPOTENCY_CONFLICT`(409)입니다. 응답 유실 시 새 키를 만들지 말고 같은 키로 재시도하세요. 미매칭 `null`도 같은 요청 결과로 유지되므로 새로운 시장 탐색은 새 키로 요청합니다. 현재 상태는 조회 API로 확인하세요.
+
+세션 호스트는 Agent를 오프라인으로 전환한 뒤 `pauseAgentOrders(auth)`를 호출합니다. ACTIVE와 미제출 RESERVED 주문은 PAUSED가 되고 미제출 예약은 해제됩니다. 이미 제출된 PAYMENT_PENDING 예약은 유지하며 정산 복구는 온라인 상태와 관계없이 가능합니다. 조회·취소·해제는 실행 정책 없이도 소유권 검증 후 허용합니다. 이 모듈은 세션 상태 자체를 소유하지 않습니다.
+
+REST 응답은 공통 도메인 DTO의 `id`를 정식 식별자로 사용합니다. 기존 문서 예시의 `listingId`·`matchQuoteId`는 각각 Listing.id·MatchQuote.id를 가리키며 응답 필드 별칭으로 중복 제공하지 않습니다.

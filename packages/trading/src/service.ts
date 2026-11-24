@@ -1,16 +1,17 @@
-import { randomUUID } from 'node:crypto';
-import { AppError, amountSchema, idSchema, timestampSchema, type ErrorCode, type Listing } from '@tcg/contracts';
+import { createHash, randomUUID } from 'node:crypto';
+import {
+  AppError, type ErrorCode, type Listing, type MutationContext, type TradingExecutionContextReader, type ValuationService,
+  tradingIdSchema as uuid, tradingUserSchema as userSchema, tradingBuyerSchema as buyerSchema,
+  createListingInputSchema as listingInputSchema, createBuyOrderInputSchema as orderInputSchema,
+  fixedPurchaseInputSchema as fixedInputSchema, marketPurchaseInputSchema as marketInputSchema,
+  listingQuerySchema, mutationContextSchema,
+} from '@tcg/contracts';
+import { assertTradingExecution } from './execution.js';
+export { createListingInputSchema as listingInputSchema, createBuyOrderInputSchema as orderInputSchema,
+  fixedPurchaseInputSchema as fixedInputSchema, marketPurchaseInputSchema as marketInputSchema,
+  listingQuerySchema, tradingUserSchema as userSchema, tradingBuyerSchema as buyerSchema } from '@tcg/contracts';
 import { z } from 'zod';
 import { listingDto, orderDto, quoteDto, tradeDto, type TradingStore, type TradingTransaction } from './store.js';
-
-const uuid = idSchema.transform(value => value.toLowerCase());
-export const userSchema = z.object({ userId: uuid });
-export const buyerSchema = userSchema.extend({ agentId: uuid });
-export const listingInputSchema = z.object({ inventoryItemId: uuid, price: amountSchema });
-export const orderInputSchema = z.object({ cardVariantId: uuid, maxPrice: amountSchema, expiresAt: timestampSchema });
-export const fixedInputSchema = z.object({ listingId: uuid, maxPrice: amountSchema });
-export const marketInputSchema = z.object({ cardVariantId: uuid, maxPrice: amountSchema.optional() });
-export const listingQuerySchema = z.object({ cardVariantId: uuid.optional() });
 
 type Buyer = z.infer<typeof buyerSchema>;
 type QuoteRow = NonNullable<Awaited<ReturnType<TradingTransaction['quotes']['get']>>>;
@@ -33,6 +34,8 @@ export interface TradingOptions {
   payment?: PaymentEvidenceReader;
   quoteTtlMs?: number;
   now?: () => Date;
+  executionContext?: TradingExecutionContextReader;
+  valuationService?: ValuationService;
 }
 
 function conflict(code: ErrorCode, message: string): never {
@@ -90,15 +93,37 @@ async function release(tx: TradingTransaction, quote: QuoteRow, now: Date) {
   return quoteDto(released);
 }
 
-export function createTradingService({ store, payment, quoteTtlMs = 120_000, now = () => new Date() }: TradingOptions) {
+export function createTradingService({ store, payment, quoteTtlMs = 120_000, now = () => new Date(), executionContext, valuationService }: TradingOptions) {
   z.number().int().positive().max(86_400_000).parse(quoteTtlMs);
   const run = <T>(work: (tx: TradingTransaction, time: Date) => Promise<T>) =>
     store.transaction(tx => work(tx, now()));
+
+  async function mutate<T>(auth: { userId: string; agentId?: string }, operation: string, input: unknown, context: MutationContext, work: (tx: TradingTransaction, time: Date) => Promise<T>): Promise<T> {
+    const { idempotencyKey: requestKey } = mutationContextSchema.parse(context);
+    const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+    const id = hash([auth.userId, auth.agentId ?? null, operation, requestKey]);
+    const inputHash = hash(input);
+    return run(async (tx, time) => {
+      const existing = await tx.requests.get(id);
+      if (existing) {
+        if (existing.inputHash !== inputHash) conflict('IDEMPOTENCY_CONFLICT', '같은 요청 키를 다른 입력에 사용할 수 없습니다.');
+        return JSON.parse(existing.resultJson) as T;
+      }
+      const result = await work(tx, time);
+      await tx.requests.insert({ id, userId: auth.userId, agentId: auth.agentId ?? null, operation, requestKey, inputHash, resultJson: JSON.stringify(result) });
+      return result;
+    });
+  }
 
   function expireReservations() {
     return run(async (tx, time) => {
       const expired = await tx.quotes.find({ status: 'RESERVED', expiresAt: { lte: time } });
       for (const quote of expired) await release(tx, quote, time);
+      for (const status of ['ACTIVE', 'PAUSED'] as const) {
+        for (const order of await tx.orders.find({ status, expiresAt: { lte: time } })) {
+          await tx.orders.replace({ ...order, status: 'EXPIRED' }, { status });
+        }
+      }
       return expired.length;
     });
   }
@@ -111,6 +136,7 @@ export function createTradingService({ store, payment, quoteTtlMs = 120_000, now
 
   async function reserve(tx: TradingTransaction, time: Date, listing: ListingRow, buyer: Buyer, buyOrderId: string | null = null) {
     authorize(listing.sellerId !== buyer.userId);
+    await assertTradingExecution({ buyer, cardVariantId: listing.cardVariantId, amount: listing.price, time, executionContext, valuationService });
     const item = await tx.inventory.get(listing.inventoryItemId);
     if (!item || item.status !== 'LISTED' || item.ownerId !== listing.sellerId || item.cardVariantId !== listing.cardVariantId) {
       conflict('INVENTORY_CONFLICT', '예약 가능한 재고가 없습니다.');
@@ -143,16 +169,99 @@ export function createTradingService({ store, payment, quoteTtlMs = 120_000, now
     }
   }
 
+  async function changeOrderState(tx: TradingTransaction, time: Date, buyer: Buyer, id: string, paused: boolean) {
+    let order = await tx.orders.get(id);
+    if (!order) throw new AppError('ORDER_NOT_ACTIVE', '주문을 찾을 수 없습니다.', 404);
+    authorize(order.buyerId === buyer.userId && order.agentId === buyer.agentId);
+    if (paused && order.status === 'MATCH_PENDING') {
+      const [quote] = (await tx.quotes.find({ buyOrderId: id })).filter(row => row.status === 'RESERVED');
+      if (!quote) conflict('ORDER_NOT_ACTIVE', '제출된 결제의 상태 확인과 복구는 계속 진행해야 합니다.');
+      await release(tx, quote, time);
+      order = (await tx.orders.get(id))!;
+    }
+    if (order.status !== 'ACTIVE' && order.status !== 'PAUSED' && order.status !== 'EXPIRED') {
+      conflict('ORDER_NOT_ACTIVE', '변경 가능한 대기 주문이 아닙니다.');
+    }
+    const status = order.expiresAt <= time ? 'EXPIRED' as const : paused ? 'PAUSED' as const : 'ACTIVE' as const;
+    if (!paused && status !== 'EXPIRED') {
+      await assertTradingExecution({ buyer, cardVariantId: order.cardVariantId, amount: '0', time, executionContext, checkDiscount: false });
+    }
+    const updated = { ...order, status };
+    await tx.orders.replace(updated, { status: order.status });
+    return orderDto(updated);
+  }
+
   return {
+    async getListing(rawId: string) {
+      const id = uuid.parse(rawId);
+      await expireReservations();
+      return run(async tx => {
+        const listing = await tx.listings.get(id);
+        if (!listing) throw new AppError('LISTING_UNAVAILABLE', '매물을 찾을 수 없습니다.', 404);
+        return listingDto(listing);
+      });
+    },
+    async listTrades(auth: { userId: string }) {
+      const { userId } = userSchema.parse(auth);
+      return run(async tx => {
+        const rows = [...await tx.trades.find({ buyerId: userId }), ...await tx.trades.find({ sellerId: userId })];
+        return [...new Map(rows.map(row => [row.id, row])).values()]
+          .sort((a, b) => b.completedAt.getTime() - a.completedAt.getTime() || a.id.localeCompare(b.id)).map(tradeDto);
+      });
+    },
+    async getTrade(auth: { userId: string }, rawId: string) {
+      const { userId } = userSchema.parse(auth);
+      const id = uuid.parse(rawId);
+      return run(async tx => {
+        const trade = await tx.trades.get(id);
+        if (!trade) throw new AppError('TRADE_NOT_FOUND', '거래를 찾을 수 없습니다.', 404);
+        authorize(trade.buyerId === userId || trade.sellerId === userId);
+        return tradeDto(trade);
+      });
+    },
+    async getMatch(auth: Buyer, rawId: string) {
+      const buyer = buyerSchema.parse(auth);
+      const id = uuid.parse(rawId);
+      await expireReservations();
+      return run(async tx => {
+        const quote = await getQuote(tx, id);
+        authorize(quote.buyerId === buyer.userId && quote.buyerAgentId === buyer.agentId);
+        return quoteDto(quote);
+      });
+    },
+    async pauseBuyOrder(auth: Buyer, rawId: string) {
+      const buyer = buyerSchema.parse(auth);
+      const id = uuid.parse(rawId);
+      return run((tx, time) => changeOrderState(tx, time, buyer, id, true));
+    },
+    async resumeBuyOrder(auth: Buyer, rawId: string) {
+      const buyer = buyerSchema.parse(auth);
+      const id = uuid.parse(rawId);
+      return run((tx, time) => changeOrderState(tx, time, buyer, id, false));
+    },
+    async pauseAgentOrders(auth: Buyer) {
+      const buyer = buyerSchema.parse(auth);
+      return run(async (tx, time) => {
+        const orders = await tx.orders.find({ buyerId: buyer.userId, agentId: buyer.agentId });
+        const paused = [];
+        for (const order of orders) {
+          if (order.status === 'ACTIVE' || order.status === 'PAUSED' || (order.status === 'MATCH_PENDING' &&
+            (await tx.quotes.find({ buyOrderId: order.id })).some(quote => quote.status === 'RESERVED'))) {
+            paused.push(await changeOrderState(tx, time, buyer, order.id, true));
+          }
+        }
+        return paused;
+      });
+    },
     async listInventory(auth: { userId: string }) {
       const { userId } = userSchema.parse(auth);
       await expireReservations();
       return run(async tx => (await tx.inventory.find({ ownerId: userId })).map(item => ({ ...item })));
     },
-    async createListing(auth: { userId: string }, input: z.input<typeof listingInputSchema>) {
+    async createListing(auth: { userId: string }, input: z.input<typeof listingInputSchema>, context: MutationContext) {
       const { userId } = userSchema.parse(auth);
       const { inventoryItemId, price } = listingInputSchema.parse(input);
-      return run(async (tx, time) => {
+      return mutate({ userId }, 'createListing', { inventoryItemId, price }, context, async (tx, time) => {
         const item = await tx.inventory.get(inventoryItemId);
         if (!item) throw new AppError('INVENTORY_CONFLICT', '카드를 찾을 수 없습니다.', 404);
         authorize(item.ownerId === userId);
@@ -168,7 +277,7 @@ export function createTradingService({ store, payment, quoteTtlMs = 120_000, now
       await expireReservations();
       return run(async tx => (await tx.listings.find({
         status: 'ACTIVE', ...(query.cardVariantId ? { cardVariantId: query.cardVariantId } : {}),
-      })).sort(compareListings).map(listingDto));
+      })).filter(row => query.maxPrice === undefined || BigInt(row.price) <= BigInt(query.maxPrice)).sort(compareListings).map(listingDto));
     },
     async cancelListing(auth: { userId: string }, rawId: string) {
       const { userId } = userSchema.parse(auth);
@@ -190,11 +299,11 @@ export function createTradingService({ store, payment, quoteTtlMs = 120_000, now
         return listingDto(cancelled);
       });
     },
-    async createBuyOrder(auth: Buyer, input: z.input<typeof orderInputSchema>) {
+    async createBuyOrder(auth: Buyer, input: z.input<typeof orderInputSchema>, context: MutationContext) {
       const buyer = buyerSchema.parse(auth);
       const { cardVariantId, maxPrice, expiresAt } = orderInputSchema.parse(input);
       const expiry = new Date(expiresAt);
-      return run(async (tx, time) => {
+      return mutate(buyer, 'createBuyOrder', { cardVariantId, maxPrice, expiresAt }, context, async (tx, time) => {
         if (expiry <= time) throw new AppError('VALIDATION_ERROR', '주문 만료 시각은 현재보다 뒤여야 합니다.');
         if (!await tx.hasCard(cardVariantId)) throw new AppError('CARD_NOT_FOUND', '카드를 찾을 수 없습니다.', 404);
         const order = {
@@ -237,24 +346,24 @@ export function createTradingService({ store, payment, quoteTtlMs = 120_000, now
         return listing ? listingDto(listing) : null;
       });
     },
-    async quoteFixedPurchase(auth: Buyer, input: z.input<typeof fixedInputSchema>) {
+    async quoteFixedPurchase(auth: Buyer, input: z.input<typeof fixedInputSchema>, context: MutationContext) {
       const buyer = buyerSchema.parse(auth);
       const { listingId, maxPrice } = fixedInputSchema.parse(input);
       await expireReservations();
-      return run(async (tx, time) => {
+      return mutate(buyer, 'quoteFixedPurchase', { listingId, maxPrice }, context, async (tx, time) => {
         const listing = await tx.listings.get(listingId);
         if (!listing || listing.status !== 'ACTIVE') conflict('LISTING_UNAVAILABLE', '구매 가능한 매물이 아닙니다.');
         if (BigInt(listing.price) > BigInt(maxPrice)) conflict('PRICE_LIMIT_EXCEEDED', '매물 가격이 구매 상한을 초과합니다.');
         return reserve(tx, time, listing, buyer);
       });
     },
-    async quoteMarketPurchase(auth: Buyer, input: z.input<typeof marketInputSchema>) {
+    async quoteMarketPurchase(auth: Buyer, input: z.input<typeof marketInputSchema>, context: MutationContext) {
       const buyer = buyerSchema.parse(auth);
       const { cardVariantId, maxPrice } = marketInputSchema.parse(input);
       await expireReservations();
-      return run(async (tx, time) => {
+      return mutate(buyer, 'quoteMarketPurchase', { cardVariantId, maxPrice }, context, async (tx, time) => {
         const listing = await bestListing(tx, cardVariantId, buyer.userId);
-        if (!listing || (maxPrice !== undefined && BigInt(listing.price) > BigInt(maxPrice))) return null;
+        if (!listing || BigInt(listing.price) > BigInt(maxPrice)) return null;
         return reserve(tx, time, listing, buyer);
       });
     },
@@ -273,6 +382,7 @@ export function createTradingService({ store, payment, quoteTtlMs = 120_000, now
           if (current) return quoteDto(current);
         }
         if (order.status !== 'ACTIVE' || order.expiresAt <= time) conflict('ORDER_NOT_ACTIVE', '매칭 가능한 주문이 아닙니다.');
+        await assertTradingExecution({ buyer, cardVariantId: order.cardVariantId, amount: '0', time, executionContext, checkDiscount: false });
         const listing = await bestListing(tx, order.cardVariantId, buyer.userId);
         if (!listing || BigInt(listing.price) > BigInt(order.maxPrice)) return null;
         await tx.orders.replace({ ...order, status: 'MATCH_PENDING' }, { status: 'ACTIVE' });

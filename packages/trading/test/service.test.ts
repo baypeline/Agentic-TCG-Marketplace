@@ -1,3 +1,4 @@
+import { allowExecution } from './helpers.js';
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { buyOrderSchema, matchQuoteSchema, tradeSchema } from '@tcg/contracts';
@@ -15,7 +16,7 @@ const price = '10000000';
 function setup(store: TradingStore = createMockTradingStore()) {
   let clock = Date.parse('2026-11-24T00:00:00Z');
   const records = new Map<string, PaymentRecord>();
-  const service = createTradingService({
+  const service = createTradingService({ executionContext: allowExecution,
     store, quoteTtlMs: 1000, now: () => new Date(clock),
     payment: { async getPaymentRecord(id) { return records.get(id) ?? null; } },
   });
@@ -23,12 +24,12 @@ function setup(store: TradingStore = createMockTradingStore()) {
 }
 
 async function list(service: ReturnType<typeof createTradingService>, inventoryItemId = card.id, amount = price) {
-  return service.createListing(seller, { inventoryItemId, price: amount });
+  return service.createListing(seller, { inventoryItemId, price: amount }, { idempotencyKey: randomUUID() });
 }
 
 async function quoteFixed(service: ReturnType<typeof createTradingService>) {
   const listing = await list(service);
-  return service.quoteFixedPurchase(buyer, { listingId: listing.id, maxPrice: price });
+  return service.quoteFixedPurchase(buyer, { listingId: listing.id, maxPrice: price }, { idempotencyKey: randomUUID() });
 }
 
 function evidence(quote: { id: string; amount: string }, paymentAttemptId: string, status: PaymentRecord['status']): PaymentRecord {
@@ -42,7 +43,7 @@ describe('trading service', () => {
     await list(service);
     const order = buyOrderSchema.parse(await service.createBuyOrder(buyer, {
       cardVariantId: card.cardVariantId, maxPrice: '9000000', expiresAt: '2026-11-24T00:01:00Z',
-    }));
+    }, { idempotencyKey: randomUUID() }));
     expect(await service.matchBuyOrder(buyer, order.id)).toBeNull();
     expect(await service.listBuyOrders(buyer)).toEqual([order]);
     const cheaper = await list(service, secondCard.id, '8000000');
@@ -80,8 +81,8 @@ describe('trading service', () => {
       early.id, ...ties.map(item => item.id).sort(), expensive.id,
     ]);
     expect(await service.findLowestListing(card.cardVariantId)).toEqual(early);
-    expect(await service.quoteMarketPurchase(buyer, { cardVariantId: card.cardVariantId, maxPrice: '8' })).toBeNull();
-    expect(await service.quoteMarketPurchase(buyer, { cardVariantId: card.cardVariantId, maxPrice: '9' }))
+    expect(await service.quoteMarketPurchase(buyer, { cardVariantId: card.cardVariantId, maxPrice: '8' }, { idempotencyKey: randomUUID() })).toBeNull();
+    expect(await service.quoteMarketPurchase(buyer, { cardVariantId: card.cardVariantId, maxPrice: '9' }, { idempotencyKey: randomUUID() }))
       .toMatchObject({ listingId: early.id });
   });
 
@@ -91,8 +92,8 @@ describe('trading service', () => {
     expect(listings.filter(result => result.status === 'fulfilled')).toHaveLength(1);
     const [listing] = await service.listListings();
     const input = { listingId: listing!.id, maxPrice: price };
-    await expect(service.quoteFixedPurchase(buyer, { ...input, maxPrice: '9' })).rejects.toMatchObject({ code: 'PRICE_LIMIT_EXCEEDED' });
-    const quotes = await Promise.allSettled([service.quoteFixedPurchase(buyer, input), service.quoteFixedPurchase(other, input)]);
+    await expect(service.quoteFixedPurchase(buyer, { ...input, maxPrice: '9' }, { idempotencyKey: randomUUID() })).rejects.toMatchObject({ code: 'PRICE_LIMIT_EXCEEDED' });
+    const quotes = await Promise.allSettled([service.quoteFixedPurchase(buyer, input, { idempotencyKey: randomUUID() }), service.quoteFixedPurchase(other, input, { idempotencyKey: randomUUID() })]);
     expect(quotes.filter(result => result.status === 'fulfilled')).toHaveLength(1);
     await expect(service.cancelListing(seller, listing!.id)).rejects.toMatchObject({ code: 'LISTING_UNAVAILABLE' });
   });
@@ -102,7 +103,7 @@ describe('trading service', () => {
     const listing = await list(service);
     await expect(service.cancelListing(buyer, listing.id)).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(await service.cancelListing(seller, listing.id)).toMatchObject({ status: 'CANCELLED' });
-    await expect(service.quoteFixedPurchase(buyer, { listingId: listing.id, maxPrice: price }))
+    await expect(service.quoteFixedPurchase(buyer, { listingId: listing.id, maxPrice: price }, { idempotencyKey: randomUUID() }))
       .rejects.toMatchObject({ code: 'LISTING_UNAVAILABLE' });
     expect((await list(service)).id).not.toBe(listing.id);
   });
@@ -114,11 +115,11 @@ describe('trading service', () => {
     advance(1000);
     expect(await service.expireReservations()).toBe(1);
     expect(await service.releaseQuote(buyer, quote.id)).toMatchObject({ status: 'RELEASED' });
-    const next = await service.quoteFixedPurchase(buyer, { listingId: quote.listingId, maxPrice: price });
+    const next = await service.quoteFixedPurchase(buyer, { listingId: quote.listingId, maxPrice: price }, { idempotencyKey: randomUUID() });
     const attempt = randomUUID();
     await service.beginPayment(next.id, attempt);
     const secondListing = await list(service, secondCard.id);
-    const separateQuote = await service.quoteFixedPurchase(other, { listingId: secondListing.id, maxPrice: price });
+    const separateQuote = await service.quoteFixedPurchase(other, { listingId: secondListing.id, maxPrice: price }, { idempotencyKey: randomUUID() });
     await expect(service.beginPayment(separateQuote.id, attempt)).rejects.toMatchObject({ code: 'PAYMENT_REQUIRED' });
     advance(1000);
     expect(await service.expireReservations()).toBe(1);
@@ -136,7 +137,7 @@ describe('trading service', () => {
     await list(service);
     const order = await service.createBuyOrder(buyer, {
       cardVariantId: card.cardVariantId, maxPrice: price, expiresAt: '2026-11-24T00:00:02Z',
-    });
+    }, { idempotencyKey: randomUUID() });
     const quote = (await service.matchBuyOrder(buyer, order.id))!;
     await service.releaseQuote(buyer, quote.id);
     expect(await service.listBuyOrders(buyer)).toMatchObject([{ status: 'ACTIVE' }]);
