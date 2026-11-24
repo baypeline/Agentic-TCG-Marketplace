@@ -4,7 +4,7 @@ import Link from 'next/link';
 import styled from '@emotion/styled';
 
 export function SellerProceedsNote() {
-  return <ProceedsNote><strong>판매 대금 안내</strong><p>현재 MVP에서는 구매자의 테스트 USDC를 플랫폼 수납 지갑으로 받아요. 판매자 수익은 서비스 내부의 모의 장부에 기록하며, 판매자 지갑으로 지급하거나 출금할 수 있는 USDC 잔액이 아니에요.</p></ProceedsNote>;
+  return <ProceedsNote><strong>판매 대금 안내</strong><p>현재 MVP에서는 구매자의 테스트 USDC를 플랫폼 수납 지갑으로 받아요. 판매자 수익은 소유권 이전까지 완료된 Trade를 한 번씩 집계하며, 판매자 지갑으로 지급하거나 출금할 수 있는 USDC 잔액이 아니에요.</p></ProceedsNote>;
 }
 
 export function SellerGuide() {

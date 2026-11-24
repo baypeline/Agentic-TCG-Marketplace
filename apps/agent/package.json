@@ -22,6 +22,7 @@
   "devDependencies": {
     "@tcg/aggregator": "workspace:*",
     "@tcg/valuation": "workspace:*",
+    "@tcg/trading": "workspace:*",
     "tsx": "^4.21.0"
   }
 }

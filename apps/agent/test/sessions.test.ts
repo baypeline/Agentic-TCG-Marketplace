@@ -4,7 +4,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { createAgentSessionPlugin, type AgentSessionPluginOptions } from '../src/index.js';
 
 const apps: ReturnType<typeof Fastify>[] = [];
-afterEach(async () => { await Promise.all(apps.splice(0).map(app => app.close())); });
+afterEach(async () => { await Promise.all(apps.splice(0).map(app => app.close())); vi.useRealTimers(); });
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -13,7 +13,7 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-async function setup(runAgentTurn: AgentSessionPluginOptions['runtime']['runAgentTurn']) {
+async function setup(runAgentTurn: AgentSessionPluginOptions['runtime']['runAgentTurn'], lifecycle: Pick<AgentSessionPluginOptions, 'onSessionStarted' | 'onSessionStopped'> = {}) {
   const app = Fastify();
   apps.push(app);
 
@@ -27,7 +27,7 @@ async function setup(runAgentTurn: AgentSessionPluginOptions['runtime']['runAgen
     }
   }
 
-  await app.register(createAgentSessionPlugin({ runtime: { runAgentTurn }, requireAuth }), { prefix: '/api' });
+  await app.register(createAgentSessionPlugin({ runtime: { runAgentTurn }, requireAuth, ...lifecycle }), { prefix: '/api' });
   return app;
 }
 
@@ -111,32 +111,57 @@ it('처리 중인 턴과 겹치는 요청을 막고 실패 후 재요청을 허�
   expect((await send()).body).toContain('event: completed');
 });
 
-it('SSE 연결이 끊기면 실행 중인 턴을 취소한다', async () => {
-  const cancelled = deferred<void>();
-  const app = await setup(async (_message, options) => {
-    expect(options?.signal).toBeDefined();
-    try {
-      return await new Promise<never>((_resolve, reject) => {
-        const signal = options!.signal!;
-        signal.throwIfAborted();
-        signal.addEventListener('abort', () => reject(signal.reason), { once: true });
-      });
-    } finally {
-      cancelled.resolve();
-    }
-  });
+it('SSE 연결이 끊겨도 서버 작업을 계속하고 재접속으로 결과를 조회한다', async () => {
+  const result = deferred<string>();
+  let executionSignal: AbortSignal | undefined;
+  const app = await setup(async (_message, options) => { executionSignal = options?.signal; return result.promise; });
   const base = await app.listen({ port: 0, host: '127.0.0.1' });
   const url = await createSession(app);
-  const response = await fetch(`${base}${url}/messages`, {
-    method: 'POST',
-    headers: { ...owner, 'content-type': 'application/json' },
-    body: JSON.stringify({ message: '피카츄 찾아줘' }),
-  });
+  const response = await fetch(`${base}${url}/messages`, { method: 'POST', headers: { ...owner, 'content-type': 'application/json' }, body: JSON.stringify({ message: '피카츄 찾아줘' }) });
   const reader = response.body!.getReader();
-  const first = await reader.read();
-  expect(new TextDecoder().decode(first.value)).toContain('event: started');
-
+  expect(new TextDecoder().decode((await reader.read()).value)).toContain('event: started');
   await reader.cancel();
-  await cancelled.promise;
-  expect((await app.inject({ url, headers: owner })).json().messages).toEqual([]);
+  expect(executionSignal?.aborted).toBe(false);
+  result.resolve('연결이 없어도 완료');
+  await expect.poll(async () => (await app.inject({ url, headers: owner })).json().messages.length).toBe(2);
+  expect((await app.inject({ url, headers: owner })).json().status).toBe('RUNNING');
+});
+
+it('세션 중단은 호스트에 알리고 실행 중인 턴과 신규 실행을 중단한다', async () => {
+  const started = deferred<void>();
+  const onSessionStarted = vi.fn(async () => {});
+  const onSessionStopped = vi.fn(async () => {});
+  const run = vi.fn<AgentSessionPluginOptions['runtime']['runAgentTurn']>(async (_message, options) => {
+    started.resolve();
+    return new Promise<string>((_resolve, reject) => {
+      options!.signal!.addEventListener('abort', () => reject(new Error('stopped')), { once: true });
+    });
+  });
+  const app = await setup(run, { onSessionStarted, onSessionStopped });
+  const url = await createSession(app);
+  expect(onSessionStarted).toHaveBeenCalledTimes(1);
+  const turn = Promise.resolve(app.inject({ method: 'POST', url: `${url}/messages`, headers: owner, payload: { message: '피카츄 찾아줘' } }));
+  await started.promise;
+  expect((await app.inject({ method: 'POST', url: `${url}/stop`, headers: { authorization: 'Bearer other-user' } })).statusCode).toBe(404);
+  expect(onSessionStopped).not.toHaveBeenCalled();
+  const stops = await Promise.all([app.inject({ method: 'POST', url: `${url}/stop`, headers: owner }), app.inject({ method: 'POST', url: `${url}/stop`, headers: owner })]);
+  expect(stops.map(result => result.json().status)).toEqual(['STOPPED', 'STOPPED']);
+  await turn;
+  expect(onSessionStopped).toHaveBeenCalledTimes(1);
+  expect(onSessionStopped).toHaveBeenCalledWith({ userId: 'alice', agentId: 'agent-1' }, url.split('/').at(-1));
+  expect((await app.inject({ method: 'POST', url: `${url}/messages`, headers: owner, payload: { message: '다시 찾아줘' } })).statusCode).toBe(409);
+});
+
+it('만료된 세션과 호스트 종료를 호스트의 중단 처리에 전달한다', async () => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  const onSessionStopped = vi.fn(async () => {});
+  const app = await setup(vi.fn(async () => 'ok'), { onSessionStopped });
+  const first = await createSession(app);
+  vi.setSystemTime(Date.now() + 60 * 60 * 1000 + 1);
+  expect((await app.inject({ url: first, headers: owner })).statusCode).toBe(404);
+  expect(onSessionStopped).toHaveBeenCalledTimes(1);
+  await createSession(app);
+  await app.close();
+  apps.splice(apps.indexOf(app), 1);
+  expect(onSessionStopped).toHaveBeenCalledTimes(2);
 });

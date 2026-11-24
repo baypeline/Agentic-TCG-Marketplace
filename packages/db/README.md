@@ -1,6 +1,10 @@
 # 공통 DB
 
+`TradingRequest`는 사용자·Agent·작업·요청 키에 결합한 입력 해시와 성공 응답을 보존합니다. Trading의 업무 변경과 같은 트랜잭션에 저장하므로 재시작·동시 재시도에도 같은 요청 결과를 반환합니다. 임의로 삭제하면 과거 요청의 중복 방지 보장이 사라집니다.
+
 Prisma 7과 PostgreSQL driver adapter를 사용합니다. `createPrismaClient(databaseUrl)`은 Client를 생성하며 연결·종료는 호스트가 담당합니다. 최초 `pnpm install` 시 Client가 생성됩니다. Schema와 Migration은 `prisma/`에 있습니다. 타 담당 모델은 합의 후 추가합니다.
+
+`trading.prisma`는 market의 InventoryItem·Listing과 trading의 BuyOrder·MatchQuote·Trade를 정의합니다. 거래 Migration은 중복 활성 매물·예약 및 중복 체결을 DB 제약으로 제한합니다. 로컬 시연 재고는 루트의 `pnpm trading:seed`로 추가하며 재실행해도 기존 재고 소유자와 상태를 유지합니다. [트레이딩 통합 가이드](../../docs/trading-integration.md)를 참고하세요.
 
 Prisma 정의는 `prisma/schema/` 디렉터리를 하나의 스키마로 읽습니다. `base.prisma`는 공통 datasource·generator, `catalog.prisma`는 카드·가격 표본, `collection.prisma`는 Aggregator 세트 수집 상태를 정의합니다. 실제 PostgreSQL 스키마명, 테이블 및 Client 생성 위치는 기존과 동일하며 Migration은 계속 `prisma/migrations/`에서 공동 관리합니다.
 

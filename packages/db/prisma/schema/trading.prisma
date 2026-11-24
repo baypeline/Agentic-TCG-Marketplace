@@ -1,0 +1,121 @@
+enum InventoryStatus {
+  AVAILABLE
+  LISTED
+  RESERVED
+
+  @@schema("market")
+}
+
+enum ListingStatus {
+  ACTIVE
+  RESERVED
+  SOLD
+  CANCELLED
+
+  @@schema("market")
+}
+
+enum BuyOrderStatus {
+  ACTIVE
+  PAUSED
+  MATCH_PENDING
+  FILLED
+  CANCELLED
+  EXPIRED
+
+  @@schema("trading")
+}
+
+enum MatchQuoteStatus {
+  RESERVED
+  PAYMENT_PENDING
+  SETTLED
+  COMPLETED
+  RELEASED
+  RECONCILING
+
+  @@schema("trading")
+}
+
+model InventoryItem {
+  id            String          @id @default(uuid()) @db.Uuid
+  cardVariantId String          @db.Uuid
+  ownerId       String          @db.Uuid
+  status        InventoryStatus @default(AVAILABLE)
+  cardVariant   CardVariant     @relation(fields: [cardVariantId], references: [id], onDelete: Restrict)
+  listings      Listing[]
+  quotes        MatchQuote[]
+  trades        Trade[]
+
+  @@index([ownerId])
+  @@schema("market")
+}
+
+model Listing {
+  id              String        @id @default(uuid()) @db.Uuid
+  inventoryItemId String        @db.Uuid
+  cardVariantId   String        @db.Uuid
+  sellerId        String        @db.Uuid
+  price           String
+  status          ListingStatus
+  createdAt       DateTime      @db.Timestamptz(3)
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+  quotes          MatchQuote[]
+
+  @@index([cardVariantId, status])
+  @@schema("market")
+}
+
+model BuyOrder {
+  id            String         @id @default(uuid()) @db.Uuid
+  agentId       String         @db.Uuid
+  buyerId       String         @db.Uuid
+  cardVariantId String         @db.Uuid
+  maxPrice      String
+  status        BuyOrderStatus
+  expiresAt     DateTime       @db.Timestamptz(3)
+  createdAt     DateTime       @db.Timestamptz(3)
+  cardVariant   CardVariant    @relation(fields: [cardVariantId], references: [id], onDelete: Restrict)
+  quotes        MatchQuote[]
+
+  @@index([agentId, buyerId])
+  @@index([status, expiresAt])
+  @@schema("trading")
+}
+
+model MatchQuote {
+  id               String           @id @default(uuid()) @db.Uuid
+  listingId        String           @db.Uuid
+  inventoryItemId  String           @db.Uuid
+  buyerAgentId     String           @db.Uuid
+  buyerId          String           @db.Uuid
+  buyOrderId       String?          @db.Uuid
+  paymentAttemptId String?          @unique @db.Uuid
+  policyId         String?          @db.Uuid
+  amount           String
+  status           MatchQuoteStatus
+  expiresAt        DateTime         @db.Timestamptz(3)
+  listing          Listing          @relation(fields: [listingId], references: [id], onDelete: Restrict)
+  inventoryItem    InventoryItem    @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+  buyOrder         BuyOrder?        @relation(fields: [buyOrderId], references: [id], onDelete: Restrict)
+  trade            Trade?
+  payment          PaymentAttempt?
+
+  @@index([status, expiresAt])
+  @@schema("trading")
+}
+
+model Trade {
+  id               String        @id @default(uuid()) @db.Uuid
+  matchQuoteId     String        @unique @db.Uuid
+  buyerId          String        @db.Uuid
+  sellerId         String        @db.Uuid
+  inventoryItemId  String        @db.Uuid
+  price            String
+  paymentAttemptId String        @unique @db.Uuid
+  completedAt      DateTime      @db.Timestamptz(3)
+  matchQuote       MatchQuote    @relation(fields: [matchQuoteId], references: [id], onDelete: Restrict)
+  inventoryItem    InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+
+  @@schema("trading")
+}

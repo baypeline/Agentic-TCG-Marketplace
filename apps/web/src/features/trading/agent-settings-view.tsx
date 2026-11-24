@@ -7,7 +7,7 @@ import { Button } from '../../components/ui';
 import { formatUsdc, getCardDisplayName } from '../../lib/formatters';
 import { previewCards } from './demo-cards';
 import { useDemoTrading } from './demo-provider';
-import { budgetSummary, draftToPolicy, policyToDraft, validatePolicy, type PolicyDraft } from './demo-model';
+import { budgetSummary, parseUsdcInput, draftToPolicy, policyToDraft, validatePolicy, type PolicyDraft } from './demo-model';
 import { Actions, ErrorText, Field, FormGrid, Metrics, PreviewPage, QuietButton, ResultNote, Section, StateBadge } from './trading-ui';
 
 export function AgentSettingsView() {
@@ -20,7 +20,10 @@ export function AgentSettingsView() {
   useEffect(() => { if (Object.keys(errors).length) summary.current?.focus(); }, [errors]);
   function change<K extends keyof PolicyDraft>(key: K, value: PolicyDraft[K]) { setDraft(current => ({ ...current, [key]: value })); setNotice(''); }
   function save(event: FormEvent) {
-    event.preventDefault(); const nextErrors = validatePolicy(draft); setErrors(nextErrors);
+    event.preventDefault(); const nextErrors = validatePolicy(draft);
+    const cap = parseUsdcInput(draft.totalBudget);
+    if (cap && BigInt(cap) < BigInt(budget.spent) + BigInt(budget.reserved)) nextErrors.totalBudget = '사용 완료액과 결제 예약액보다 낮출 수 없어요.';
+    setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
     const policy = draftToPolicy(draft); dispatch({ type: 'POLICY', policy }); setDraft(policyToDraft(policy)); setNotice('설정을 미리보기에 저장했어요. 서버에는 전송하지 않았어요.');
   }
