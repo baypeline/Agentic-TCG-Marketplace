@@ -12,6 +12,7 @@ import { agentPurchaseProgressSchema, demoStatusSchema, type AgentPurchaseOffer,
 import { formatUsdc, getCardDisplayName } from '../../lib/formatters';
 
 const AgentMarkdown = lazy(() => import('./agent-markdown'));
+const CardOpening = lazy(() => import('./card-opening/card-opening'));
 
 const suggestions = ['피카츄 찾아줘', '리자몽 적정가 알려줘', '이브이 시세가 어느 정도야?'];
 
@@ -32,6 +33,8 @@ export function AgentChat({ onClose }: { onClose: () => void }) {
   const [streamingText, setStreamingText] = useState('');
   const [purchaseStatus, setPurchaseStatus] = useState('');
   const [receipts, setReceipts] = useState<AgentPurchaseProgress[]>([]);
+  const [openedCard, setOpenedCard] = useState<CardVariant | null>(null);
+  const announcedPurchases = useRef(new Set<string>());
   const queryClient = useQueryClient();
   const router = useRouter();
   const demo = useQuery({ queryKey: ['demo-status'], queryFn: async () => { const result = await fetch('/api/demo'); if (!result.ok) throw new Error('Unavailable'); return demoStatusSchema.parse(await result.json()); }, staleTime: Infinity, retry: false });
@@ -161,7 +164,9 @@ export function AgentChat({ onClose }: { onClose: () => void }) {
       if (activeRequest.current !== request) return;
       setReceipts(current => [...current.filter(item => item.requestId !== progress.requestId), progress]);
       if (progress.status === 'CANCELLED' || progress.status === 'FAILED') purchaseRequests.current.delete(offer.listingId);
-      if (progress.status === 'COMPLETED') {
+      if (progress.status === 'COMPLETED' && !announcedPurchases.current.has(progress.requestId)) {
+        announcedPurchases.current.add(progress.requestId);
+        setOpenedCard(progress.card);
         setMessages(current => [...current, { role: 'assistant', content: `${getCardDisplayName(offer.card)} 카드를 ${formatUsdc(progress.amount)}에 구매했어요. 테스트 USDC 결제가 확인되어 내 카드와 거래 내역에 반영됐어요.` }]);
         void queryClient.invalidateQueries(); window.dispatchEvent(new Event('tcg:purchase-completed')); router.refresh();
       }
@@ -190,6 +195,7 @@ export function AgentChat({ onClose }: { onClose: () => void }) {
     setStreamingText('');
     setPurchaseStatus('');
     setReceipts([]);
+    setOpenedCard(null);
     followOutput.current = true;
     input.current?.focus();
   }
@@ -224,6 +230,11 @@ export function AgentChat({ onClose }: { onClose: () => void }) {
       {error && <Waiting role="alert">{error}</Waiting>}
     </History>
     <Composer onSubmit={submit}><label htmlFor="agent-message">에이전트에게 보낼 내용</label><InputBox><ChatInput ref={input} id="agent-message" value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={keyDown} onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }} placeholder="카드 이름이나 조회할 내용" maxLength={2000} rows={3} aria-describedby="agent-connection-note" /><ComposerActions><span>{draft.length.toLocaleString()} / 2,000</span><SendButton type="submit" disabled={pending || !draft.trim()} aria-label="메시지 보내기"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg></SendButton></ComposerActions></InputBox><ConnectionNote id="agent-connection-note">카드 검색과 적정가를 조회할 수 있어요. 새로고침하면 새 대화로 시작해요.</ConnectionNote></Composer>
+    {openedCard && (
+      <Suspense fallback={null}>
+        <CardOpening card={openedCard} onDismiss={() => setOpenedCard(null)} />
+      </Suspense>
+    )}
   </Panel>;
 }
 
