@@ -2,7 +2,6 @@ enum InventoryStatus {
   AVAILABLE
   LISTED
   RESERVED
-  TRANSFERRED
 
   @@schema("market")
 }
@@ -92,6 +91,7 @@ model MatchQuote {
   buyerId          String           @db.Uuid
   buyOrderId       String?          @db.Uuid
   paymentAttemptId String?          @unique @db.Uuid
+  policyId         String?          @db.Uuid
   amount           String
   status           MatchQuoteStatus
   expiresAt        DateTime         @db.Timestamptz(3)
@@ -99,6 +99,7 @@ model MatchQuote {
   inventoryItem    InventoryItem    @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
   buyOrder         BuyOrder?        @relation(fields: [buyOrderId], references: [id], onDelete: Restrict)
   trade            Trade?
+  payment          PaymentAttempt?
 
   @@index([status, expiresAt])
   @@schema("trading")

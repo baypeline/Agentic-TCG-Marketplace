@@ -1,0 +1,66 @@
+model SpendingPolicy {
+  id              String @id @db.Uuid
+  userId          String @db.Uuid
+  agentId         String @db.Uuid
+  version         Int
+  policyJson      String
+  totalBudget     String
+  spentAmount     String @default("0")
+  reservedAmount  String @default("0")
+  versions PolicyVersion[]
+  payments PaymentAttempt[]
+  runs AgentRun[]
+
+  @@index([userId, agentId])
+  @@schema("payment")
+}
+
+model PolicyVersion {
+  id         String @id
+  policyId   String @db.Uuid
+  version    Int
+  policyJson String
+  createdAt  DateTime @db.Timestamptz(3)
+  policy SpendingPolicy @relation(fields: [policyId], references: [id], onDelete: Restrict)
+
+  @@unique([policyId, version])
+  @@schema("payment")
+}
+
+model PaymentAttempt {
+  id              String @id @db.Uuid
+  matchQuoteId    String @unique @db.Uuid
+  userId          String @db.Uuid
+  agentId         String @db.Uuid
+  policyId        String @db.Uuid
+  policyVersion   Int
+  amount          String
+  status          String
+  requirementsJson String
+  payloadHash     String?
+  transactionHash String?
+  submittedAt     DateTime? @db.Timestamptz(3)
+  updatedAt       DateTime @db.Timestamptz(3)
+  needsReview     Boolean @default(false)
+  policy SpendingPolicy @relation(fields: [policyId], references: [id], onDelete: Restrict)
+  quote MatchQuote @relation(fields: [matchQuoteId], references: [id], onDelete: Restrict)
+
+  @@index([status, updatedAt])
+  @@index([userId, agentId])
+  @@schema("payment")
+}
+
+model AgentRun {
+  id           String @id @db.Uuid
+  userId       String @db.Uuid
+  agentId      String @db.Uuid
+  policyId     String @db.Uuid
+  instruction  String
+  status       String
+  expiresAt    DateTime @db.Timestamptz(3)
+  result       String?
+  policy SpendingPolicy @relation(fields: [policyId], references: [id], onDelete: Restrict)
+
+  @@index([userId, agentId, status])
+  @@schema("agent")
+}
