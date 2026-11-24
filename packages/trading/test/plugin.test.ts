@@ -53,7 +53,7 @@ it('serves direct DTOs and uses the auth supplied by the host', async () => {
       payload: { listingId: listing.id, maxPrice: payload.price, buyerAgentId: randomUUID() },
     });
     expect(matchQuoteSchema.parse(quote.json()).buyerAgentId).toBe(buyer.agentId);
-    expect((await app.inject({ url: `/api/matches/${quote.json().id}`, headers: buyerHeaders })).json()).toEqual(quote.json());
+    expect((await app.inject({ url: `/api/matches/${quote.json().id}`, headers: buyerHeaders })).json()).toMatchObject(quote.json());
     expect((await app.inject('/api/listings')).json()).toEqual([]);
   } finally {
     await app.close();

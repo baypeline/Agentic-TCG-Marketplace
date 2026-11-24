@@ -4,8 +4,9 @@ import { demoCards } from '@tcg/contracts/fixtures';
 
 type ListingRow = Omit<Listing, 'createdAt'> & { createdAt: Date };
 type OrderRow = Omit<BuyOrder, 'createdAt' | 'expiresAt'> & { buyerId: string; createdAt: Date; expiresAt: Date };
-type QuoteRow = Omit<MatchQuote, 'buyOrderId' | 'currency' | 'expiresAt'> & {
+type QuoteRow = Omit<MatchQuote, 'buyOrderId' | 'currency' | 'expiresAt' | 'policyId'> & {
   buyerId: string;
+  policyId: string | null;
   buyOrderId: string | null;
   paymentAttemptId: string | null;
   expiresAt: Date;
@@ -29,7 +30,7 @@ export function orderDto({ buyerId: _, ...row }: OrderRow): BuyOrder {
   return { ...row, createdAt: row.createdAt.toISOString(), expiresAt: row.expiresAt.toISOString() };
 }
 
-export function quoteDto({ buyerId: _, paymentAttemptId: __, buyOrderId, ...row }: QuoteRow): MatchQuote {
+export function quoteDto({ buyerId: _, paymentAttemptId: __, policyId: ___, buyOrderId, ...row }: QuoteRow): MatchQuote {
   return { ...row, currency: 'USDC', ...(buyOrderId ? { buyOrderId } : {}), expiresAt: row.expiresAt.toISOString() };
 }
 
@@ -47,6 +48,11 @@ interface Table<Row extends RecordId> {
   replace(row: Row, expected: Filter<Row>): Promise<void>;
 }
 
+export interface PolicyRow { id: string; userId: string; agentId: string; version: number; policyJson: string; totalBudget: string; spentAmount: string; reservedAmount: string }
+export interface PolicyVersionRow { id: string; policyId: string; version: number; policyJson: string; createdAt: Date }
+export interface PaymentRow { id: string; matchQuoteId: string; userId: string; agentId: string; policyId: string; policyVersion: number; amount: string; status: string; requirementsJson: string; payloadHash: string | null; transactionHash: string | null; submittedAt: Date | null; updatedAt: Date; needsReview: boolean }
+export interface RunRow { id: string; userId: string; agentId: string; policyId: string; instruction: string; status: string; expiresAt: Date; result: string | null }
+
 export interface TradingTransaction {
   inventory: Table<InventoryItem>;
   listings: Table<ListingRow>;
@@ -54,6 +60,10 @@ export interface TradingTransaction {
   quotes: Table<QuoteRow>;
   trades: Table<TradeRow>;
   requests: Table<TradingRequestRow>;
+  policies: Table<PolicyRow>;
+  versions: Table<PolicyVersionRow>;
+  payments: Table<PaymentRow>;
+  runs: Table<RunRow>;
   hasCard(id: string): Promise<boolean>;
 }
 
@@ -94,6 +104,10 @@ export function createPrismaTradingStore(prisma: PrismaClient): TradingStore {
             quotes: prismaTable<QuoteRow>(tx.matchQuote),
             trades: prismaTable<TradeRow>(tx.trade),
             requests: prismaTable<TradingRequestRow>(tx.tradingRequest),
+            policies: prismaTable<PolicyRow>(tx.spendingPolicy),
+            versions: prismaTable<PolicyVersionRow>(tx.policyVersion),
+            payments: prismaTable<PaymentRow>(tx.paymentAttempt),
+            runs: prismaTable<RunRow>(tx.agentRun),
             async hasCard(id) { return (await tx.cardVariant.count({ where: { id } })) > 0; },
           }), { isolationLevel: 'Serializable' });
         } catch (error) {
@@ -144,6 +158,8 @@ export function createMockTradingStore(items: readonly InventoryItem[] = demoInv
     quotes: new Map<string, QuoteRow>(),
     trades: new Map<string, TradeRow>(),
     requests: new Map<string, TradingRequestRow>(),
+    policies: new Map<string, PolicyRow>(), versions: new Map<string, PolicyVersionRow>(),
+    payments: new Map<string, PaymentRow>(), runs: new Map<string, RunRow>(),
   };
   let queue = Promise.resolve();
   return {
@@ -153,11 +169,13 @@ export function createMockTradingStore(items: readonly InventoryItem[] = demoInv
           inventory: new Map(state.inventory), listings: new Map(state.listings), orders: new Map(state.orders),
           quotes: new Map(state.quotes), trades: new Map(state.trades),
           requests: new Map(state.requests),
+          policies: new Map(state.policies), versions: new Map(state.versions), payments: new Map(state.payments), runs: new Map(state.runs),
         };
         const value = await work({
           inventory: mockTable(next.inventory), listings: mockTable(next.listings), orders: mockTable(next.orders),
           quotes: mockTable(next.quotes), trades: mockTable(next.trades),
           requests: mockTable(next.requests),
+          policies: mockTable(next.policies), versions: mockTable(next.versions), payments: mockTable(next.payments), runs: mockTable(next.runs),
           async hasCard(id) { return cards.has(id); },
         });
         state = next;

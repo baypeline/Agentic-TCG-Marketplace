@@ -18,7 +18,7 @@ export async function assertTradingExecution({ buyer, cardVariantId, amount, tim
   if (policy.allowedCardVariantIds && !policy.allowedCardVariantIds.includes(cardVariantId)) {
     throw new AppError('POLICY_VIOLATION', '정책에서 허용하지 않은 카드입니다.', 409);
   }
-  if (BigInt(amount) > BigInt(policy.maxPerTrade) || BigInt(amount) > BigInt(policy.totalBudget)) {
+  if (BigInt(amount) > BigInt(policy.maxPerTrade) || BigInt(amount) > BigInt(context.availableBudget ?? policy.totalBudget)) {
     throw new AppError('BUDGET_EXCEEDED', '사전 승인된 구매 한도를 초과합니다.', 409);
   }
   if (checkDiscount && policy.minDiscountPercent && policy.minDiscountPercent > 0) {
@@ -32,4 +32,5 @@ export async function assertTradingExecution({ buyer, cardVariantId, amount, tim
       throw new AppError('POLICY_VIOLATION', '정책의 최소 할인율을 충족하지 않습니다.', 409);
     }
   }
+  return policy;
 }

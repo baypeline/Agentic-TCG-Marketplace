@@ -4,3 +4,7 @@ export { createTradingPlugin } from './plugin.js';
 export type { TradingPluginOptions } from './plugin.js';
 export { createMockTradingStore, createPrismaTradingStore, demoInventory, demoSellerId } from './store.js';
 export type { TradingStore } from './store.js';
+
+export { createRequestExecutor } from './requests.js';
+export { assertTradingExecution } from './execution.js';
+export type { TradingTransaction, PolicyRow, PaymentRow, RunRow } from './store.js';

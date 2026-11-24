@@ -14,7 +14,7 @@ it.each([
 ] as const)('할인 정책은 실제 시세와 정확한 금액 경계로 검사한다: %s %s', async (dataSource, price, allowed) => {
   const service = createTradingService({
     store: createMockTradingStore(),
-    executionContext: { async getExecutionContext() { return { online: true, policy: { agentId: buyer.agentId, enabled: true, totalBudget: '100000000', maxPerTrade: '20000000', minDiscountPercent: 15, validUntil: '2099-01-01T00:00:00.000Z' } }; } },
+    executionContext: { async getExecutionContext() { return { online: true, policy: { id: '00000000-0000-4000-8004-000000000001', version: 1, agentId: buyer.agentId, enabled: true, totalBudget: '100000000', maxPerTrade: '20000000', minDiscountPercent: 15, validUntil: '2099-01-01T00:00:00.000Z' } }; } },
     valuationService: { async getValuation() { return { cardVariantId: card.cardVariantId, currency: 'USDC', sampleSize: 1, confidence: 'LOW', evaluatedAt: new Date().toISOString(), dataSource, status: 'AVAILABLE', estimatedPrice: '12000000', sourceSummary: ['test'] }; } },
   });
   const listing = await service.createListing(seller, { inventoryItemId: card.id, price }, context());
@@ -24,7 +24,7 @@ it.each([
 });
 function setup() {
   let online = true;
-  let policy: SpendingPolicy = { agentId: buyer.agentId, enabled: true, totalBudget: '100000000', maxPerTrade: '20000000', allowedCardVariantIds: [card.cardVariantId], validUntil: '2099-01-01T00:00:00.000Z' };
+  let policy: SpendingPolicy = { id: '00000000-0000-4000-8004-000000000001', version: 1, agentId: buyer.agentId, enabled: true, totalBudget: '100000000', maxPerTrade: '20000000', allowedCardVariantIds: [card.cardVariantId], validUntil: '2099-01-01T00:00:00.000Z' };
   const records = new Map<string, PaymentRecord>();
   const executionContext: TradingExecutionContextReader = { async getExecutionContext(auth) { return auth.userId === buyer.userId && auth.agentId === buyer.agentId ? { online, policy } : null; } };
   const service = createTradingService({ store: createMockTradingStore(), executionContext, payment: { async getPaymentRecord(id) { return records.get(id) ?? null; } } });
@@ -71,17 +71,18 @@ it('검증 컨텍스트가 없거나 Agent·정책이 유효하지 않으면 신
   }
 });
 
-it('Agent 중단 시 미제출 예약은 해제하고 주문을 중지하며 재개 시 정책을 다시 확인한다', async () => {
+it('Agent 중단 시 미제출 예약은 유지하고 주문을 중지하며 재개 시 정책을 다시 확인한다', async () => {
   const { service, setOnline } = setup();
   await service.createListing(seller, { inventoryItemId: card.id, price: '10000000' }, context());
   const order = await service.createBuyOrder(buyer, { cardVariantId: card.cardVariantId, maxPrice: '20000000', expiresAt: '2098-01-01T00:00:00.000Z' }, context());
   const quote = (await service.matchBuyOrder(buyer, order.id))!;
   setOnline(false);
   expect(await service.pauseAgentOrders(buyer)).toMatchObject([{ id: order.id, status: 'PAUSED' }]);
-  expect(await service.getMatch(buyer, quote.id)).toMatchObject({ status: 'RELEASED' });
+  expect(await service.getMatch(buyer, quote.id)).toMatchObject({ status: 'RESERVED', expiresAt: quote.expiresAt });
   await expect(service.resumeBuyOrder(buyer, order.id)).rejects.toMatchObject({ code: 'POLICY_VIOLATION' });
   setOnline(true);
-  expect(await service.resumeBuyOrder(buyer, order.id)).toMatchObject({ status: 'ACTIVE' });
+  expect(await service.resumeBuyOrder(buyer, order.id)).toMatchObject({ status: 'MATCH_PENDING' });
+  await service.releaseQuote(buyer, quote.id);
   setOnline(false);
   await expect(service.matchBuyOrder(buyer, order.id)).rejects.toMatchObject({ code: 'POLICY_VIOLATION' });
   await expect(service.pauseBuyOrder(other, order.id)).rejects.toMatchObject({ code: 'FORBIDDEN' });

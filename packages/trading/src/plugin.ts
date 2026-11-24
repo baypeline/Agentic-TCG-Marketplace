@@ -55,6 +55,8 @@ export function createTradingPlugin({ tradingService, requireAuth }: TradingPlug
         await requireBuyer(request), marketInputSchema.parse(request.body), mutation(request),
       )));
     }
+    app.get('/matches', async request => tradingService.listMatches(await requireBuyer(request)));
+    app.get('/seller-proceeds', async request => tradingService.sellerProceeds(await requireAuth(request)));
     app.get('/matches/:id', async request => tradingService.getMatch(await requireBuyer(request), cardParamsSchema.parse(request.params).id));
     app.get('/trades', async request => tradingService.listTrades(await requireAuth(request)));
     app.get('/trades/:id', async request => tradingService.getTrade(await requireAuth(request), cardParamsSchema.parse(request.params).id));
