@@ -128,9 +128,9 @@ pnpm --filter @tcg/aggregator test
 
 ## 현재 범위
 
-카드 검색·상세 화면·Mock 적정가, API 오류 처리, 인증 컨텍스트 주입 지점, PostgreSQL 조회 어댑터·시연 seed·실제 DB 통합 테스트를 구현했습니다. [TCGdex 외부 카드 수집·영구 UUID 매핑·DB 저장](packages/aggregator/README.md) 후 기존 REST 경로에서 조회할 수 있으며 [외부 참고 시세 수집과 검증 표본 평가](packages/valuation/README.md)도 지원합니다. [Agent Runtime](apps/agent/README.md)은 카드 검색과 적정가를 조회하며, MCP 클라이언트 연결과 인증 컨텍스트 기반 세션 HTTP/SSE 플러그인을 제공합니다. 기존 DB/Mock 모드는 유지하며 미구현 live 모드로 조용히 대체하지 않습니다.
+카드 검색·상세 화면·Mock 적정가, API 오류 처리, 인증 컨텍스트 주입 지점, PostgreSQL 조회 어댑터·시연 seed·실제 DB 통합 테스트를 구현했습니다. [TCGdex 외부 카드 수집·영구 UUID 매핑·DB 저장](packages/aggregator/README.md) 후 기존 REST 경로에서 조회할 수 있으며 [외부 참고 시세 수집과 검증 표본 평가](packages/valuation/README.md)도 지원합니다. [Agent Runtime](apps/agent/README.md)은 카드 검색·적정가 조회와 자연어 구매 조건의 Mock 미리보기를 제공하며, MCP 클라이언트 연결과 인증 컨텍스트 기반 세션 HTTP/SSE 플러그인을 제공합니다. 기존 DB/Mock 모드는 유지하며 미구현 live 모드로 조용히 대체하지 않습니다.
 
-Trading 엔진의 인벤토리·매물·지정가 주문·예약 REST와 DB 영속화, 예약 만료 작업을 연결했습니다. 로컬 데모 인증과 `pnpm trading:seed`를 제공합니다. 체결 로직은 결제 증빙을 주입하는 Service 테스트로 검증하며, 실행 서버의 실결제에는 아직 연결하지 않았습니다.
+Trading 엔진의 인벤토리·매물·지정가 주문·예약·거래 조회 REST와 DB 영속화, 예약 만료 작업을 연결했습니다. 생성 요청은 Idempotency-Key를 요구하며 신규 예약에는 서버 측 활성 Agent·사전 승인 정책 제공자가 필요합니다. 기본 서버는 이 제공자가 없으면 예약을 거부합니다. 로컬 데모 인증과 `pnpm trading:seed`를 제공합니다. 체결 로직은 결제 증빙을 주입하는 Service 테스트로 검증하며, 실행 서버의 실결제에는 아직 연결하지 않았습니다.
 
 전체 카탈로그 동기화, 거래 가능한 카드 변형·상태 확정, 자동 환율 수집, 상용 인증, 구매 정책 API, 자동 매칭, 거래 MCP 도구, 세션 영속화, Agent와 Core API·Web의 실제 연결, x402 거래 결제 및 전체 거래 E2E는 후속 통합 범위입니다. Web의 거래·대화 화면은 미리보기이며 실제 요청·결제를 실행하지 않습니다.
 

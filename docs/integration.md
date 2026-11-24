@@ -55,3 +55,10 @@ Web은 Server Component를 통해 Core API를 호출하므로 API 주소·비밀
 두 번째 Migration은 `catalog.PriceObservation`과 `PriceDataSource`를 추가합니다. 가격은 정수 문자열로 저장하며 Mock/시장 구분, 출처, 관측 시각과 카드 FK를 보존합니다. `pnpm db:seed`는 시연 데이터만 upsert합니다. 다른 모듈이 참조할 카드 UUID는 DB 모드와 Mock 모드에서 동일합니다.
 
 외부 카드의 UUID는 `catalog.ExternalCardIdentity`에서 영구 매핑합니다. `pnpm cards:collect`는 이를 `CardVariant.id`로 사용하고 `externalIdentityId` FK로 출처를 연결하며 `lastCollectedAt`을 기록합니다. 카드 UUID와 연결 UUID의 동일성은 DB CHECK 제약으로 보장합니다. 수집 본문은 배치 단위로 저장하며 충돌 시 기존 식별자를 변경하지 않습니다. REST 조회는 저장된 DB 데이터만 읽습니다. 수집은 `catalog` 범위만 수정하며 가격 표본·인벤토리·주문·결제에는 쓰지 않습니다.
+
+
+## 활성 Agent·승인 정책 경계
+
+Core API는 `buildApp({ tradingExecutionContext })`에 주입된 현재 상태를 Trading으로 전달합니다. 토큰 인증만으로 신규 예약 권한을 부여하지 않으며, 기본 server.ts는 제공자 미주입으로 예약·매칭·주문 재개를 거부합니다. 등록·주문·예약 생성에는 Idempotency-Key가 필요합니다.
+
+Agent의 `createAgentExecutionController({ resolvePolicy, pauseOrders })`는 단일 호스트의 세션 online 상태와 서버 측 승인 정책을 연결합니다. 반환된 실행 컨텍스트를 Trading에, 수명 콜백을 Agent 세션 Plugin에 주입합니다. 마지막 세션이 중단되면 먼저 offline으로 전환하고 미제출 주문을 중지합니다. Payment 제출 이후의 증빙 조회·체결 복구는 세션 상태로 중단하지 않습니다. 운영 팩토리에 Agent 세션을 등록하고 영속 정책을 제공하는 전체 연결은 이번 1차 계약 보정 범위 밖입니다.

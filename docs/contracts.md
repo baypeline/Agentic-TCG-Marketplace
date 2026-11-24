@@ -75,4 +75,13 @@ Aggregator의 `CardDataAdapter`, Valuation의 `PriceDataAdapter`는 실제 제�
 
 Valuation의 추가 필드는 optional이고 기존 USDC·UUID·오류 코드와 거래 DTO는 유지했습니다. MCP·Trading·Payment 소비자는 확장 필드와 표본 수의 의미를 함께 검토해야 합니다. [수집·검증 명령과 제한](../packages/valuation/README.md)을 확인하세요.
 
-Inventory·Listing·BuyOrder·MatchQuote·Trade의 기존 DTO를 유지한 Trading Service와 REST Plugin을 통합했습니다. 입력은 `@tcg/trading`의 Zod Schema로 검증하며 구매에는 인증된 userId·agentId가 필요합니다. 체결은 결제 시도 ID·예약 ID·통화·금액이 일치하는 서버 측 SETTLED 증빙을 요구합니다. SpendingPolicy는 아직 DTO만 제공하며 Payment 영속 기록과 SDK 종속 x402 연결은 후속 범위입니다. 경로와 결제 경계는 [Trading README](../packages/trading/README.md), [통합 가이드](trading-integration.md)를 참고하세요.
+Inventory·Listing·BuyOrder·MatchQuote·Trade의 기존 DTO를 유지한 Trading Service와 REST Plugin을 통합했습니다. 입력은 `@tcg/trading`의 Zod Schema로 검증하며 구매에는 인증된 userId·agentId가 필요합니다. 체결은 결제 시도 ID·예약 ID·통화·금액이 일치하는 서버 측 SETTLED 증빙을 요구합니다. SpendingPolicy는 Trading 실행 경계에서 검증하며 영속 정책 저장소·누적 예산 예약·차감과 Payment 영속 기록 및 SDK 종속 x402 연결은 후속 범위입니다. 경로와 결제 경계는 [Trading README](../packages/trading/README.md), [통합 가이드](trading-integration.md)를 참고하세요.
+
+
+## 거래 계약 정합성 보정
+
+- 공유 거래 입력은 `@tcg/contracts`에서 제공하며 시장가의 maxPrice는 필수입니다.
+- 매물·주문·예약 생성은 Idempotency-Key를 요구합니다. 같은 인증 주체·작업·키의 동일 입력은 최초 응답을 반환하며 다른 입력은 IDEMPOTENCY_CONFLICT(409)입니다. 판매 매물은 사용자, 구매 요청은 사용자와 Agent에 결합합니다.
+- 정식 예약 경로는 POST /api/purchases/fixed/quote, POST /api/purchases/market/quote입니다. 기존 /api/quotes/*와 DELETE 주문 취소는 호환 별칭으로 유지합니다.
+- 매물·예약·주문·거래 응답은 공통 도메인 DTO의 id를 사용합니다. 외부 계약서의 listingId·matchQuoteId 응답 예시는 해당 DTO의 id로 정규화한 구현 결정이며, 첨부 원본 문서를 수정하거나 팀 합의가 끝났다고 의미하지 않습니다.
+- 신규 예약·매칭·주문 재개는 검증된 활성 Agent와 사전 승인 정책을 요구하며 제공자 미주입은 거부합니다. 실제 예산 누적 사용액 예약·차감은 Payment 후속 범위입니다.

@@ -6,11 +6,13 @@ Core API가 `@tcg/trading`의 REST Plugin을 `/api`에 등록합니다. 인벤�
 
 Node.js 24 LTS와 pnpm 12.9.1을 사용합니다. 루트 `.env`가 없다면 `pnpm env:init`을 실행하고 `pnpm install`을 실행합니다.
 
-기본 `TRADING_DATA_SOURCE=mock`은 DB 없이 시연 재고 여섯 장을 사용합니다. 재시작하면 거래 상태가 초기화됩니다. 로컬 거래 요청을 실행하려면 서로 다른 난수 토큰을 생성해 `.env`에 `DEMO_SELLER_TOKEN`, `DEMO_BUYER_TOKEN`으로 설정합니다. 각 토큰은 32자 이상이어야 합니다. 다음 명령을 두 번 실행해 생성할 수 있습니다.
+기본 `TRADING_DATA_SOURCE=mock`은 DB 없이 시연 재고 여섯 장을 사용합니다. 재시작하면 거래 상태가 초기화됩니다. 로컬 인증을 사용하려면 서로 다른 난수 토큰을 생성해 `.env`에 `DEMO_SELLER_TOKEN`, `DEMO_BUYER_TOKEN`으로 설정합니다. 각 토큰은 32자 이상이어야 합니다. 다음 명령을 두 번 실행해 생성할 수 있습니다.
 
 ```sh
 node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"
 ```
+
+데모 토큰은 신원만 인증합니다. 기본 server.ts는 활성 Agent·승인 정책 제공자가 없으므로 신규 예약은 `POLICY_VIOLATION`으로 거부합니다. 예약 시연에는 사용자 정의 호스트가 `buildApp({ tradingExecutionContext })`로 검증된 서버 측 상태를 주입해야 합니다. 토큰 유무를 online 상태나 구매 승인으로 취급하지 않습니다.
 
 데모 인증은 `NODE_ENV=development|test`, `API_HOST=127.0.0.1|::1|localhost`에서만 허용합니다. 두 토큰을 생략하면 보호된 거래 요청은 401입니다. 사용자·Agent ID 헤더와 요청 필드는 인증 수단이 아닙니다. 실제 인증은 `buildApp({ resolveAuth })`에 사용자·Agent 소유권을 검증하는 제공자를 주입합니다.
 
@@ -50,7 +52,7 @@ buyer_token=$(node --env-file=.env -p 'process.env.DEMO_BUYER_TOKEN')
 curl -sS "$api_base/health"
 curl -sS "$api_base/api/inventory" -H "Authorization: Bearer $seller_token"
 curl -sS -X POST "$api_base/api/listings" \
-  -H "Authorization: Bearer $seller_token" -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $seller_token" -H 'Content-Type: application/json' -H 'Idempotency-Key: demo-listing-1' \
   -d '{"inventoryItemId":"00000000-0000-4000-8003-000000000001","price":"10000000"}'
 ```
 
@@ -58,12 +60,14 @@ curl -sS -X POST "$api_base/api/listings" \
 
 ```sh
 curl -sS "$api_base/api/listings"
-curl -sS -X POST "$api_base/api/quotes/fixed" \
-  -H "Authorization: Bearer $buyer_token" -H 'Content-Type: application/json' \
+curl -sS -X POST "$api_base/api/purchases/fixed/quote" \
+  -H "Authorization: Bearer $buyer_token" -H 'Content-Type: application/json' -H 'Idempotency-Key: demo-quote-1' \
   -d '{"listingId":"<listing-id>","maxPrice":"10000000"}'
 curl -sS -X DELETE "$api_base/api/quotes/<quote-id>" \
   -H "Authorization: Bearer $buyer_token"
 ```
+
+예약 curl 예시는 정책 제공자가 주입된 호스트에서 실행합니다. 같은 요청을 재시도할 때는 같은 키를 유지하고 새로운 작업에는 새 키를 사용합니다.
 
 전체 경로와 입력은 [Trading README](../packages/trading/README.md)를 참고하세요. REST는 DTO를 직접 반환하고 오류는 Core API 공통 형식을 사용합니다. 구매 요청에는 인증된 Agent가 필요합니다. 매칭은 명시적 요청으로 실행하며 자동 매칭 작업은 아직 없습니다.
 
