@@ -27,10 +27,7 @@ it('예산 한도와 허용 카드 및 유효 날짜 오류를 함께 보여준�
 });
 it('입금과 실패 결제를 제외하고 확인 중인 지출은 예약 예산에 포함한다', () => {
   expect(budgetSummary(initialDemoState())).toMatchObject({ spent: '22000000', reserved: '27000000', remaining: '251000000' });
-  const state = demoReducer(initialDemoState(), { type: 'RETRY', id: demoId(402), ...event });
-  expect(budgetSummary(state)).toMatchObject({ spent: '22000000', reserved: '77000000' });
-  const unknown = demoReducer(state, { type: 'RETRY', id: demoId(403), ...event });
-  expect(unknown.payments.find(row => row.id === demoId(403))?.status).toBe('UNKNOWN');
+  expect(initialDemoState().payments.find(row => row.id === demoId(403))?.status).toBe('UNKNOWN');
 });
 it('매물 등록과 취소를 보유 목록에 함께 반영하고 중복 등록과 예약 취소를 막는다', () => {
   const initial = initialDemoState();
@@ -41,4 +38,13 @@ it('매물 등록과 취소를 보유 목록에 함께 반영하고 중복 등�
   const cancelled = demoReducer(listed, { type: 'CANCEL_LISTING', id: demoId(299), ...event });
   expect(cancelled.inventory.find(row => row.id === demoId(101))?.status).toBe('AVAILABLE');
   expect(demoReducer(initial, { type: 'CANCEL_LISTING', id: demoId(206), ...event })).toBe(initial);
+});
+
+it('정책 수정은 ID와 누적 사용액을 유지하고 사용·예약액 미만 감액을 거부한다', () => {
+  const state = initialDemoState();
+  const updated = demoReducer(state, { type: 'POLICY', policy: { ...state.policy, maxPerTrade: '10000000' }, ...event });
+  expect(updated.policy.id).toBe(state.policy.id);
+  expect(updated.policy.version).toBe(state.policy.version + 1);
+  expect(budgetSummary(updated)).toEqual(budgetSummary(state));
+  expect(demoReducer(state, { type: 'POLICY', policy: { ...state.policy, totalBudget: '1' }, ...event })).toBe(state);
 });

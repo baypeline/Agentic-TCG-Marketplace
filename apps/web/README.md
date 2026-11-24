@@ -58,7 +58,7 @@ Next.js 16.4.6 / React 19.3.1 / Emotion react 11.14.0·styled 11.14.1에서 개�
 | --- | --- |
 | `/agent` | 정책·허용 카드·총예산·1회 한도·유효 날짜, 실행·일시중지·중지 미리보기 |
 | `/marketplace` | 고정가 매물 검색·상태 필터, 구매 주문 작성, 내 매물 취소 |
-| `/collection` | 보유·판매·예약·이전 상태, 판매 등록 미리보기 |
+| `/collection` | 보유·판매·예약 상태와 거래 이력, 판매 등록 미리보기 |
 | `/activity?view=orders` | 구매 주문 상태·상세, 일시중지·재개·취소 |
 | `/activity?view=payments` | 결제 상태·상세, 실패 시 재시도 화면, 결과 미확인 안내 |
 | `/activity?view=trades` | 구매·판매 거래 내역과 결제·보유 번호 |
@@ -72,7 +72,9 @@ Next.js 16.4.6 / React 19.3.1 / Emotion react 11.14.0·styled 11.14.1에서 개�
 
 USDC 입력은 정수 최소 단위 문자열로 변환하며 소수점 6자리까지 처리합니다. 예산 표시는 예시 지출의 결제 확인·예약 상태를 합산하고 입금을 제외합니다. 이는 표시용 데모 계산이며 서버의 지출 정책·예약·결제 처리 규칙이 아닙니다. 정책 입력 오류는 필드와 포커스 가능한 오류 요약에 표시합니다. 기존 Contracts의 `SpendingPolicy`, `BuyOrder`, `Listing`, `InventoryItem`, `Trade`를 참조하고 공통 계약은 수정하지 않았습니다. 결제·로그의 UI 전용 모델은 실제 API 계약 확정 후 어댑터로 교체해야 합니다.
 
-HTTP/SSE BFF와 거래 API 연결은 후속 범위입니다. 개발·시작 명령은 루트 `.env`를 로드하고 `PORT`를 사용합니다. 미설정 시 Next.js 기본 포트인 3000을 사용하며 실제 카드 검색에는 Core API가 필요합니다.
+`/agent`·`/activity`의 서버 상태 패널은 GET `/api/trading-status` BFF로 실제 정책 예산·실행·구매 상태·완료 Trade 수익을 읽습니다. 5초 조회와 서버 remainingMs 기반 카운트다운을 제공하며 브라우저 절대 시각으로 예약 유효성을 판정하지 않습니다. UNKNOWN 재결제·FINALIZING 추가 지급을 제공하지 않습니다. 기존 쓰기 폼과 채팅은 미리보기이며 서버 정책·주문·결제를 변경하지 않습니다.
+
+BFF는 HttpOnly `tcg_session` 쿠키 또는 Bearer를 전달합니다. 로컬 개발은 `WEB_DEMO_ROLE=buyer|seller`와 서버 데모 토큰 설정으로 읽기 상태를 확인할 수 있습니다. 토큰을 브라우저에 반환하지 않으며 production에서 데모 역할을 사용하지 않습니다. 조회 패널 해제·창 닫기는 서버 실행 중단 요청을 보내지 않습니다. 개발·시작 명령은 루트 `.env`를 로드하고 `PORT`를 사용합니다. 미설정 시 Next.js 기본 포트인 3000을 사용하며 실제 카드 검색에는 Core API가 필요합니다.
 
 루트에서 `pnpm --filter @tcg/web test`와 `pnpm --filter @tcg/web typecheck`로 검증합니다.
 

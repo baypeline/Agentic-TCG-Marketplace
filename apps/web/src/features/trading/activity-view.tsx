@@ -30,6 +30,7 @@ export function ActivityView({ view }: { view: ActivityTab }) {
   const trade = view === 'trades' ? state.trades.find(row => row.id === selected) : undefined;
   function details(id: string) { setSelected(current => current === id ? '' : id); }
   return <PreviewPage title="거래 관리" description="Agent의 구매 주문과 결제, 직접 등록한 카드의 판매 결과를 확인해요. 모든 기록은 데모예요." actions={<Link href="/agent/logs">Agent 로그 보기</Link>}>
+    <ResultNote>모의 판매 수익 · 출금 불가: {formatUsdc(state.trades.filter(row => row.direction === 'SELL').reduce((sum, row) => sum + BigInt(row.price), 0n).toString())}. 완료된 거래만 집계합니다.</ResultNote>
     <Metrics items={[{ label: '활성 구매 주문', value: `${state.orders.filter(row => row.status === 'ACTIVE').length}건` }, { label: '확인이 필요한 결제', value: `${state.payments.filter(row => row.status === 'FAILED' || row.status === 'UNKNOWN').length}건` }, { label: '완료된 거래', value: `${state.trades.length}건` }]} />
     <Tabs aria-label="거래 관리 메뉴">{Object.entries(names).map(([key, name]) => <Link key={key} href={`/activity?view=${key}`} aria-current={view === key ? 'page' : undefined}>{name}</Link>)}</Tabs>
     {view !== 'orders' && <SellerProceedsNote />}
@@ -49,7 +50,7 @@ export function ActivityView({ view }: { view: ActivityTab }) {
         {payment.direction === 'IN' ? <ResultNote>판매 결과를 보여주는 내부 장부 예시예요. 온체인 입금이나 출금 가능한 잔액이 아니며 지급 트랜잭션은 없어요.</ResultNote> : <>
           {payment.status === 'UNKNOWN' && <ResultNote>결제 결과를 아직 확인하지 못한 상태예요. 중복 결제를 막기 위해 재시도하지 않고 상태 확인을 기다리는 화면입니다.</ResultNote>}
           {payment.status === 'PENDING' && <ResultNote>결제 결과를 기다리는 상태예요. 실제 네트워크 요청이나 자동 갱신은 없어요.</ResultNote>}
-          {payment.status === 'FAILED' && <><ResultNote>결제 실패 상태의 예시예요. 재시도를 누르면 진행 중 화면으로만 바뀝니다.</ResultNote><QuietButton type="button" onClick={() => { dispatch({ type: 'RETRY', id: payment.id }); setNotice('재시도 진행 화면으로 바꿨어요. 실제 결제 요청은 보내지 않았어요.'); }}>재시도 화면 보기</QuietButton></>}
+          {payment.status === 'FAILED' && <ResultNote>확정 실패한 결제입니다. 같은 결제를 다시 실행하지 않고 새 구매에는 새 예약을 사용합니다.</ResultNote>}
           <ResultNote>블록체인 거래 해시: 미연결</ResultNote></>}
         <Link href="/agent/logs">관련 상태를 로그에서 확인</Link></>}
       {trade && <><p>거래 #{trade.id.slice(-4)} / 완료</p><ResultNote>보유 번호 #{trade.inventoryItemId.slice(-4)} / 결제 번호 #{trade.paymentAttemptId.slice(-4)}</ResultNote><Actions><Link href="/collection">내 카드 보기</Link><Link href="/activity?view=payments">결제 내역 보기</Link></Actions></>}

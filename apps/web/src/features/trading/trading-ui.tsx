@@ -8,7 +8,7 @@ import { CardImage } from '../../components/card-image';
 import { getCardDisplayName, formatSet } from '../../lib/formatters';
 import { previewCards } from './demo-cards';
 
-const labels: Record<string, string> = { ACTIVE: '활성', AVAILABLE: '보유 중', LISTED: '판매 중', RESERVED: '예약 중', TRANSFERRED: '이전 완료', SOLD: '판매 완료', CANCELLED: '취소', PAUSED: '일시중지', MATCH_PENDING: '매칭 대기', FILLED: '체결 완료', EXPIRED: '만료', PENDING: '진행 중', SETTLED: '결제 확인', FAILED: '실패', UNKNOWN: '확인 필요', IDLE: '대기', RUNNING: '실행 중', INFO: '안내', WARN: '주의', ERROR: '오류' };
+const labels: Record<string, string> = { ACTIVE: '활성', AVAILABLE: '보유 중', LISTED: '판매 중', RESERVED: '예약 중', SOLD: '판매 완료', CANCELLED: '취소', PAUSED: '일시중지', MATCH_PENDING: '매칭 대기', FILLED: '체결 완료', EXPIRED: '만료', PENDING: '진행 중', SETTLED: '결제 완료', FAILED: '실패', UNKNOWN: '결제 확인 중', IDLE: '대기', RUNNING: '실행 중', INFO: '안내', WARN: '주의', ERROR: '오류' };
 export function StateBadge({ status }: { status: string }) { return <Badge tone={['FAILED', 'ERROR'].includes(status) ? 'error' : ['UNKNOWN', 'WARN', 'MATCH_PENDING', 'RESERVED'].includes(status) ? 'warning' : ['SETTLED', 'FILLED', 'RUNNING'].includes(status) ? 'success' : 'neutral'}>{labels[status] ?? status}</Badge>; }
 export function PreviewPage({ title, description, actions, children }: { title: string; description: string; actions?: ReactNode; children: ReactNode }) {
   return <Page><PreviewNotice><strong>화면 미리보기</strong><span>거래·금액·상태는 예시예요. 변경 내용은 이 화면에서만 유지되며 실제 주문이나 결제는 실행되지 않아요.</span></PreviewNotice><PageHeading><div><h1>{title}</h1><p>{description}</p></div>{actions && <Actions>{actions}</Actions>}</PageHeading>{children}</Page>;

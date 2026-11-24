@@ -31,7 +31,7 @@ export function validatePolicy(draft: PolicyDraft, now = Date.now()): Partial<Re
   if (!draft.allowedCardVariantIds.length) errors.allowedCardVariantIds = '거래를 허용할 카드를 하나 이상 선택해 주세요.';
   return errors;
 }
-export function draftToPolicy(draft: PolicyDraft): SpendingPolicy { return { agentId: demoAgentId, enabled: draft.enabled, totalBudget: parseUsdcInput(draft.totalBudget)!, maxPerTrade: parseUsdcInput(draft.maxPerTrade)!, minDiscountPercent: Number(draft.minDiscountPercent), allowedCardVariantIds: [...draft.allowedCardVariantIds], validUntil: `${draft.validUntil}T23:59:59Z` }; }
+export function draftToPolicy(draft: PolicyDraft): SpendingPolicy { return { id: '00000000-0000-4000-8004-000000000001', version: 1, agentId: demoAgentId, enabled: draft.enabled, totalBudget: parseUsdcInput(draft.totalBudget)!, maxPerTrade: parseUsdcInput(draft.maxPerTrade)!, minDiscountPercent: Number(draft.minDiscountPercent), allowedCardVariantIds: [...draft.allowedCardVariantIds], validUntil: `${draft.validUntil}T23:59:59Z` }; }
 export function budgetSummary(state: DemoState) {
   const outgoing = state.payments.filter(p => p.direction === 'OUT');
   const spent = outgoing.filter(p => p.status === 'SETTLED').reduce((sum, p) => sum + BigInt(p.amount), 0n);
@@ -44,12 +44,11 @@ export function initialDemoState(): DemoState {
   const [pika, charizard, eevee] = previewCards.map(card => card.id) as [string, string, string];
   const at = '2026-11-22T04:00:00Z';
   return {
-    policy: { agentId: demoAgentId, enabled: true, totalBudget: '300000000', maxPerTrade: '75000000', minDiscountPercent: 5, allowedCardVariantIds: [pika, charizard, eevee], validUntil: '2026-12-31T23:59:59Z' }, run: 'IDLE',
+    policy: { id: '00000000-0000-4000-8004-000000000001', version: 1, agentId: demoAgentId, enabled: true, totalBudget: '300000000', maxPerTrade: '75000000', minDiscountPercent: 5, allowedCardVariantIds: [pika, charizard, eevee], validUntil: '2026-12-31T23:59:59Z' }, run: 'IDLE',
     inventory: [
       { id: demoId(101), ownerId: demoUserId, cardVariantId: pika, status: 'AVAILABLE' },
       { id: demoId(102), ownerId: demoUserId, cardVariantId: charizard, status: 'LISTED' },
       { id: demoId(103), ownerId: demoUserId, cardVariantId: eevee, status: 'RESERVED' },
-      { id: demoId(104), ownerId: demoUserId, cardVariantId: pika, status: 'TRANSFERRED' },
     ],
     listings: [
       { id: demoId(201), inventoryItemId: demoId(111), cardVariantId: eevee, sellerId: demoId(3), price: '12000000', status: 'ACTIVE', createdAt: at },
@@ -70,7 +69,6 @@ export function initialDemoState(): DemoState {
       { id: demoId(402), orderId: demoId(302), cardVariantId: charizard, amount: '50000000', direction: 'OUT', status: 'FAILED', updatedAt: at },
       { id: demoId(403), orderId: demoId(301), cardVariantId: pika, amount: '15000000', direction: 'OUT', status: 'UNKNOWN', updatedAt: at },
       { id: demoId(404), orderId: demoId(303), cardVariantId: eevee, amount: '12000000', direction: 'OUT', status: 'PENDING', updatedAt: at },
-      { id: demoId(405), orderId: demoId(305), cardVariantId: pika, amount: '11000000', direction: 'IN', status: 'SETTLED', updatedAt: at },
     ],
     trades: [
       { id: demoId(501), matchQuoteId: demoId(601), buyerId: demoUserId, sellerId: demoId(4), inventoryItemId: demoId(101), price: '22000000', paymentAttemptId: demoId(401), status: 'COMPLETED', completedAt: at, cardVariantId: pika, direction: 'BUY' },
@@ -91,11 +89,10 @@ export type DemoAction =
   | { type: 'CREATE_ORDER'; cardId: string; amount: string; id: string }
   | { type: 'LIST'; inventoryId: string; amount: string; id: string }
   | { type: 'CANCEL_LISTING'; id: string }
-  | { type: 'RETRY'; id: string };
 export function demoReducer(state: DemoState, action: DemoAction & { at: string; logId: string }): DemoState {
   let next = state;
   switch (action.type) {
-    case 'POLICY': next = { ...state, policy: action.policy, run: action.policy.enabled ? state.run : 'PAUSED' }; break;
+    case 'POLICY': if (BigInt(action.policy.totalBudget) < BigInt(budgetSummary(state).spent) + BigInt(budgetSummary(state).reserved)) return state; next = { ...state, policy: { ...action.policy, id: state.policy.id, version: state.policy.version + 1 }, run: action.policy.enabled ? state.run : 'PAUSED' }; break;
     case 'RUN': next = { ...state, run: action.run }; break;
     case 'ORDER': next = { ...state, orders: state.orders.map(row => row.id === action.id ? { ...row, status: action.status } : row) }; break;
     case 'CREATE_ORDER': next = { ...state, orders: [{ id: action.id, agentId: demoAgentId, cardVariantId: action.cardId, maxPrice: action.amount, status: 'ACTIVE', createdAt: action.at, expiresAt: state.policy.validUntil }, ...state.orders] }; break;
@@ -109,7 +106,6 @@ export function demoReducer(state: DemoState, action: DemoAction & { at: string;
       if (!listing) return state;
       next = { ...state, listings: state.listings.map(row => row.id === listing.id ? { ...row, status: 'CANCELLED' } : row), inventory: state.inventory.map(row => row.id === listing.inventoryItemId ? { ...row, status: 'AVAILABLE' } : row) }; break;
     }
-    case 'RETRY': next = { ...state, payments: state.payments.map(row => row.id === action.id && row.status === 'FAILED' ? { ...row, status: 'PENDING', updatedAt: action.at } : row) }; break;
   }
   return { ...next, logs: [{ id: action.logId, level: 'INFO', event: `UI_DEMO_${action.type}`, message: '미리보기 화면의 상태를 변경했어요. 서버 요청이나 실제 거래는 실행되지 않았어요.', at: action.at, referenceId: 'id' in action ? action.id : undefined }, ...next.logs] };
 }
