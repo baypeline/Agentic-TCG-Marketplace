@@ -2,7 +2,7 @@
 
 기준: 사용자 제공 API 계약서 v2.0·시스템 설계서 v2.1 및 2026년 11월 24일 합의. 개정본은 [API 계약서 v2.1](api-contract.md), [시스템 설계서 v2.2](system-design.md), 확정 규칙과 구현 차이는 [합의 사항](decisions.md)에 있습니다.
 
-이 문서는 현재 DTO·구현 확장도 함께 설명합니다. 정책 ID·버전, 서버 실행 수명, 예약 보류, TRANSFERRED 제거 등의 합의는 문서에 반영했지만 코드 반영은 아직 남아 있습니다.
+이 문서는 현재 DTO·구현 확장도 함께 설명합니다. 정책 ID·버전, 서버 실행 수명, 예약 보류, TRANSFERRED 제거는 코드에 반영했습니다. 실제 LLM 구매 실행기·서명기 주입과 Web 쓰기 폼 연동은 남아 있습니다.
 
 - ID: 계약서 본문의 UUID 원칙을 따릅니다. `card-001` 등의 예시는 실제 ID로 사용하지 않습니다.
 - 평가·거래 가격: USDC 6 decimals, 음수·소수·지수 표기를 허용하지 않는 정수 문자열. 계산과 표시는 BigInt를 사용합니다. 외부 참고 시세의 원본 금액은 아래 별도 계약을 사용합니다.
@@ -77,7 +77,7 @@ Aggregator의 `CardDataAdapter`, Valuation의 `PriceDataAdapter`는 실제 제�
 
 Valuation의 추가 필드는 optional이고 기존 USDC·UUID·오류 코드와 거래 DTO는 유지했습니다. MCP·Trading·Payment 소비자는 확장 필드와 표본 수의 의미를 함께 검토해야 합니다. [수집·검증 명령과 제한](../packages/valuation/README.md)을 확인하세요.
 
-Inventory·Listing·BuyOrder·MatchQuote·Trade의 기존 DTO를 유지한 Trading Service와 REST Plugin을 통합했습니다. 입력은 `@tcg/contracts`의 공유 Zod Schema로 검증하며 구매에는 인증된 userId·agentId가 필요합니다. 체결은 결제 시도 ID·예약 ID·통화·금액이 일치하는 서버 측 SETTLED 증빙을 요구합니다. SpendingPolicy는 Trading 실행 경계에서 검증하며 영속 정책 저장소·누적 예산 예약·차감과 Payment 영속 기록 및 SDK 종속 x402 연결은 후속 범위입니다. 경로와 결제 경계는 [Trading README](../packages/trading/README.md), [통합 가이드](trading-integration.md)를 참고하세요.
+Inventory·Listing·BuyOrder·MatchQuote·Trade의 기존 DTO를 유지한 Trading Service와 REST Plugin을 통합했습니다. 입력은 `@tcg/contracts`의 공유 Zod Schema로 검증하며 구매에는 인증된 userId·agentId가 필요합니다. 체결은 결제 시도 ID·예약 ID·통화·금액이 일치하는 서버 측 SETTLED 증빙을 요구합니다. SpendingPolicy는 Trading 실행 경계에서 검증하며 영속 정책·누적 예산·Payment 기록과 x402 MCP 전송을 연결합니다. 실제 지급은 명시적 DB/결제 설정이 필요합니다. 경로와 결제 경계는 [Trading README](../packages/trading/README.md), [통합 가이드](trading-integration.md)를 참고하세요.
 
 
 ## 거래 계약 정합성 보정
@@ -86,7 +86,7 @@ Inventory·Listing·BuyOrder·MatchQuote·Trade의 기존 DTO를 유지한 Tradi
 - 매물·주문·예약 생성은 Idempotency-Key를 요구합니다. 같은 인증 주체·작업·키의 동일 입력은 최초 응답을 반환하며 다른 입력은 IDEMPOTENCY_CONFLICT(409)입니다. 판매 매물은 사용자, 구매 요청은 사용자와 Agent에 결합합니다.
 - 정식 예약 경로는 POST /api/purchases/fixed/quote, POST /api/purchases/market/quote입니다. 기존 /api/quotes/*와 DELETE 주문 취소는 호환 별칭으로 유지합니다.
 - 매물·예약·주문·거래 응답은 공통 도메인 DTO의 id를 사용합니다. 2026년 11월 24일 사용자 합의로 객체 자신의 식별자는 id, 다른 객체 참조는 listingId·matchQuoteId 등으로 통일했습니다. 저장소 개정 계약서의 예시에도 반영했으며 첨부 원본은 변경하지 않았습니다.
-- 신규 예약·매칭·주문 재개는 검증된 활성 Agent와 사전 승인 정책을 요구하며 제공자 미주입은 거부합니다. 실제 예산 누적 사용액 예약·차감은 Payment 후속 범위입니다.
+- 신규 예약·매칭·주문 재개는 검증된 활성 Agent와 사전 승인 정책을 요구하며 제공자 미주입은 거부합니다. 누적 예산 예약·차감은 같은 저장소의 Payment가 원자적으로 처리합니다.
 
 
 ## 2026년 11월 24일 확정 업무 규칙
@@ -100,4 +100,4 @@ Inventory·Listing·BuyOrder·MatchQuote·Trade의 기존 DTO를 유지한 Tradi
 - 가격 상한 구매는 적정가 없이도 가능하나 할인 조건에는 유효한 실제 시세가 필요합니다. 가격 72시간·환율 24시간 기준을 유지하며 Mock을 실제 지급 허용 근거로 쓰지 않습니다.
 - 서버 실행 계층이 MCP 작업 키를 보관합니다. 재시도는 같은 키, 새로운 주문 의도·새 시장 탐색은 새 키입니다. 지정가·시장가 미매칭은 null이며 정책·예산 등 업무 오류와 구분합니다.
 
-이 목록의 문서화는 구현 완료 선언이 아닙니다. 모듈별 후속 작업과 아직 고정하지 않은 전송 필드는 [구현 차이 및 남은 세부 계약](decisions.md#현재-구현과의-차이)을 확인하세요.
+이 목록의 문서화는 구현 완료 선언이 아닙니다. 모듈별 검증 범위와 외부 연동 한계는 [구현 현황](decisions.md#현재-구현과-검증-범위)을 확인하세요.

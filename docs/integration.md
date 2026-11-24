@@ -1,6 +1,6 @@
 # 모듈 통합 가이드
 
-이 가이드는 현재 코드의 조립 방법입니다. 2026년 11월 24일 확정한 목표 규칙은 [시스템 설계서 v2.2](system-design.md)·[API 계약서 v2.1](api-contract.md)·[합의 사항과 구현 차이](decisions.md)를 따릅니다. 현재의 SSE 종료 시 중단·미제출 예약 해제 동작은 새 합의와 달라 후속 코드 수정이 필요합니다.
+이 가이드는 현재 코드의 조립 방법입니다. 2026년 11월 24일 확정한 목표 규칙은 [시스템 설계서 v2.2](system-design.md)·[API 계약서 v2.1](api-contract.md)·[합의 사항과 구현 차이](decisions.md)를 따릅니다. 조회 SSE와 서버 실행을 분리하고 정책 변경·중단 시 미제출 예약을 유지하는 규칙을 반영했습니다.
 
 ## 공개 API
 
@@ -31,13 +31,13 @@ DB 조회는 `createPrismaCardAdapter(prisma)`와 `createPrismaMockPriceAdapter(
 
 후속 통합 코드는 `createIntegrationPlugins` 안에서 Trading → Payment → MCP 순서로 생성하고 해당 Plugin들을 반환합니다. 팩토리에서 초기화한 외부 리소스도 Plugin의 종료 hook으로 정리하세요. 테스트는 `buildApp()`과 `app.inject()`를 사용합니다.
 
-현재 운영 팩토리는 Trading REST와 MCP를 등록합니다. `IntegrationDependencies.env`의 `TRADING_DATA_SOURCE`로 메모리/Prisma Store를 선택하고 Trading Plugin에서 예약 만료 타이머를 관리합니다. DB 거래는 DB 연결 및 DB 카드 조회를 함께 요구합니다. 인증·시연 seed·실행 경로는 [트레이딩 통합 가이드](trading-integration.md)에 있습니다. Payment 증빙과 거래 MCP 도구는 아직 주입하지 않습니다.
+현재 운영 팩토리는 Trading·정책/예산 REST, 서버 실행과 MCP를 등록합니다. `IntegrationDependencies.env`의 `TRADING_DATA_SOURCE`로 메모리/Prisma Store를 선택하고 통합 호스트에서 실행 기한·예약 만료·결제 복구 타이머를 관리합니다. DB 거래는 DB 연결 및 DB 카드 조회를 함께 요구합니다. 인증·시연 seed·실행 경로는 [트레이딩 통합 가이드](trading-integration.md)에 있습니다. Payment 증빙과 거래 MCP 도구를 공유 저장소에 연결합니다. 실제 LLM 실행은 executeAgentRun, 실제 지급은 paymentOptions/명시적 환경 설정으로 연결합니다.
 
 Payment가 Trading Service 또는 정산 완료 콜백을 받는 단방향 연결을 권장합니다. Trading이 다시 Payment를 생성·호출하는 순환 의존성을 만들지 않습니다. 정산 증빙 확인, 멱등 체결, UNKNOWN 복구는 담당 모듈에서 구현하며 Core API에 복제하지 않습니다.
 
 ## 인증
 
-카드·시세 조회는 공개입니다. 기본 `request.auth`는 null이며, 클라이언트의 사용자·Agent ID 헤더를 신뢰하지 않습니다. 검증된 인증 제공자를 `resolveAuth`로 주입하고, 보호된 라우트에서 `requireAuth(request)`를 호출하세요. 인증 provider와 Agent 소유권 인가는 아직 미구현입니다.
+카드·시세 조회는 공개입니다. 기본 `request.auth`는 null이며, 클라이언트의 사용자·Agent ID 헤더를 신뢰하지 않습니다. 검증된 인증 제공자를 `resolveAuth`로 주입하고, 보호된 라우트에서 `requireAuth(request)`를 호출하세요. 기본 진입점은 루프백 한정 데모 토큰만 제공하며 상용 인증 provider·Agent 지갑 소유권 확인은 주입해야 합니다.
 
 Web은 Server Component를 통해 Core API를 호출하므로 API 주소·비밀값을 브라우저에 노출할 필요가 없습니다. Agent 세션 HTTP/SSE는 검증된 인증 제공자를 주입한 Core API에서 등록할 수 있습니다. [Agent 세션 플러그인 등록 방법](../apps/agent/README.md#세션-httpsse)을 참고하세요. 변경 요청용 BFF는 후속 통합 범위입니다.
 

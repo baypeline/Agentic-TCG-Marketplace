@@ -1,7 +1,7 @@
 # Agentic TCG Marketplace
 
 AI Agent × MCP × x402 기반 TCG 거래 PoC의 개발 시작용 모노레포입니다.
-카드 조회 API와 Agent 조회 런타임의 실행 기반을 제공합니다.
+카드 조회와 Trading·정책 예산·서버 실행·MCP x402 결제/체결 복구 기반을 제공합니다. 실제 LLM 구매·서명 실행기 주입과 Web 쓰기 폼 연동은 남아 있으며 [현재 구현 범위](docs/decisions.md#현재-구현과-검증-범위)에 구분합니다.
 
 ## 빠른 시작
 
@@ -130,13 +130,13 @@ pnpm --filter @tcg/aggregator test
 
 카드 검색·상세 화면·Mock 적정가, API 오류 처리, 인증 컨텍스트 주입 지점, PostgreSQL 조회 어댑터·시연 seed·실제 DB 통합 테스트를 구현했습니다. [TCGdex 외부 카드 수집·영구 UUID 매핑·DB 저장](packages/aggregator/README.md) 후 기존 REST 경로에서 조회할 수 있으며 [외부 참고 시세 수집과 검증 표본 평가](packages/valuation/README.md)도 지원합니다. [Agent Runtime](apps/agent/README.md)은 카드 검색·적정가 조회와 자연어 구매 조건의 Mock 미리보기를 제공하며, MCP 클라이언트 연결과 인증 컨텍스트 기반 세션 HTTP/SSE 플러그인을 제공합니다. 기존 DB/Mock 모드는 유지하며 미구현 live 모드로 조용히 대체하지 않습니다.
 
-Trading 엔진의 인벤토리·매물·지정가 주문·예약·거래 조회 REST와 DB 영속화, 예약 만료 작업을 연결했습니다. 생성 요청은 Idempotency-Key를 요구하며 신규 예약에는 서버 측 활성 Agent·사전 승인 정책 제공자가 필요합니다. 기본 서버는 이 제공자가 없으면 예약을 거부합니다. 로컬 데모 인증과 `pnpm trading:seed`를 제공합니다. 체결 로직은 결제 증빙을 주입하는 Service 테스트로 검증하며, 실행 서버의 실결제에는 아직 연결하지 않았습니다.
+Trading REST, 정책별 예산·버전 원장, 서버 실행 상태, MCP 거래 도구와 x402 지급/체결 복구를 연결했습니다. 정책·실행 생성 후 신규 예약을 허용하며 Idempotency-Key로 응답 유실 재시도를 처리합니다. 로컬 데모 인증과 `pnpm trading:seed`를 제공합니다. 지급은 기본 비활성이고 DB 거래·명시적 공개 지갑 주소 설정과 서명 클라이언트가 필요합니다. Web은 서버 상태 조회 패널을 제공합니다.
 
-전체 카탈로그 동기화, 거래 가능한 카드 변형·상태 확정, 자동 환율 수집, 상용 인증, 구매 정책 API, 자동 매칭, 거래 MCP 도구, 세션 영속화, Agent와 Core API·Web의 실제 연결, x402 거래 결제 및 전체 거래 E2E는 후속 통합 범위입니다. Web의 거래·대화 화면은 미리보기이며 실제 요청·결제를 실행하지 않습니다.
+실제 LLM 구매 실행기·지급 서명기 주입, Web 거래 변경 폼/채팅 연결, 다중 실행 호스트의 작업 임대, 상용 인증, 자동 매칭·환율 수집과 실제 테스트넷 전체 거래 E2E는 후속 범위입니다. Web의 기존 쓰기 폼·대화는 미리보기이며 서버 정책·주문·결제를 변경하지 않습니다.
 
 가격은 USDC 최소 단위 정수 문자열입니다. UUID 및 UTC ISO 8601을 사용합니다. Mock 가격은 `dataSource: "MOCK"`로 구분하고, 표본이 없으면 `status: "INSUFFICIENT_DATA"`, `estimatedPrice: null`을 반환합니다. 이 확장은 초안 계약의 미정 부분을 구체화한 **팀 검토 대상**입니다. [계약 결정 사항](docs/contracts.md), [통합 가이드](docs/integration.md)를 확인하세요.
 
 
 ## 합의된 설계·API 계약
 
-2026년 11월 24일 사용자 합의를 반영한 [시스템 설계서 v2.2](docs/system-design.md), [API 계약서 v2.1](docs/api-contract.md), [결정 사항과 구현 차이](docs/decisions.md)를 저장소에서 관리합니다. 정책별 누적 예산·예약 보류·결제/거래 상태 분리·서버 Agent 실행·Trade 기반 이력/모의 수익을 기준으로 합니다. 이 문서 개정은 코드 구현 완료가 아니며, SSE 연결 종료에 따른 중단과 Agent 중단 시 예약 해제 등은 후속 수정 대상입니다.
+2026년 11월 24일 사용자 합의를 반영한 [시스템 설계서 v2.2](docs/system-design.md), [API 계약서 v2.1](docs/api-contract.md), [결정 사항과 구현 차이](docs/decisions.md)를 저장소에서 관리합니다. 정책별 누적 예산·예약 보류·결제/거래 상태 분리·서버 Agent 실행·Trade 기반 이력/모의 수익을 기준으로 합니다. 이 규칙을 코드에 반영했으며 실제 외부 연동 검증 범위와 남은 작업은 결정 사항 문서에서 구분합니다.

@@ -6,7 +6,7 @@
 
 **담당:** 정연한 총괄, 각 모듈 담당자 공동 검토
 
-원본은 사용자가 제공한 공통 API 계약서 v2.0입니다. 이 개정본은 이번 대화에서 사용자와 확정한 규칙을 반영합니다. 새 계약의 구현 완료를 의미하지 않으며 [합의 사항 및 구현 차이](decisions.md)에 현재 코드와의 차이를 구분합니다. [시스템 설계서 v2.2](system-design.md)와 함께 사용합니다. 담당자 간 별도 공유·배포가 완료됐다고 의미하지 않습니다.
+원본은 사용자가 제공한 공통 API 계약서 v2.0입니다. 이 개정본은 이번 대화에서 사용자와 확정한 규칙을 반영합니다. 업무 규칙의 구현 현황과 실제 외부 연동 검증 범위는 [합의 사항](decisions.md)에 구분합니다. [시스템 설계서 v2.2](system-design.md)와 함께 사용합니다. 담당자 간 별도 공유·배포가 완료됐다고 의미하지 않습니다.
 
 ## 1. 공통 원칙
 
@@ -183,11 +183,21 @@ type SpendingPolicy = {
 
 예산 검사는 실제 온체인 지갑 잔액 검사와 별개로 실행합니다. 총예산·사용 완료액·결제 예약액은 policyId 단위로 누적하며 여러 세션이 공유합니다. 재시작·정책 수정으로 초기화하지 않습니다. 사용 가능액은 totalBudget − 사용 완료액 − 결제 예약액입니다. 카드만 예약하고 결제를 제출하지 않은 금액은 결제 예약액에 넣지 않습니다. totalBudget을 사용 완료액 + 결제 예약액보다 낮추는 변경은 거부합니다. 정책 변경과 제출 승인은 서버 DB 확정 순서를 따르며 결제 제출 승인에 policyId·policyVersion을 저장합니다.
 
-정책 생성·조회·수정의 구체 REST 경로와 예산 조회 DTO는 아직 고정하지 않았습니다. 이 문서에서 신규 API가 구현됐다고 가정하지 않습니다.
+정책 입력은 id·version·agentId를 제외한 SpendingPolicy 필드이며, 수정에는 expectedVersion을 추가합니다. 수정은 전체 필드를 전달하는 PUT입니다. 버전 불일치는 IDEMPOTENCY_CONFLICT입니다.
+
+```ts
+type Budget = {
+  policyId: string;
+  totalBudget: string;
+  spentAmount: string;
+  reservedAmount: string;
+  availableAmount: string;
+};
+```
 
 ## 3. REST API
 
-아래 경로는 MVP 통합 계약의 제안 경로다.
+아래 경로는 Core API의 통합 경로다. 보호된 경로에는 호스트가 검증한 인증 컨텍스트가 필요하다.
 
 ### 3.1. 카드·시세
 
@@ -316,15 +326,31 @@ GET /api/cards?q=pikachu&limit=10
 | --- | --- | --- |
 | GET | `/api/trades` | 거래 내역 |
 | GET | `/api/trades/:id` | 거래 상세 |
-| GET | `/api/matches/:id` | 예약·체결 상태 |
+| GET | `/api/matches/:id` | 예약·체결 상태와 holdReasons·remainingMs |
+| GET | `/api/matches` | 현재 구매 Agent의 예약 목록 |
+| GET | `/api/purchases/:id/status` | PurchaseStatus 결제·거래 결합 상태 |
+| GET | `/api/seller-proceeds` | 완료 Trade의 모의 판매 수익 `{ amount, currency: "USDC", tradeCount, withdrawable: false }` |
 
-### 3.5. Agent
-
-Agent Runtime은 Next.js BFF가 호출하는 별도 API를 제공한다.
+### 3.4.1. 정책·예산
 
 | Method | Path | 기능 |
 | --- | --- | --- |
-| POST | `/sessions` | Agent 실행 |
+| POST | `/api/policies` | 정책 생성, Idempotency-Key 필수 |
+| GET | `/api/policies` | 현재 사용자·Agent의 정책 목록 |
+| GET | `/api/policies/:id` | 최신 정책 |
+| PUT | `/api/policies/:id` | 정책 수정, expectedVersion·Idempotency-Key 필수 |
+| GET | `/api/policies/:id/versions` | 버전순 정책 이력 |
+| GET | `/api/policies/:id/budget` | 정책별 Budget |
+
+
+### 3.5. Agent
+
+Core API는 서버 실행용 경로를 제공한다. Web 상태 BFF는 조회만 전달하며 실행 생성·중단 UI는 아직 연결하지 않았다.
+
+| Method | Path | 기능 |
+| --- | --- | --- |
+| POST | `/sessions` | 정책에 연결한 서버 실행 생성, Idempotency-Key 필수 |
+| GET | `/sessions` | 현재 사용자·Agent 실행 목록 |
 | GET | `/sessions/:id` | 실행 상태 |
 | POST | `/sessions/:id/stop` | 실행 중단 |
 | GET | `/sessions/:id/events` | SSE 이벤트 |
@@ -349,7 +375,9 @@ Agent Runtime은 Next.js BFF가 호출하는 별도 API를 제공한다.
 
 Agent Runtime은 사용자 인증·인가가 끝난 내부 요청만 수락합니다. 실행 수명은 서버가 관리하며 브라우저·SSE 연결 종료로 Agent 실행을 중단하지 않습니다. 재접속 시 기존 실행 상태를 조회합니다. 명시적 중단 시 대기 주문은 PAUSED, 미제출 예약은 원래 만료 시간까지 유지한 결제 보류, 제출된 결제는 정산·복구 계속입니다. 재개 시 최신 정책·예산을 재검증합니다. 실행 세션의 기한과 브라우저 연결 수명을 구분합니다.
 
-위 경로는 목표 계약입니다. 현재 코드의 /api/agent/sessions 대화 Plugin과 경로·응답·실행 수명이 같다고 보지 않습니다. 이전 버전 호환 경로 및 재접속 이벤트 재생 프로토콜은 구현 단계에서 별도 고정합니다.
+응답 전체 필드는 `{ id, policyId, instruction, status, expiresAt, result }`이며 status는 RUNNING·STOPPED·COMPLETED·FAILED, result는 문자열 또는 null입니다. 같은 Agent의 동시 실행은 같은 정책을 공유합니다. 기한은 정책 만료와 시작 후 24시간 중 이른 시각입니다. SSE `status` 이벤트의 data는 현재 전체 실행 DTO이며 재접속하면 최신 스냅샷을 보냅니다. 과거 이벤트 재생은 제공하지 않습니다.
+
+`executeAgentRun` 주입 시 서버가 작업을 실행하고 결과를 저장합니다. 호스트 재시작 시 RUNNING 작업을 재인계하며 단일 실행 호스트를 전제합니다. 기본 server.ts에는 실제 LLM 작업 실행기·지급 서명기가 연결되지 않았습니다. 기존 `/api/agent/sessions` 대화 플러그인은 별도 메모리 대화 API이며 Core API에 자동 등록하지 않습니다.
 
 ## 4. MCP Tool 계약
 
@@ -370,7 +398,7 @@ MCP Server는 아래 도구를 제공한다.
 | `execute_purchase` | `matchQuoteId` | x402 요구 또는 결제·체결 결과 |
 | `get_purchase_status` | `matchQuoteId` | 예약·결제·체결 상태 |
 
-MCP 도구는 Agent의 인증된 사용자·지갑 컨텍스트를 기반으로 작동합니다. 생성 작업의 멱등 키는 서버 실행 계층이 생성·보관·전달하며 LLM 입력으로 생성·변경하지 않습니다. 통신 재시도는 같은 키, 새 주문·미매칭 후 새 시장 탐색은 새 키입니다. 정확한 MCP 메타데이터 전송 필드는 SDK 연동에서 고정합니다.
+MCP 도구는 Agent의 인증된 사용자·지갑 컨텍스트를 기반으로 작동합니다. 생성 작업의 멱등 키는 서버 실행 계층이 생성·보관·전달하며 LLM 입력으로 생성·변경하지 않습니다. 통신 재시도는 같은 키, 새 주문·미매칭 후 새 시장 탐색은 새 키입니다. 생성·매칭 요청의 키는 HTTP `Idempotency-Key` 헤더로 전달합니다. 도구 인수로 키를 받지 않습니다. 서버의 `policies.actionKey(auth, runId, action, input)`는 실행별 작업 키를 영속화하고 `createServerMcpClient`가 재시도에 같은 키를 사용합니다. 새 탐색의 action 이름은 서버 실행기가 새로 부여합니다.
 
 지정가·시장가 미매칭의 성공 data는 null입니다. 지정가는 주문을 유지하고 시장가는 해당 시도를 종료합니다. 특정 고정가 매물 불가는 LISTING_UNAVAILABLE, 가격 상한 초과는 PRICE_LIMIT_EXCEEDED, 정책·예산 위반은 각각 명시적 오류입니다.
 
@@ -403,7 +431,7 @@ MCP 도구는 Agent의 인증된 사용자·지갑 컨텍스트를 기반으로 
 
 x402 결제 요구는 일반 오류와 구분하여, 선택한 x402 MCP 전송 규격의 표준 필드에 맞게 반환한다.
 
-정확한 결제 메타데이터 필드·재호출 형식은 김민지·최승원 담당자가 SDK 통합 테스트에서 검증하고 공통 계약에 고정한다.
+x402 v2 MCP 전송은 [공식 규격](https://github.com/x402-foundation/x402/blob/main/specs/transports-v2/mcp.md)을 따릅니다. 요구는 `isError: true`, 직접 PaymentRequired 객체를 `structuredContent`와 JSON `content`에 같은 값으로 제공합니다. 일반 `{ ok, data }` 래퍼 안에 넣지 않습니다. 서명 재호출은 동일 도구·인수와 `params._meta["x402/payment"] = PaymentPayload`를 사용합니다. 정산 성공 결과의 `_meta["x402/payment-response"]`에는 success·transaction·network를 제공합니다. 서명은 모델 인수가 아닙니다.
 
 ## 5. Payment 내부 계약
 
@@ -411,52 +439,45 @@ Payment는 외부에 임의 결제 실행 REST API를 공개하지 않는다. MC
 
 ### 5.1. 공통 서비스 인터페이스
 
-```
+```ts
 interface PaymentService {
-  preparePayment(input: {
-    matchQuoteId: string;
-    agentId: string;
-  }): Promise<PaymentRequirement>;
-
-  processSignedPayment(input: {
-    matchQuoteId: string;
-    agentId: string;
-    paymentPayload: unknown;
-  }): Promise<PaymentResult>;
-
-  getPaymentStatus(
-    matchQuoteId: string
-  ): Promise<PaymentStatus>;
+  preparePayment(input: { matchQuoteId: string; agentId: string }, auth: TradingBuyer):
+    Promise<{ id: string; matchQuoteId: string; requirements: PaymentRequirements }>;
+  processSignedPayment(input: { matchQuoteId: string; agentId: string; paymentPayload: unknown }, auth: TradingBuyer): Promise<PurchaseStatus>;
+  getPaymentStatus(matchQuoteId: string, auth: TradingBuyer): Promise<PurchaseStatus>;
 }
 ```
 
-`paymentPayload`의 실제 타입은 선택한 x402 SDK에서 제공하는 검증된 스키마를 사용한다.
+`PaymentRequirements`와 `PaymentPayload`는 x402 v2 SDK 타입·스키마를 사용합니다. 발행 요구는 MatchQuote 금액·Base Sepolia USDC·서버 수납 주소에 결합합니다. 서명자는 호스트가 해당 사용자·Agent에 연결한 지갑이어야 합니다. 지급 서명 원문은 저장하지 않고 제출 승인에 payloadHash를 기록합니다.
 
-### 5.2. 결제 결과
+### 5.2. 결제·거래 조회
 
+```ts
+type PurchaseStatus = {
+  id: string; // MatchQuote ID
+  paymentAttemptId: string | null;
+  policyId: string | null;
+  policyVersion: number | null;
+  amount: string;
+  quoteStatus: MatchQuote["status"];
+  paymentStatus: "REQUIRED" | "PENDING" | "UNKNOWN" | "FAILED" | "SETTLED" | null;
+  tradeStatus: "NOT_STARTED" | "FINALIZING" | "COMPLETED";
+  holdReasons: string[];
+  expiresAt: string;
+  remainingMs: number;
+  transactionHash: string | null;
+  needsReview: boolean;
+  retryPaymentAllowed: boolean;
+};
 ```
-type PaymentResult =
-  | {
-      status: "SETTLED";
-      paymentAttemptId: string;
-      transactionHash: string;
-    }
-  | {
-      status: "FAILED";
-      paymentAttemptId: string;
-      code: string;
-    }
-  | {
-      status: "UNKNOWN";
-      paymentAttemptId: string;
-    };
-```
+
+`retryPaymentAllowed`는 최신 검사에서 미제출 예약에 결제 가능 조건이 갖춰졌는지 나타냅니다. UNKNOWN/PENDING/SETTLED/FAILED에 새 지급을 허용하지 않습니다. REQUIRED는 요구만 발행한 단계로 카드·예산 보호 경계가 아닙니다. 보류 사유는 표시용 문자열이며 코드 분기로 해석하지 않습니다. 기본 복구는 30초마다 수행하며 미확정·거래 반영 지연 5분부터 needsReview를 표시합니다. 시간이 지나도 보호는 해제하지 않습니다.
 
 Payment는 동일 MatchQuote에 대한 결제 시도를 식별하고 중복 정산을 방지합니다. 마켓플레이스 서버가 최신 정책·예산·예약 유효성을 재검증하고 외부 정산 요청 직전에 결제 시도·예산 예약·카드 보호 상태·적용 정책 버전을 같은 DB 트랜잭션에 저장합니다. 그 제출 승인이 확정된 후 외부 정산 요청을 전송합니다. 정책 변경과 제출 승인은 서버 DB 확정 순서를 따릅니다.
 
 UNKNOWN은 새 결제 시도·서명을 만들지 않고 카드·예산 예약을 유지합니다. 서버가 기존 증빙으로 조회·복구하며 프론트에는 “결제 확인 중”과 재결제 차단을 제공합니다. 시간 경과만으로 실패 처리하지 않습니다. 장기 미확정은 운영자 확인 대상으로 넘기되 결과 확정 전 보호를 유지합니다. FAILED는 정산 성공 가능성이 배제된 확정 실패입니다.
 
-PaymentResult의 SETTLED는 지급 정산 성공만 뜻합니다. 거래 완료와 분리하여 조회하고, SETTLED 시 예산 예약액을 사용 완료액으로 전환합니다. 소유권 이전 전에는 “결제 완료 · 거래 처리 중”, 소유권 이전과 Trade 저장 후에만 “구매 완료”입니다. 복구는 추가 결제 없이 Trading 반영만 멱등 재시도합니다. PaymentStatus·PaymentRequirement와 결제/거래 결합 조회 DTO의 전체 필드·중간 상태 이름은 SDK 통합에서 고정할 남은 세부 계약입니다. PaymentResult에 거래 완료를 암묵적으로 포함시키지 않습니다.
+paymentStatus의 SETTLED는 지급 정산 성공만 뜻합니다. 거래 완료와 분리하여 조회하고, SETTLED 시 예산 예약액을 사용 완료액으로 전환합니다. 소유권 이전 전에는 “결제 완료 · 거래 처리 중”, 소유권 이전과 Trade 저장 후에만 “구매 완료”입니다. 복구는 추가 결제 없이 Trading 반영만 멱등 재시도합니다. PurchaseStatus는 결제와 거래를 별도 필드로 반환하며 정산 성공을 거래 완료로 취급하지 않습니다. 트랜잭션 해시가 없는 UNKNOWN은 운영 확인 대상으로 보호를 유지합니다.
 
 ## 6. Trading 내부 계약
 
@@ -601,7 +622,7 @@ RECONCILING → SETTLED / RELEASED
 
 결제 결과가 불명인 경우 확정 증빙 없이 RELEASED로 전환하지 않습니다. PAYMENT_PENDING의 보호 시작점은 외부 요청 전 제출 승인 DB 커밋입니다. 확정 실패의 예약 해제 경로도 허용하되 UNKNOWN·단순 시간 경과는 실패 증빙이 아닙니다.
 
-정책 변경·Agent 중단으로 결제를 보류해도 미제출 예약은 RESERVED와 원래 expiresAt을 유지합니다. 보류는 예약 소유권 해제가 아니며 프론트에 사유와 잔여 시간을 표시합니다. 만료 시 해제합니다. 보류 사유의 조회 DTO·필드 이름은 후속 세부 계약에서 고정합니다. 정책 수정으로 기존 예약을 자동 취소하지 않으며, 제출 직전 최신 정책을 다시 검사합니다.
+정책 변경·Agent 중단으로 결제를 보류해도 미제출 예약은 RESERVED와 원래 expiresAt을 유지합니다. 보류는 예약 소유권 해제가 아니며 프론트에 사유와 잔여 시간을 표시합니다. 만료 시 해제합니다. 조회는 holdReasons·remainingMs를 제공합니다. 정책 수정으로 기존 예약을 자동 취소하지 않으며, 제출 직전 최신 정책을 다시 검사합니다.
 
 ## 10. 공통 오류 코드
 
@@ -619,6 +640,8 @@ RECONCILING → SETTLED / RELEASED
 | `INVENTORY_CONFLICT` | 카드 중복 예약·판매 |
 | `BUDGET_EXCEEDED` | 승인 예산 초과 |
 | `POLICY_VIOLATION` | Agent 정책 위반 |
+| `POLICY_NOT_FOUND` | 정책 없음 |
+| `PAYMENT_UNAVAILABLE` | 결제 제공자·연결 미설정 또는 일시 사용 불가 |
 | `PAYMENT_REQUIRED` | x402 지급 필요 |
 | `PAYMENT_FAILED` | 지급 실패 확정 |
 | `PAYMENT_UNKNOWN` | 정산 결과 불명 |
