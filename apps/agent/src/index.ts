@@ -91,10 +91,16 @@ export function createAgentRuntime({
 
       const agent = new Agent({
         name: 'TCG 카드 조회 도우미',
-        instructions,
+        instructions: instructions + (options?.onCardChoices ? `
+사용자가 어느 카드를 조회할지 골라야 하면 show_card_choices로 검색한 카드 후보의 ID를 전달하세요.
+세트·번호·언어 등 사용자가 지정한 조건에 맞는 후보만 표시하세요.
+버튼은 카드 정보를 별도로 보여주므로 같은 후보 목록을 답변에 다시 나열하지 마세요.
+답변에는 아래 카드 버튼을 선택하면 해당 카드의 적정가를 조회할 수 있다고 간단히 안내하세요.
+카드가 하나로 특정되어 적정가를 이미 조회했다면 선택 버튼을 표시하지 마세요.
+` : ''),
         model,
         modelSettings: { store: false, parallelToolCalls: false },
-        tools: createCardTools(dependencies, route),
+        tools: createCardTools(dependencies, route, options?.onCardChoices),
       });
       const result = await runner.run(agent, toAgentInput(message, options?.history), { maxTurns: 6, signal: options?.signal });
       const output = result.finalOutput?.trim();

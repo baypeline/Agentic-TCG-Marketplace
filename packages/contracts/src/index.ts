@@ -23,6 +23,13 @@ export const cardVariantSchema = z.object({
 });
 export type CardVariant = z.infer<typeof cardVariantSchema>;
 
+export const agentChatReplySchema = z.object({
+  content: z.string().min(1),
+  cardChoices: z.array(cardVariantSchema).min(1).max(10)
+    .refine(cards => new Set(cards.map(card => card.id)).size === cards.length, '중복 카드 후보는 사용할 수 없습니다.').optional(),
+});
+export type AgentChatReply = z.infer<typeof agentChatReplySchema>;
+
 export const priceObservationSchema = z.object({
   amount: amountSchema.refine(amount => /^(0|[1-9]\d*)$/.test(amount) && BigInt(amount) > 0n, '가격 표본은 양수여야 합니다.'),
   source: z.string().trim().min(1),

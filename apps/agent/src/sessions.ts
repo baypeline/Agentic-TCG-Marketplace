@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Readable } from 'node:stream';
-import { AppError, idSchema, type AuthContext } from '@tcg/contracts';
+import { AppError, idSchema, agentChatReplySchema, type AuthContext, type CardVariant } from '@tcg/contracts';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { AgentMessage, AgentTurnOptions } from './turn.js';
@@ -136,9 +136,12 @@ export function createAgentSessionPlugin({ runtime, requireAuth, onSessionStarte
       // 서버가 작업 Promise를 소유한다. 조회 스트림의 수명으로 취소하지 않는다.
       const task = (async () => {
         try {
-          const output = await runtime.runAgentTurn(message, { history: session.messages, signal });
+          let cardChoices: CardVariant[] = [];
+          const output = await runtime.runAgentTurn(message, { history: session.messages, signal,
+            onCardChoices: cards => { cardChoices = cards; },
+          });
           signal.throwIfAborted();
-          const assistantMessage: AgentMessage = { role: 'assistant', content: output };
+          const assistantMessage: AgentMessage = { role: 'assistant', ...agentChatReplySchema.parse({ content: output, ...(cardChoices.length ? { cardChoices } : {}) }) };
           session.messages = [...session.messages, { role: 'user', content: message } satisfies AgentMessage, assistantMessage].slice(-maxHistoryMessages);
           session.updatedAt = Date.now();
           return sse('completed', { sessionId: session.id, message: assistantMessage });

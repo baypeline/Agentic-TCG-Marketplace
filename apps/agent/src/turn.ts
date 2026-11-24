@@ -1,13 +1,16 @@
 import type { AgentInputItem } from '@openai/agents';
+import type { CardVariant } from '@tcg/contracts';
 
 export interface AgentMessage {
   role: 'user' | 'assistant';
   content: string;
+  cardChoices?: CardVariant[];
 }
 
 export interface AgentTurnOptions {
   history?: readonly AgentMessage[];
   signal?: AbortSignal;
+  onCardChoices?: (cards: CardVariant[]) => void;
 }
 
 export function toAgentInput(message: string, history?: readonly AgentMessage[]): string | AgentInputItem[] {

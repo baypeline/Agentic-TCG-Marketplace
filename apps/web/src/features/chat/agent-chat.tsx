@@ -3,7 +3,9 @@
 import { lazy, Suspense, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import styled from '@emotion/styled';
 import { keyframes } from '@emotion/react';
-import { readAgentReply } from './agent-client';
+import { readAgentMessage } from './agent-client';
+import { CardChoices, cardChoiceLabel, cardChoiceQuestion } from './card-choices';
+import type { CardVariant } from '@tcg/contracts';
 
 const AgentMarkdown = lazy(() => import('./agent-markdown'));
 
@@ -12,6 +14,8 @@ const suggestions = ['피카츄 찾아줘', '리자몽 적정가 알려줘', '�
 interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
+  cardChoices?: CardVariant[];
+  selectedCardId?: string;
 }
 
 export function AgentChat({ onClose }: { onClose: () => void }) {
@@ -24,19 +28,18 @@ export function AgentChat({ onClose }: { onClose: () => void }) {
   const input = useRef<HTMLTextAreaElement>(null);
   const history = useRef<HTMLDivElement>(null);
   const composing = useRef(false);
+  const latestChoices = messages.reduce((last, message, index) => message.cardChoices?.length ? index : last, -1);
   useEffect(() => { if (history.current) history.current.scrollTop = history.current.scrollHeight; }, [messages]);
 
   useEffect(() => () => { activeRequest.current?.abort(); }, []);
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const message = draft.trim();
-    if (!message || message.length > 2000 || activeRequest.current) return;
+  async function sendMessage(message: string, displayedMessage = message, preserveDraft = false): Promise<boolean> {
+    if (!message || message.length > 2000 || activeRequest.current) return false;
 
     const request = new AbortController();
     activeRequest.current = request;
-    setMessages(current => [...current, { role: 'user', content: message }]);
-    setDraft('');
+    setMessages(current => [...current, { role: 'user', content: displayedMessage }]);
+    if (!preserveDraft) setDraft('');
     setError('');
     setPending(true);
     input.current?.focus();
@@ -52,26 +55,43 @@ export function AgentChat({ onClose }: { onClose: () => void }) {
         const failure = await response.json().catch(() => null);
         throw new Error(failure?.message || '에이전트에 연결하지 못했습니다.');
       }
-      if (activeRequest.current !== request) return;
+      if (activeRequest.current !== request) return false;
       const id = response.headers.get('x-agent-session-id');
       if (!id) throw new Error('대화 세션을 확인하지 못했습니다.');
       sessionId.current = id;
-      const reply = await readAgentReply(response.body);
+      const reply = await readAgentMessage(response.body);
       if (activeRequest.current === request) {
-        setMessages(current => [...current, { role: 'assistant', content: reply }]);
+        setMessages(current => [...current, { role: 'assistant', ...reply }]);
+        return true;
       }
+      return false;
     } catch (failure) {
       if (activeRequest.current === request && !request.signal.aborted) {
         setError(failure instanceof Error ? failure.message : '에이전트 답변을 받지 못했습니다.');
         setMessages(current => current.slice(0, -1));
-        setDraft(current => current || message);
+        if (!preserveDraft) setDraft(current => current || message);
       }
+      return false;
     } finally {
       if (activeRequest.current === request && !request.signal.aborted) {
         activeRequest.current = null;
         setPending(false);
       }
     }
+  }
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void sendMessage(draft.trim());
+  }
+
+  async function selectCard(card: CardVariant, messageIndex: number) {
+    if (activeRequest.current) return;
+    const selectedSession = sessionId.current;
+    setMessages(current => current.map((message, index) => index === messageIndex ? { ...message, selectedCardId: card.id } : message));
+    const succeeded = await sendMessage(cardChoiceQuestion(card), `${cardChoiceLabel(card)} 카드의 적정가를 알려줘.`, true);
+    // 실패했으면 같은 후보를 다시 선택할 수 있도록 한다.
+    if (!succeeded && sessionId.current === selectedSession) setMessages(current => current.map((message, index) => index === messageIndex ? { ...message, selectedCardId: undefined } : message));
   }
 
   function reset() {
@@ -103,6 +123,7 @@ export function AgentChat({ onClose }: { onClose: () => void }) {
                 <AgentMarkdown content={message.content} />
               </Suspense>
             ) : <PlainMessage>{message.content}</PlainMessage>}
+            {message.role === 'assistant' && message.cardChoices?.length ? <CardChoices cards={message.cardChoices} disabled={pending || index !== latestChoices} selectedId={message.selectedCardId} onSelect={card => { void selectCard(card, index); }} /> : null}
           </MessageBody>
         </Message>
       ))}

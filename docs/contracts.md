@@ -101,3 +101,9 @@ Inventory·Listing·BuyOrder·MatchQuote·Trade의 기존 DTO를 유지한 Tradi
 - 서버 실행 계층이 MCP 작업 키를 보관합니다. 재시도는 같은 키, 새로운 주문 의도·새 시장 탐색은 새 키입니다. 지정가·시장가 미매칭은 null이며 정책·예산 등 업무 오류와 구분합니다.
 
 이 목록의 문서화는 구현 완료 선언이 아닙니다. 모듈별 검증 범위와 외부 연동 한계는 [구현 현황](decisions.md#현재-구현과-검증-범위)을 확인하세요.
+
+## 조회 채팅의 카드 선택 후보
+
+`agentChatReplySchema`는 `{ content: string, cardChoices?: CardVariant[] }`입니다. SSE completed.message는 기존 role/content를 유지하며 선택이 필요할 때만 cardChoices를 포함합니다. 후보는 1~10개, UUID 중복 없이 검증합니다. 기존 문자열 응답 소비자는 확장 필드를 무시할 수 있습니다.
+
+후보는 해당 턴의 검색 결과에서 `show_card_choices`가 선택한 카드만 전달합니다. Web은 마크다운의 번호·이름을 해석하지 않고 구조화된 UUID·세트·번호·언어·판본·상태로 조회 대상을 표현합니다. 선택은 후속 적정가 질문이며 주문·구매 승인이나 소유권 검증을 대신하지 않습니다. 실제 적정가 조회 시에는 기존 도구의 현재 턴 검색 ID 검증을 유지합니다. 런타임의 optional `onCardChoices` 콜백과 Web의 `readAgentMessage`가 이 확장을 사용하고 기존 `readAgentReply`는 문자열 반환을 유지합니다.

@@ -2,6 +2,7 @@ import Fastify, { type FastifyRequest } from 'fastify';
 import { AppError, type AuthContext } from '@tcg/contracts';
 import { afterEach, expect, it, vi } from 'vitest';
 import { createAgentSessionPlugin, type AgentSessionPluginOptions } from '../src/index.js';
+import { demoCards } from '@tcg/contracts/fixtures';
 
 const apps: ReturnType<typeof Fastify>[] = [];
 afterEach(async () => { await Promise.all(apps.splice(0).map(app => app.close())); vi.useRealTimers(); });
@@ -40,6 +41,22 @@ async function createSession(app: Awaited<ReturnType<typeof setup>>) {
   const { id } = response.json<{ id: string }>();
   return `${baseUrl}/${id}`;
 }
+
+it('같은 응답의 선택 후보를 SSE와 소유자 세션에 보존하고 다음 턴에는 재사용하지 않는다', async () => {
+  let turn = 0;
+  const app = await setup(async (_message, options) => {
+    if (turn++ === 0) options?.onCardChoices?.([demoCards[0]!]);
+    return '조회 응답';
+  });
+  const url = await createSession(app);
+  const send = () => app.inject({ method: 'POST', url: `${url}/messages`, headers: owner, payload: { message: '조회' } });
+  const first = await send();
+  expect(first.body).toContain('"cardChoices"');
+  expect(first.body).toContain(demoCards[0]!.id);
+  expect((await send()).body).not.toContain('"cardChoices"');
+  const session = await app.inject({ url, headers: owner });
+  expect(session.json().messages[1].cardChoices).toEqual([demoCards[0]]);
+});
 
 it('세션 소유자의 메시지를 SSE로 처리하고 이전 턴을 다음 모델 호출에 전달한다', async () => {
   const runAgentTurn = vi.fn<AgentSessionPluginOptions['runtime']['runAgentTurn']>()

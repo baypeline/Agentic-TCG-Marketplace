@@ -1,8 +1,12 @@
-export async function readAgentReply(stream: ReadableStream<Uint8Array>): Promise<string> {
+import { agentChatReplySchema, type AgentChatReply } from '@tcg/contracts';
+
+export type AgentReply = AgentChatReply;
+
+export async function readAgentMessage(stream: ReadableStream<Uint8Array>): Promise<AgentReply> {
   const reader = stream.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
-  let reply: string | undefined;
+  let reply: AgentReply | undefined;
   try {
     while (true) {
       const { done, value } = await reader.read();
@@ -19,7 +23,7 @@ export async function readAgentReply(stream: ReadableStream<Uint8Array>): Promis
           }
           if (event === 'event: completed') {
             const payload = JSON.parse(data.slice(6));
-            if (typeof payload.message?.content === 'string') reply = payload.message.content;
+            reply = agentChatReplySchema.parse(payload.message);
           }
         }
         end = buffer.indexOf('\n\n');
@@ -32,4 +36,9 @@ export async function readAgentReply(stream: ReadableStream<Uint8Array>): Promis
     await reader.cancel().catch(() => undefined);
     reader.releaseLock();
   }
+}
+
+// 기존 문자열 응답 소비자와의 호환성을 유지한다.
+export async function readAgentReply(stream: ReadableStream<Uint8Array>): Promise<string> {
+  return (await readAgentMessage(stream)).content;
 }

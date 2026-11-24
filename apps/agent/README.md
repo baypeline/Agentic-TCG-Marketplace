@@ -55,6 +55,8 @@ pnpm --filter @tcg/agent demo "피카츄 적정가 알려줘"
 
 ## 세션 HTTP/SSE
 
+Web처럼 선택 UI를 제공하는 소비자는 `runAgentTurn(message, { onCardChoices })`로 카드 후보 콜백을 받을 수 있습니다. 이 옵션이 있을 때만 `show_card_choices` 도구와 관련 지침을 추가하며 기존 문자열 반환과 CLI 도구 구성은 유지합니다. 도구는 그 턴에 검색한 카드 ID만 허용하고 최대 10개의 서로 다른 후보를 전달합니다. 모델이 사용자 조건에 맞는 후보를 선택하며 텍스트 목록을 파싱하지 않습니다. 세션 Plugin은 공통 `agentChatReplySchema`로 검증한 후보를 SSE completed.message의 optional cardChoices와 세션 메시지에 보존합니다. 다음 턴에는 후보를 자동 재사용하지 않으며, 선택 후 적정가 도구도 새 턴의 검색 검증을 그대로 거칩니다.
+
 로컬 웹 채팅은 루트 `.env`에 `OPENAI_API_KEY`와 `AGENT_LOCAL_SECRET`이 있으면 `pnpm dev`에서 사용할 수 있습니다. `pnpm env:init`은 새 로컬 환경에 `AGENT_LOCAL_SECRET`을 생성합니다. 기존 `.env`에는 `openssl rand -hex 32`로 생성한 값을 추가할 수 있습니다.
 
 개발 모드의 루프백 주소에서 Web의 `POST /api/agent/chat`이 Core API에 서명된 브라우저 식별자를 전달하고 SSE를 중계합니다. 운영 환경에서 사용하려면 호스트의 인증 제공자를 연결해야 합니다.

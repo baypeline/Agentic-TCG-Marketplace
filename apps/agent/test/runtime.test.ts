@@ -46,6 +46,33 @@ function toolResult(request: ModelRequest, callId: string) {
   throw new Error(`도구 호출 ${callId}의 결과가 텍스트 형식이 아닙니다.`);
 }
 
+it('조회한 후보만 선택 UI로 전달하고 기존 문자열 응답을 유지한다', async () => {
+  const first = mockCards[0]!;
+  const second = { ...first, id: '00000000-0000-4000-8000-000000000099', setCode: 'base2' };
+  const onCardChoices = vi.fn();
+  const { runtime, searchCards } = setup('get_valuation',
+    () => toolCall('search_cards', { query: 'Pikachu' }, 'search'),
+    () => toolCall('show_card_choices', { cardVariantIds: [second.id, first.id] }, 'choices'),
+    request => {
+      expect(toolResult(request, 'choices')).toEqual({ displayedCardIds: [second.id, first.id] });
+      return reply('아래 카드에서 선택해 주세요.');
+    },
+  );
+  searchCards.mockResolvedValue([first, second]);
+  await expect(runtime.runAgentTurn('피카츄 시세 알려줘', { onCardChoices })).resolves.toBe('아래 카드에서 선택해 주세요.');
+  expect(onCardChoices).toHaveBeenCalledExactlyOnceWith([second, first]);
+});
+
+it('이번 턴에 조회하지 않은 카드 ID는 선택 버튼으로 내보내지 않는다', async () => {
+  const onCardChoices = vi.fn();
+  const { runtime } = setup('search_cards',
+    () => toolCall('show_card_choices', { cardVariantIds: [mockCards[0]!.id] }, 'choices'),
+    () => reply('먼저 카드를 검색해 주세요.'),
+  );
+  await runtime.runAgentTurn('피카츄 찾아줘', { onCardChoices });
+  expect(onCardChoices).not.toHaveBeenCalled();
+});
+
 it('빈 한국어 검색 후 영문 이름으로 찾은 카드의 Mock 적정가를 모델에 전달한다', async () => {
   const pikachu = mockCards[0]!;
   const answer = 'Pikachu SV 025 EN NORMAL NM의 시연용 Mock 적정가는 12 USDC입니다.';
