@@ -6,8 +6,11 @@ import { eligibilityLabels, priceTypeLabels, formatProvider, formatVariant, form
 import { Badge, Notice } from './ui';
 
 export function MarketPrices({ prices }: { prices: MarketPricesResponse }) {
+  const providers = new Set(prices.items.map(price => price.provider)).size;
+  const usableProviders = new Set(prices.items.filter(price => price.eligibility === 'ELIGIBLE').map(price => price.provider)).size;
   return <Section aria-labelledby="market-prices-heading"><Heading><h2 id="market-prices-heading">해외 참고 시세</h2><Badge>원본 통화 유지</Badge></Heading>
     <Description>해외 제공자의 집계·판매 희망 가격이며, 한국어판 실거래가가 아닙니다. 원본 통화로 표시합니다.</Description>
+    {!!prices.items.length && <Summary>수집 가격 {prices.items.length}건 · 제공자 {providers}곳 · 적정가에 사용 가능한 제공자 {usableProviders}곳<Small>수집 가격 건수는 실제 거래 건수가 아니에요. 아래에서 가격 유형과 검증 상태를 확인해 주세요.</Small></Summary>}
     {prices.items.length === 0 ? <Notice title="수집된 외부 가격 자료가 없습니다.">원본 자료가 생기면 이곳에서 확인할 수 있습니다.</Notice> : <TableWrap><Table>
       <thead><tr><th scope="col">제공자·변형</th><th scope="col">가격 유형</th><th scope="col">원본 금액</th><th scope="col">갱신 시각 (UTC)</th><th scope="col">검증 상태</th></tr></thead>
       <tbody>{prices.items.map(price => <tr key={price.id}>
@@ -16,7 +19,7 @@ export function MarketPrices({ prices }: { prices: MarketPricesResponse }) {
         </Evidence></td>
         <td data-label="가격 유형">{priceTypeLabels[price.priceType]}</td>
         <Amount data-label="원본 금액">{price.originalAmount} {price.originalCurrency}</Amount>
-        <td data-label="갱신 시각"><time dateTime={price.observedAt}>{formatUtc(price.observedAt)}</time></td>
+        <td data-label="갱신 시각"><time dateTime={price.observedAt}>{formatUtc(price.observedAt)}</time><Small>수집 <time dateTime={price.collectedAt}>{formatUtc(price.collectedAt)}</time> UTC</Small></td>
         <td data-label="검증 상태"><Badge tone={price.eligibility === 'ELIGIBLE' ? 'success' : 'warning'}>{eligibilityLabels[price.eligibility]}</Badge></td>
       </tr>)}</tbody>
     </Table></TableWrap>}
@@ -27,6 +30,7 @@ export function MarketPrices({ prices }: { prices: MarketPricesResponse }) {
 const Section = styled.section({ marginTop: 0, paddingTop: 0 });
 const Heading = styled.div({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12, '& h2': { fontSize: 24 } });
 const Description = styled.p(({ theme }) => ({ color: theme.color.muted, fontSize: 14, marginBottom: 20 }));
+const Summary = styled.p(({ theme }) => ({ marginBottom: 20, fontSize: 14, lineHeight: 1.8, color: theme.color.ink }));
 const TableWrap = styled.div(({ theme }) => ({ background: theme.color.surface, overflowX: 'auto', borderTop: `1px solid ${theme.color.line}` }));
 const Table = styled.table(({ theme }) => ({ width: '100%', borderCollapse: 'collapse', fontSize: 14, '& th,& td': { padding: '16px 12px', borderBottom: `1px solid ${theme.color.line}`, textAlign: 'left', verticalAlign: 'top' }, '& th': { background: theme.color.lavenderSoft, color: theme.color.muted, fontWeight: 500 }, '& td': { overflowWrap: 'anywhere' },
   '@media(max-width:767px)': { display: 'block', '& thead': { position: 'absolute', width: 1, height: 1, overflow: 'hidden', clipPath: 'inset(50%)' }, '& tbody,& tr,& td': { display: 'block' }, '& tr': { padding: 16, borderBottom: `1px solid ${theme.color.line}` }, '& td': { padding: '5px 0', border: 0 }, '& td::before': { content: 'attr(data-label)', display: 'inline-block', minWidth: 96, color: theme.color.muted, fontWeight: 400 } },

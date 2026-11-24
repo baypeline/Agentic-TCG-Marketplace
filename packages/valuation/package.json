@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "prices:collect": "tsx scripts/collect-prices.ts",
-    "prices:assess": "tsx scripts/assess-price.ts"
+    "prices:assess": "tsx scripts/assess-price.ts",
+    "prices:check": "tsx scripts/check-prices.ts"
   },
   "dependencies": {
     "@tcg/db": "workspace:*",

@@ -9,12 +9,14 @@ import { MarketPrices } from '../../components/market-prices';
 import { RequestState } from '../../components/request-state';
 import { Badge } from '../../components/ui';
 import { RelatedCards } from '../../components/related-cards';
+import { getValuationStatus } from '../../lib/valuation-status';
 import { getCardDisplayName, formatSet, formatAttribute, formatUsdc, getReferencePrice, formatProvider, formatVariant, formatUtc, eligibilityLabels } from '../../lib/formatters';
 
 export function DetailView({ card, valuation, prices, query, related = [], relatedFailed = false }: { card: CardVariant; valuation: Valuation | null; prices: MarketPricesResponse | null; query: string; related?: CardVariant[]; relatedFailed?: boolean }) {
   const backHref = query ? `/cards?${new URLSearchParams({ q: query })}` : '/cards';
   const reference = getReferencePrice(prices);
   const available = valuation?.status === 'AVAILABLE';
+  const valuationStatus = valuation ? getValuationStatus(valuation, prices, card) : null;
   return <>
     <BackNav aria-label="카드 탐색"><Link href={backHref}>← {query ? `“${query}” 검색 결과` : '카드 둘러보기'}</Link><span>{formatSet(card.setCode)}</span></BackNav>
     <DetailLayout><ImageColumn><CardImage card={card} variant="detail" /></ImageColumn>
@@ -24,6 +26,7 @@ export function DetailView({ card, valuation, prices, query, related = [], relat
           {available ? <PriceStatus>{valuation.dataSource === 'MOCK' ? <Badge tone="demo">시연용 합성 데이터</Badge> : `검증 표본 ${valuation.sampleSize}개 · 신뢰 수준 낮음`}</PriceStatus> : reference ? <><PriceStatus>{formatProvider(reference.provider)} / {formatVariant(reference.providerVariant)} · {eligibilityLabels[reference.eligibility]}</PriceStatus><Updated>갱신 {formatUtc(reference.observedAt)} UTC</Updated></> : <PriceStatus>사용 가능한 가격을 확인한 뒤 표시합니다.</PriceStatus>}
           {reference && !available && <Caveat>위 금액은 제공자의 원본 참고 가격입니다. 개별 체결가나 USDC 적정가가 아닙니다.</Caveat>}
           {available && valuation.dataSource === 'MOCK' && <Caveat>실제 시장가격이나 구매 판단에 사용할 수 없습니다.</Caveat>}
+          {valuationStatus && <Caveat><strong>{valuationStatus.title}</strong><br />{valuationStatus.reasons[0]} <a href="#valuation-details">평가 근거 확인</a></Caveat>}
         </PriceOverview>
         <Facts><div><dt>인쇄 언어</dt><dd>{card.language}</dd></div><div><dt>카드 번호</dt><dd>{card.cardNumber}</dd></div><div><dt>에디션</dt><dd>{formatAttribute(card.edition)}</dd></div><div><dt>보존 상태</dt><dd>{formatAttribute(card.condition)}</dd></div></Facts>
       </Info>
@@ -31,7 +34,7 @@ export function DetailView({ card, valuation, prices, query, related = [], relat
     <RelatedCards card={card} cards={related} query={query} failed={relatedFailed} />
     <SectionNav aria-label="카드 상세 정보"><a href="#market-data">참고 시세</a><a href="#valuation-details">평가 근거</a><a href="#card-notes">카드 정보</a></SectionNav>
     <MarketSection id="market-data">{prices ? <MarketPrices prices={prices} /> : <RequestState compact title="참고 시세를 불러오지 못했습니다." message="가격 자료의 유무를 확인하지 못했습니다. 잠시 후 다시 시도하세요." />}</MarketSection>
-    <Evaluation id="valuation-details"><summary>USDC 평가와 근거 확인</summary><EvaluationContent>{valuation ? <ValuationDetails valuation={valuation} /> : <RequestState compact title="평가 정보를 불러오지 못했습니다." message="카드 정보는 확인할 수 있습니다. 잠시 후 다시 시도하세요." />}</EvaluationContent></Evaluation>
+    <Evaluation id="valuation-details" open={valuation?.status === 'INSUFFICIENT_DATA'}><summary>USDC 평가와 근거 확인</summary><EvaluationContent>{valuation ? <ValuationDetails valuation={valuation} prices={prices} card={card} /> : <RequestState compact title="평가 정보를 불러오지 못했습니다." message="카드 정보는 확인할 수 있습니다. 잠시 후 다시 시도하세요." />}</EvaluationContent></Evaluation>
     <CardNotes id="card-notes"><h2>카드 정보</h2><p>{card.language === 'KO' ? 'TCGdex 한국어 카탈로그의 이름을 표시합니다. 실제 카드의 이름과 세트·번호를 함께 확인해 주세요.' : '한국어 표기는 포켓몬 종명이며 한국어판 카드의 정식 제목과는 다를 수 있습니다. 카드의 인쇄 언어는 별도로 확인하세요.'}</p><details><summary>카드 식별 정보</summary><code>{card.id}</code></details></CardNotes>
   </>;
 }

@@ -56,6 +56,10 @@ JSON 한 개의 구조는 다음과 같습니다. 자리표시자는 실제 저�
 
 ## 평가와 조회
 
+`pnpm prices:check`는 저장된 영어 TCGdex 카드의 최신 참고 가격과 평가 사용 가능 상태를 읽기 전용으로 확인합니다. 기본 최대 200장이고 `--limit 1~500`, `--card-id <UUID>`, `--file <절대경로.json>`을 지원합니다. 보고서는 카드별 미확정 속성, 제외 사유별 가격 수와 평가 가능한 제공자 수를 포함합니다. 수집·판본 승인·환율 변경은 하지 않으며, 성공 종료는 사용 가능한 적정가가 있다는 뜻이 아닙니다. `--file`을 생략하면 전체 JSON을 출력합니다.
+
+2026년 11월 24일 재수집 결과와 아직 승인할 수 없는 이유는 [가격 데이터 점검 기록](../../docs/market-price-readiness.md)에 정리했습니다.
+
 루트 `.env`에 `DATABASE_ENABLED=true`, `CARD_DATA_SOURCE=database`, `PRICE_DATA_SOURCE=market`를 지정하고 API를 재시작합니다. 기본 `PRICE_DATA_SOURCE=mock`은 기존 데모를 유지합니다. 실행 환경의 `DATA_MODE=mock`과 가격 출처 설정은 독립이며 `/health.priceDataSource`로 가격 모드를 확인합니다.
 
 - `GET /api/cards/:id/prices`: 최신 참고 가격과 원본 통화, 유형, 시각, 검증/환율 근거 및 사용 가능 상태. Mock 가격 모드에서도 저장된 참고 시세를 조회할 수 있습니다. Mock 카드 모드는 빈 배열입니다.

@@ -7,5 +7,9 @@ it('원본 통화와 가격 유형 및 검증 상태를 표시하고 USDC로 단
   expect(html).toContain('최저 판매 희망가');
   expect(html).toContain('참고 전용 가격 유형');
   expect(html).toContain('한국어판 실거래가가 아닙니다');
+  expect(html).toContain('수집 가격 1건');
+  expect(html).toContain('적정가에 사용 가능한 제공자 0곳');
+  expect(html).toContain('수집 가격 건수는 실제 거래 건수가 아니에요');
+  expect(html).toContain('dateTime="2026-11-22T00:00:00Z"');
   expect(html).not.toContain('0.08 USDC');
 });

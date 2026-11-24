@@ -1,19 +1,23 @@
 'use client';
 
 import styled from '@emotion/styled';
-import type { Valuation } from '@tcg/contracts';
+import type { CardVariant, MarketPricesResponse, Valuation } from '@tcg/contracts';
 import { formatUsdc, formatUtc } from '../lib/formatters';
+import { getValuationStatus } from '../lib/valuation-status';
 import { Badge, Notice } from './ui';
 
-export function ValuationDetails({ valuation }: { valuation: Valuation }) {
+export function ValuationDetails({ valuation, prices, card }: { valuation: Valuation; prices?: MarketPricesResponse | null; card?: CardVariant }) {
   const isMock = valuation.dataSource === 'MOCK';
+  const status = getValuationStatus(valuation, prices, card);
   return <Panel aria-labelledby="valuation-heading">
     <PanelHeader><h2 id="valuation-heading">{isMock ? '데모 가격' : '추정 적정가'}</h2><Badge tone={isMock ? 'demo' : 'neutral'}>{isMock ? 'Mock / 합성 데이터' : '시장 데이터'}</Badge></PanelHeader>
     <Price>{valuation.status === 'AVAILABLE' ? formatUsdc(valuation.estimatedPrice) : '평가 자료 부족'}</Price>
-    {valuation.status === 'INSUFFICIENT_DATA' && <Description>평가에 사용할 표본이 없어 가격을 제공하지 않습니다.</Description>}
+    {status && <Explanation><h3>{status.title}</h3><ul>{status.reasons.map(reason => <li key={reason}>{reason}</li>)}</ul>{prices?.items.length ? <a href="#market-data">참고 시세와 검증 상태 보기</a> : null}</Explanation>}
     {isMock && <Notice title="시연용 합성 가격" tone="demo">실제 시장가격이나 구매 판단에 사용할 수 없습니다.</Notice>}
     <Facts>
-      <dt>가격 표본 수</dt><dd>{valuation.sampleSize}개</dd><dt>신뢰 수준</dt><dd>{{ LOW: '낮음', MEDIUM: '보통', HIGH: '높음' }[valuation.confidence]}</dd>
+      <dt>{isMock ? '데모 표본 수' : '평가 제공자 수'}</dt><dd>{valuation.sampleSize}개</dd><dt>신뢰 수준</dt><dd>{{ LOW: '낮음', MEDIUM: '보통', HIGH: '높음' }[valuation.confidence]}</dd>
+      <dt>평가 방식</dt><dd>{valuation.methodology === 'MEDIAN_OF_PROVIDER_AGGREGATES' ? '검증된 제공자 집계가의 중앙값' : valuation.methodology === 'MEDIAN_OF_MOCK_SAMPLES' ? '합성 표본의 중앙값' : '제공된 정보 없음'}</dd>
+      {valuation.oldestObservedAt && <><dt>첫 표본 (UTC)</dt><dd><time dateTime={valuation.oldestObservedAt}>{formatUtc(valuation.oldestObservedAt)}</time></dd></>}
       {valuation.latestObservedAt && <><dt>최근 표본 (UTC)</dt><dd><time dateTime={valuation.latestObservedAt}>{formatUtc(valuation.latestObservedAt)}</time></dd></>}
       <dt>평가 시각 (UTC)</dt><dd><time dateTime={valuation.evaluatedAt}>{formatUtc(valuation.evaluatedAt)}</time></dd>
     </Facts>
@@ -28,6 +32,6 @@ export function ValuationDetails({ valuation }: { valuation: Valuation }) {
 const Panel = styled.section(({ theme }) => ({ padding: 24, background: theme.color.surface, border: `1px solid ${theme.color.line}`, borderRadius: theme.radius.panel, '@media(max-width:639px)': { padding: 20 } }));
 const PanelHeader = styled.div({ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 10, '& h2': { fontSize: 16 } });
 const Price = styled.p({ fontSize: 'clamp(24px, 3vw, 32px)', fontWeight: 800, fontVariantNumeric: 'tabular-nums', margin: '16px 0', overflowWrap: 'anywhere' });
-const Description = styled.p(({ theme }) => ({ fontSize: 14, color: theme.color.muted, marginBottom: 16 }));
+const Explanation = styled.div(({ theme }) => ({ fontSize: 14, color: theme.color.muted, marginBottom: 16, '& h3': { color: theme.color.ink, fontSize: 14, fontWeight: 600 }, '& ul': { paddingLeft: 20, marginTop: 8, lineHeight: 1.8 }, '& a': { display: 'inline-flex', alignItems: 'center', minHeight: 44, color: theme.color.link, textDecoration: 'underline' } }));
 const Facts = styled.dl(({ theme }) => ({ display: 'grid', gridTemplateColumns: '108px minmax(0,1fr)', gap: '8px 16px', margin: '24px 0 0', fontSize: 14, '& dt': { color: theme.color.muted }, '& dd': { margin: 0, overflowWrap: 'anywhere', fontVariantNumeric: 'tabular-nums' }, '@media(max-width:639px)': { columnGap: 8 } }));
 const Sources = styled.details(({ theme }) => ({ marginTop: 20, borderTop: `1px solid ${theme.color.line}`, paddingTop: 12, color: theme.color.muted, fontSize: 13, '& summary': { cursor: 'pointer', minHeight: 44, paddingBlock: 10, color: theme.color.ink, fontWeight: 650 }, '& ul': { paddingLeft: 18 }, '& li': { overflowWrap: 'anywhere' }, '& p': { marginTop: 10 } }));

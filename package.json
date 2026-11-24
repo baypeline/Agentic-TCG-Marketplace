@@ -25,6 +25,7 @@
     "cards:localize": "pnpm --filter @tcg/aggregator localize",
     "prices:collect": "pnpm --filter @tcg/valuation prices:collect",
     "prices:assess": "pnpm --filter @tcg/valuation prices:assess",
+    "prices:check": "pnpm --filter @tcg/valuation prices:check",
     "infra:up": "docker compose --env-file .env -f infra/compose.yaml up -d --wait",
     "infra:down": "docker compose --env-file .env -f infra/compose.yaml down"
   },
