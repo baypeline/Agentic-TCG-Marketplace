@@ -55,6 +55,10 @@ pnpm --filter @tcg/agent demo "피카츄 적정가 알려줘"
 
 ## 세션 HTTP/SSE
 
+로컬 웹 채팅은 루트 `.env`에 `OPENAI_API_KEY`와 `AGENT_LOCAL_SECRET`이 있으면 `pnpm dev`에서 사용할 수 있습니다. `pnpm env:init`은 새 로컬 환경에 `AGENT_LOCAL_SECRET`을 생성합니다. 기존 `.env`에는 `openssl rand -hex 32`로 생성한 값을 추가할 수 있습니다.
+
+개발 모드의 루프백 주소에서 Web의 `POST /api/agent/chat`이 Core API에 서명된 브라우저 식별자를 전달하고 SSE를 중계합니다. 운영 환경에서 사용하려면 호스트의 인증 제공자를 연결해야 합니다.
+
 Core API에서 검증된 `resolveAuth`를 주입하고 `createIntegrationPlugins`에서 Agent 세션 플러그인을 등록합니다. `requireAuth`는 `@tcg/api`가 제공하는 함수를 전달합니다.
 
 ```typescript

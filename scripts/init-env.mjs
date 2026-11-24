@@ -38,6 +38,7 @@ try {
     'TRADING_SWEEP_INTERVAL_MS=30000',
     '# Optional local demo auth: set distinct DEMO_SELLER_TOKEN and DEMO_BUYER_TOKEN (32+ characters).',
     'DATABASE_ENABLED=false',
+    `AGENT_LOCAL_SECRET=${randomBytes(32).toString('base64url')}`,
     `POSTGRES_USER=${user}`,
     `POSTGRES_PASSWORD=${password}`,
     `POSTGRES_DB=${database}`,
