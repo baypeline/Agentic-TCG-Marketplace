@@ -2,7 +2,7 @@ import { ProtocolError, ProtocolErrorCode, Server, type Tool } from '@modelconte
 import { AppError } from '@tcg/contracts';
 import { z } from 'zod';
 import { INTERNAL_ERROR_MESSAGE, toolFailure, toolSuccess } from './result.js';
-import type { ToolContext, ToolDefinition } from './tools.js';
+import { PaymentChallenge, type ToolContext, type ToolDefinition } from './tools.js';
 
 export const SERVER_INFO = { name: 'tcg-marketplace', version: '0.1.0' };
 
@@ -35,15 +35,19 @@ export function createMcpServer(tools: readonly ToolDefinition[], scope: Request
     const tool = toolsByName.get(request.params.name);
     if (!tool) throw new ProtocolError(ProtocolErrorCode.InvalidParams, `Tool ${request.params.name} not found`);
     try {
-      const outcome = await tool.invoke(request.params.arguments ?? {}, { auth: scope.auth });
+      const outcome = await tool.invoke(request.params.arguments ?? {}, { auth: scope.auth, requestKey: scope.requestKey, paymentPayload: request.params._meta?.['x402/payment'] });
       if (outcome.kind === 'invalid') {
         return toolFailure(
           { code: 'VALIDATION_ERROR', message: `입력 형식을 확인하세요. ${outcome.issues}`, retryable: false },
           scope.requestId,
         );
       }
-      return toolSuccess(outcome.data, scope.requestId);
+      const result = toolSuccess(outcome.data, scope.requestId);
+      const value = outcome.data as Record<string, unknown> | null;
+      if (value && value.paymentStatus === 'SETTLED' && typeof value.transactionHash === 'string') result._meta = { 'x402/payment-response': { success: true, transaction: value.transactionHash, network: 'eip155:84532' } };
+      return result;
     } catch (error) {
+      if (error instanceof PaymentChallenge) return { isError: true, structuredContent: error.data, content: [{ type: 'text', text: JSON.stringify(error.data) }] };
       if (error instanceof AppError) {
         return toolFailure({ code: error.code, message: error.message, retryable: error.retryable }, scope.requestId);
       }

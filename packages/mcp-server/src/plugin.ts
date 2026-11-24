@@ -3,6 +3,8 @@ import { toNodeHandler } from '@modelcontextprotocol/node';
 import { createMcpHandler, validateOriginHeader } from '@modelcontextprotocol/server';
 import type { AggregatorService, AuthContext, ValuationService } from '@tcg/contracts';
 import { createMcpServer } from './server.js';
+import type { TradingService } from '@tcg/trading';
+import type { PaymentService } from '@tcg/payment-server';
 import { createTools } from './tools.js';
 
 export const MCP_PATH = '/mcp';
@@ -10,6 +12,8 @@ export const MCP_PATH = '/mcp';
 export interface McpPluginDependencies {
   aggregatorService: AggregatorService;
   valuationService: ValuationService;
+  tradingService?: TradingService;
+  paymentService?: PaymentService;
   /** 호스트가 검증한 인증 정보를 꺼내는 함수. 기본값은 인증 없음. */
   getAuth?: (request: FastifyRequest) => AuthContext | null;
   /** 허용할 브라우저 Origin의 호스트 이름(포트 무관). 기본값은 빈 목록이라 Origin 헤더가 붙은 요청을 모두 거절한다. */
@@ -26,10 +30,12 @@ function rejectOrigin(reply: FastifyReply) {
 export function createMcpPlugin({
   aggregatorService,
   valuationService,
+  tradingService,
+  paymentService,
   getAuth = () => null,
   allowedOrigins = [],
 }: McpPluginDependencies): FastifyPluginAsync {
-  const tools = createTools({ aggregatorService, valuationService });
+  const tools = createTools({ aggregatorService, valuationService, tradingService, paymentService });
 
   return async app => {
     // 본문은 SDK가 직접 읽는다. 깨진 JSON(400, -32700), 지원하지 않는 형식(415), 큰 본문(413)을 MCP 규칙대로 답한다.
@@ -52,6 +58,7 @@ export function createMcpPlugin({
       handler: async (request, reply) => {
         const scope = {
           auth: getAuth(request),
+          requestKey: typeof request.headers['idempotency-key'] === 'string' ? request.headers['idempotency-key'] : undefined,
           requestId: request.id,
           logError: (error: unknown, toolName: string) =>
             request.log.error({ err: error, toolName }, 'MCP 도구 실행 중 예외가 발생했습니다.'),

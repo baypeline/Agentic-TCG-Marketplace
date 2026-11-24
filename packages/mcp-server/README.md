@@ -12,6 +12,8 @@ import { createMcpPlugin } from '@tcg/mcp-server';
 await app.register(createMcpPlugin({
   aggregatorService,
   valuationService,
+  tradingService,
+  paymentService,
   getAuth: request => request.auth, // 호스트가 검증한 인증 정보
 }));
 ```
@@ -27,7 +29,7 @@ await app.register(createMcpPlugin({
 | `get_valuation` | `cardVariantId` UUID | `Valuation` |
 
 - 입력 규칙은 REST `GET /api/cards`와 같음. 정의하지 않은 인수(`agentId` 등)는 입력 오류
-- 두 도구 모두 조회 전용(`readOnlyHint: true`)
+- 두 카드 도구는 조회 전용(`readOnlyHint: true`). Trading 주입 시 매물·주문·예약·결제 상태·결제 실행 도구 10개를 추가합니다. 전체 이름·입출력은 [API 계약서](../../docs/api-contract.md#4-mcp-tool-계약)를 따릅니다. 생성·매칭의 Idempotency-Key는 HTTP 헤더로 받으며 도구 인수로 키를 생성하지 않습니다.
 
 ## 결과 형식
 
@@ -75,11 +77,8 @@ pnpm --filter @tcg/mcp-server typecheck
 
 - 테스트 17개: 도구 동작(메모리 전송), HTTP 동작(`inject`, 본문 4MiB 경계 포함), 실제 포트에서 SDK 클라이언트와 `apps/agent`의 `connectMcpCardServices` 호환
 
-## 1차 범위 밖
+## x402 전송과 통합 범위
 
-| 항목 | 필요한 것 |
-|---|---|
-| Trading 도구(`list_listings`, `get_listing`, 주문/구매 도구) | TradingService 조회 함수와 입출력 계약 (이채영) |
-| 도구별 인증 요구, 승인되지 않은 호출 차단 | Core API 인증 provider (정연한) |
-| x402 결제 요구와 재호출 | PaymentService `preparePayment`/`processSignedPayment` 계약 (최승원) |
-| Host 헤더 검사 | 1차는 Origin 허용 목록만 검사함. 배포 주소가 정해지면 허용 Host 목록과 함께 추가 |
+`execute_purchase`의 결제 요구는 직접 PaymentRequired 객체를 structuredContent와 JSON content에 반환하며 isError는 true입니다. 서버 실행 계층은 동일 인수와 `params._meta["x402/payment"]`로 서명 재호출합니다. 정산 성공은 `_meta["x402/payment-response"]`에 추가합니다. UNKNOWN·이미 제출한 시도는 상태만 반환하며 새 지급하지 않습니다. 일반 성공/업무 오류 래퍼와 구분합니다.
+
+Core API 통합 테스트에서 정책·실행 생성→예약→MCP challenge→서명 재호출→소유권 이전·수익 집계를 검증합니다. 결제 어댑터는 테스트 대역이며 실제 테스트넷 지급 증빙은 별도입니다. 실제 인증 provider와 배포 Host 검증은 호스트 설정이 필요합니다.
