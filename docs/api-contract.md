@@ -237,6 +237,7 @@ GET /api/cards?q=pikachu&limit=10
 
 | Method | Path | 기능 |
 | --- | --- | --- |
+| GET | `/api/me` | 인증된 사용자·Agent 정보, 인증 토큰 제외 |
 | GET | `/api/inventory` | 사용자 소유 카드 조회 |
 | POST | `/api/listings` | 고정가 매물 등록 |
 | GET | `/api/listings` | 활성 매물 조회 |
@@ -345,7 +346,7 @@ GET /api/cards?q=pikachu&limit=10
 
 ### 3.5. Agent
 
-Core API는 서버 실행용 경로를 제공한다. Web 상태 BFF는 조회만 전달하며 실행 생성·중단 UI는 아직 연결하지 않았다.
+Core API는 서버 실행용 경로를 제공한다. Web BFF는 정책 저장·수동 실행 생성/중단과 거래 관리 요청을 전달한다. 기본 호스트의 LLM 실행기는 연결하지 않았으며 지급 서명·실행은 Web에서 제공하지 않는다.
 
 | Method | Path | 기능 |
 | --- | --- | --- |
