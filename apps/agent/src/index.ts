@@ -7,15 +7,21 @@ import {
 } from './decision.js';
 import { createCardTools, type CardToolDependencies } from './tools.js';
 import { toAgentInput, type AgentTurnOptions } from './turn.js';
+import { purchaseConditionSchema } from '@tcg/contracts';
+import { createOpenAIPurchaseConditionApi, createMockPurchasePreviewTool, type PurchaseConditionApi, type PurchasePreviewTool } from './purchase.js';
 
 export { createOpenAIDecisionApi, type DecisionApi, type IntentDecision } from './decision.js';
 export { connectMcpCardServices, type McpCardConnectionOptions } from './mcp.js';
 export { createAgentSessionPlugin, type AgentSessionPluginOptions } from './sessions.js';
 export type { AgentMessage, AgentTurnOptions } from './turn.js';
+export { createAgentExecutionController, type AgentExecutionOptions } from './execution.js';
+export { createOpenAIPurchaseConditionApi, createMockPurchasePreviewTool, type PurchaseConditionApi, type PurchasePreviewTool } from './purchase.js';
 
 export interface AgentRuntimeOptions extends CardToolDependencies {
   model?: string | Model;
   decisionApi?: DecisionApi;
+  purchaseConditionApi?: PurchaseConditionApi;
+  purchasePreviewTool?: PurchasePreviewTool;
 }
 
 const instructions = `
@@ -42,14 +48,16 @@ const directReplies = {
     en: 'Which Pokémon card should I look up? Please provide its name and, if available, its set and card number.',
   },
   unsupported: {
-    ko: '포켓몬 카드 검색과 적정가 조회를 도와드릴 수 있습니다.',
-    en: 'I can search for Pokémon cards and look up their estimated values.',
+    ko: '포켓몬 카드 검색과 적정가 조회, 구매 조건 Mock 미리보기를 도와드릴 수 있습니다.',
+    en: 'I can search for Pokémon cards, look up their estimated values, and preview purchase conditions with a Mock tool.',
   },
 };
 
 export function createAgentRuntime({
   model = defaultModel,
   decisionApi = createOpenAIDecisionApi(),
+  purchaseConditionApi = createOpenAIPurchaseConditionApi(),
+  purchasePreviewTool = createMockPurchasePreviewTool(),
   ...dependencies
 }: AgentRuntimeOptions) {
   const runner = new Runner({ tracingDisabled: true });
@@ -63,6 +71,20 @@ export function createAgentRuntime({
       const decision = await decisionApi.classify(message, options);
       options?.signal?.throwIfAborted();
       const { route, language } = intentDecisionSchema.parse(decision);
+      if (route === 'prepare_purchase') {
+        const condition = await purchaseConditionApi.extract(message, options);
+        options?.signal?.throwIfAborted();
+        if (!condition) return language === 'ko' ? '구매할 카드와 카드 1장당 최대 가격(USDC)을 알려주세요. 현재는 구매 조건의 Mock 미리보기만 제공합니다.' : 'Please specify the card and maximum USDC price per card. Only a Mock purchase preview is available.';
+        const parsed = purchaseConditionSchema.parse(condition);
+        const expected = JSON.stringify(parsed);
+        const preview = await purchasePreviewTool.preview({ ...parsed });
+        options?.signal?.throwIfAborted();
+        if (preview.mode !== 'MOCK' || JSON.stringify(purchaseConditionSchema.parse(preview.condition)) !== expected) throw new Error('Mock 구매 도구가 요청 조건과 다른 결과를 반환했습니다.');
+        const amount = BigInt(parsed.maxPrice);
+        const price = `${amount / 1_000_000n}.${String(amount % 1_000_000n).padStart(6, '0')}`.replace(/\.?0+$/, '');
+        const discount = parsed.minDiscountPercent === null ? '' : language === 'ko' ? `, 최소 할인율 ${parsed.minDiscountPercent}%` : `, minimum discount ${parsed.minDiscountPercent}%`;
+        return language === 'ko' ? `Mock 구매 조건: ${parsed.cardQuery}, ${parsed.strategy}, 최대 ${price} USDC${discount}. 주문·예약·결제는 실행하지 않았습니다.` : `Mock purchase conditions: ${parsed.cardQuery}, ${parsed.strategy}, maximum ${price} USDC${discount}. No order, reservation or payment was executed.`;
+      }
       if (route === 'needs_clarification' || route === 'unsupported') {
         return directReplies[route][language];
       }

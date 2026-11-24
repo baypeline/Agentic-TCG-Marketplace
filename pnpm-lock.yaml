@@ -197,6 +197,9 @@ importers:
       '@tcg/aggregator':
         specifier: workspace:*
         version: link:../../packages/aggregator
+      '@tcg/trading':
+        specifier: workspace:*
+        version: link:../../packages/trading
       '@tcg/valuation':
         specifier: workspace:*
         version: link:../../packages/valuation
