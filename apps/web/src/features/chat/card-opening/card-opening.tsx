@@ -1,11 +1,10 @@
 'use client';
 
-import { useEffect, useId, useRef, useState, type PointerEvent } from 'react';
+import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { createPortal } from 'react-dom';
-import Link from 'next/link';
 import type { CardVariant } from '@tcg/contracts';
 import { CardImage } from '../../../components/card-image';
-import { formatSet, getCardDisplayName } from '../../../lib/formatters';
+import { getCardDisplayName } from '../../../lib/formatters';
 import { startCardSparks } from './card-sparks';
 import styles from './card-opening.module.css';
 
@@ -15,46 +14,42 @@ export default function CardOpening({ card, onDismiss }: { card: CardVariant; on
   const [phase, setPhase] = useState<OpeningPhase>('sealed');
   const dialog = useRef<HTMLDialogElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
-  const openButton = useRef<HTMLButtonElement>(null);
-  const revealLink = useRef<HTMLAnchorElement>(null);
-  const skip = useRef<HTMLButtonElement>(null);
-  const heading = useId();
-  const name = getCardDisplayName(card);
+  const opener = useRef<HTMLButtonElement>(null);
+  const close = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     const modal = dialog.current;
     modal?.showModal();
-    openButton.current?.focus();
+    opener.current?.focus();
     return () => { modal?.close(); };
   }, []);
 
   useEffect(() => {
-    if (phase !== 'opening' || !canvas.current) return;
-    skip.current?.focus();
-    return startCardSparks(canvas.current);
-  }, [phase]);
-
-  useEffect(() => {
-    if (phase === 'revealed') revealLink.current?.focus();
+    if (phase === 'sealed') return;
+    close.current?.focus({ preventScroll: true });
+    if (phase === 'opening' && canvas.current) return startCardSparks(canvas.current);
   }, [phase]);
 
   function openPack() {
     setPhase(window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'revealed' : 'opening');
   }
 
-  function tilt(event: PointerEvent<HTMLDivElement>) {
-    if (phase !== 'revealed' || event.pointerType !== 'mouse') return;
-    const scene = event.currentTarget;
-    const bounds = scene.getBoundingClientRect();
-    scene.style.setProperty('--tilt-x', `${(0.5 - (event.clientY - bounds.top) / bounds.height) * 20}deg`);
-    scene.style.setProperty('--tilt-y', `${((event.clientX - bounds.left) / bounds.width - 0.5) * 28}deg`);
-    scene.style.setProperty('--shine-x', `${(event.clientX - bounds.left) / bounds.width * 100}%`);
+  function tilt(event: PointerEvent<HTMLDialogElement>) {
+    if (phase === 'opening' || event.pointerType !== 'mouse') return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const x = (event.clientX - bounds.left) / bounds.width - 0.5;
+    const y = (event.clientY - bounds.top) / bounds.height - 0.5;
+    const style = event.currentTarget.style;
+    style.setProperty('--tilt-x', `${-y * 32}deg`);
+    style.setProperty('--tilt-y', `${x * 46}deg`);
+    style.setProperty('--shine-x', `${50 + x * 115}%`);
+    style.setProperty('--shine-y', `${50 + y * 115}%`);
   }
 
-  function resetTilt(event: PointerEvent<HTMLDivElement>) {
-    event.currentTarget.style.removeProperty('--tilt-x');
-    event.currentTarget.style.removeProperty('--tilt-y');
-    event.currentTarget.style.removeProperty('--shine-x');
+  function resetTilt(event: PointerEvent<HTMLDialogElement>) {
+    for (const property of ['--tilt-x', '--tilt-y', '--shine-x', '--shine-y']) {
+      event.currentTarget.style.removeProperty(property);
+    }
   }
 
   if (typeof document === 'undefined') return null;
@@ -64,23 +59,29 @@ export default function CardOpening({ card, onDismiss }: { card: CardVariant; on
       ref={dialog}
       className={styles.dialog}
       data-phase={phase}
-      aria-labelledby={heading}
+      aria-label="카드 개봉"
       onCancel={event => { event.preventDefault(); onDismiss(); }}
       onKeyDown={event => { if (event.key === 'Escape') event.stopPropagation(); }}
+      onPointerMove={tilt}
+      onPointerLeave={resetTilt}
     >
-      <header className={styles.header}>
-        <div>
-          <p>구매 완료</p>
-          <h2 id={heading}>카드 오픈</h2>
-        </div>
-        <button type="button" className={styles.close} aria-label="카드 오픈 닫기" onClick={onDismiss}>×</button>
-      </header>
-
-      <div className={styles.stage} aria-hidden="true" onPointerMove={tilt} onPointerLeave={resetTilt}>
-        <div className={styles.nebula} />
-        <div className={styles.orbit} />
-        <div className={styles.floor} />
+      <div className={styles.stage} aria-hidden="true">
+        <div className={styles.stars} />
+        <div className={styles.aurora} />
+        <div className={styles.rings}><i /><i /><i /></div>
+        <div className={styles.horizon} />
         <div className={styles.burst} />
+        <div className={styles.wave} />
+        <div className={styles.pack}>
+          <div className={styles.packTilt}>
+            <div className={styles.wrapper}>
+              <div className={styles.foil}>
+                <div className={styles.gem}><i /></div>
+              </div>
+              <div className={styles.seal} />
+            </div>
+          </div>
+        </div>
         <div
           className={styles.rig}
           onAnimationEnd={event => {
@@ -88,43 +89,24 @@ export default function CardOpening({ card, onDismiss }: { card: CardVariant; on
           }}
         >
           <div className={styles.card}>
-            <div className={styles.back}>
-              <span />
-              <b>AGENTIC TCG</b>
-            </div>
+            <div className={styles.back}><i /></div>
             <div className={styles.front}>
               <CardImage card={card} variant="detail" priority />
             </div>
           </div>
         </div>
-        <div className={styles.pack}>
-          <div className={styles.foil}>
-            <div className={styles.emblem}><span /></div>
-            <div className={styles.wordmark}>AGENTIC<span>TCG</span></div>
-          </div>
-          <div className={styles.seal} />
-        </div>
         <canvas ref={canvas} className={styles.sparks} />
       </div>
 
-      <footer className={styles.footer}>
-        {phase === 'revealed' ? (
-          <>
-            <div className={styles.identity} aria-live="polite">
-              <h3>{name}</h3>
-              <p>{formatSet(card.setCode)} · {card.cardNumber} · {card.language} · {card.condition}</p>
-            </div>
-            <Link ref={revealLink} className={styles.primary} href="/collection" onClick={onDismiss}>내 카드 보기 <span aria-hidden="true">↗</span></Link>
-          </>
-        ) : (
-          <>
-            {phase === 'sealed' ? (
-              <button ref={openButton} type="button" className={styles.primary} onClick={openPack}>팩 열기 <span aria-hidden="true">✦</span></button>
-            ) : <p className={styles.progress} role="status">팩을 열고 있어요</p>}
-            <button ref={skip} type="button" className={styles.skip} onClick={() => setPhase('revealed')}>바로 카드 보기</button>
-          </>
-        )}
-      </footer>
+      {phase === 'sealed' && (
+        <button ref={opener} type="button" className={styles.opener} onClick={openPack}>
+          <span className={styles.cue}><i aria-hidden="true">✦</i> 클릭해서 개봉</span>
+        </button>
+      )}
+      <p className={styles.live} role="status">
+        {phase === 'opening' ? '카드를 개봉하고 있습니다.' : phase === 'revealed' ? `${getCardDisplayName(card)} 카드가 공개됐습니다.` : ''}
+      </p>
+      <button ref={close} type="button" className={styles.close} aria-label="카드 오픈 닫기" onClick={onDismiss}>×</button>
     </dialog>,
     document.body,
   );

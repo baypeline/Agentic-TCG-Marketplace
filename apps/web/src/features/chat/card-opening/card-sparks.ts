@@ -1,26 +1,28 @@
-const colors = ['#fff3bb', '#ffd872', '#ffb26a', '#86ecff', '#c5a2ff'];
+const colors = ['#fff5c6', '#ffd783', '#91edff', '#bcabff', '#ff9dda'];
 
 export function startCardSparks(canvas: HTMLCanvasElement) {
   const ctx = canvas.getContext('2d');
   if (!ctx || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
   const { clientWidth: width, clientHeight: height } = canvas;
-  const scale = Math.min(window.devicePixelRatio || 1, 2);
+  if (!width || !height) return;
+
+  const scale = Math.min(window.devicePixelRatio || 1, 1.6, 2800 / Math.max(width, height));
   canvas.width = width * scale;
   canvas.height = height * scale;
   ctx.scale(scale, scale);
   const spread = Math.min(width, height);
-  const particles = Array.from({ length: 112 }, (_, index) => {
+  const particles = Array.from({ length: 156 }, (_, index) => {
     const angle = index * 2.39996;
-    const speed = spread * (0.18 + Math.random() * 0.74);
     return {
-      x: Math.cos(angle) * speed,
-      y: Math.sin(angle) * speed,
-      depth: Math.random() * 0.8 - 0.4,
-      size: 0.7 + Math.random() * 2.1,
-      delay: Math.random() * 0.16,
+      angle,
+      speed: spread * (0.22 + Math.random() * 0.95),
+      depth: Math.random() * 0.75 - 0.3,
+      size: 0.75 + Math.random() * 2.6,
+      delay: Math.random() * 0.19,
+      rotation: (Math.random() - 0.5) * 14,
       color: colors[index % colors.length]!,
-      diamond: index % 9 === 0,
+      shard: index % 6 === 0,
     };
   });
 
@@ -28,34 +30,50 @@ export function startCardSparks(canvas: HTMLCanvasElement) {
   let start: number | undefined;
   const draw = (now: number) => {
     start ??= now;
-    const time = (now - start - 300) / 1000;
+    const time = (now - start - 420) / 1000;
     ctx.clearRect(0, 0, width, height);
 
-    for (const particle of particles) {
-      const age = time - particle.delay;
-      const opacity = 1 - age / 1.38;
+    for (const p of particles) {
+      const age = time - p.delay;
+      const opacity = 1 - age / 1.47;
       if (age < 0 || opacity <= 0) continue;
-      const depth = 1 + particle.depth * age;
-      const distance = (1 - Math.exp(-2.5 * age)) / depth;
-      const x = width * 0.5 + particle.x * distance;
-      const y = height * 0.49 + particle.y * distance + age * age * 32;
-      const size = particle.size / depth;
-      ctx.globalAlpha = opacity * Math.min(age * 20, 1);
-      ctx.fillStyle = particle.color;
-      ctx.beginPath();
-      if (particle.diamond) {
-        ctx.moveTo(x, y - size * 4.8);
-        ctx.lineTo(x + size * 1.7, y);
-        ctx.lineTo(x, y + size * 4.8);
-        ctx.lineTo(x - size * 1.7, y);
-        ctx.closePath();
+      const depth = 1 + p.depth * age;
+      const radius = p.speed * (1 - Math.exp(-2.65 * age)) / depth;
+      const directionX = Math.cos(p.angle);
+      const directionY = Math.sin(p.angle);
+      const x = width * 0.5 + directionX * radius;
+      const y = height * 0.47 + directionY * radius + age * age * 44;
+      const size = p.size / depth;
+      ctx.globalAlpha = opacity ** 1.15 * Math.min(age * 24, 1);
+      ctx.fillStyle = p.color;
+
+      if (p.shard) {
+        const rotation = p.angle + age * p.rotation;
+        const stretch = size * (1.5 + Math.abs(Math.sin(age * p.rotation)) * 4.3);
+        const dx = Math.cos(rotation) * stretch;
+        const dy = Math.sin(rotation) * stretch;
+        ctx.beginPath();
+        ctx.moveTo(x + dx, y + dy);
+        ctx.lineTo(x - dy * 0.26, y + dx * 0.26);
+        ctx.lineTo(x - dx * 0.8, y - dy * 0.8);
+        ctx.lineTo(x + dy * 0.32, y - dx * 0.32);
+        ctx.fill();
       } else {
-        ctx.ellipse(x, y, size, size, 0, 0, 2 * Math.PI);
+        const trail = size * (1 + 16 * Math.exp(-age * 4));
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = Math.max(size * 0.6, 1);
+        ctx.beginPath();
+        ctx.moveTo(x - directionX * trail, y - directionY * trail);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(x, y, size * 0.62, 0, Math.PI * 2);
+        ctx.fill();
       }
-      ctx.fill();
     }
 
-    if (time < 1.6) frame = requestAnimationFrame(draw);
+    if (time < 1.68) frame = requestAnimationFrame(draw);
   };
 
   frame = requestAnimationFrame(draw);
