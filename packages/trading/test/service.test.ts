@@ -44,12 +44,14 @@ describe('trading service', () => {
     const order = buyOrderSchema.parse(await service.createBuyOrder(buyer, {
       cardVariantId: card.cardVariantId, maxPrice: '9000000', expiresAt: '2026-11-24T00:01:00Z',
     }, { idempotencyKey: randomUUID() }));
-    expect(await service.matchBuyOrder(buyer, order.id)).toBeNull();
+    const search = { idempotencyKey: randomUUID() };
+    expect(await service.matchBuyOrder(buyer, order.id, search)).toBeNull();
     expect(await service.listBuyOrders(buyer)).toEqual([order]);
     const cheaper = await list(service, secondCard.id, '8000000');
-    const quote = matchQuoteSchema.parse(await service.matchBuyOrder(buyer, order.id));
+    expect(await service.matchBuyOrder(buyer, order.id, search)).toBeNull();
+    const quote = matchQuoteSchema.parse(await service.matchBuyOrder(buyer, order.id, { idempotencyKey: randomUUID() }));
     expect(quote).toMatchObject({ listingId: cheaper.id, buyOrderId: order.id, status: 'RESERVED' });
-    expect(await service.matchBuyOrder(buyer, order.id)).toEqual(quote);
+    expect(await service.matchBuyOrder(buyer, order.id, { idempotencyKey: randomUUID() })).toEqual(quote);
 
     const attempt = randomUUID();
     await service.beginPayment(quote.id, attempt);
@@ -138,13 +140,13 @@ describe('trading service', () => {
     const order = await service.createBuyOrder(buyer, {
       cardVariantId: card.cardVariantId, maxPrice: price, expiresAt: '2026-11-24T00:00:02Z',
     }, { idempotencyKey: randomUUID() });
-    const quote = (await service.matchBuyOrder(buyer, order.id))!;
+    const quote = (await service.matchBuyOrder(buyer, order.id, { idempotencyKey: randomUUID() }))!;
     await service.releaseQuote(buyer, quote.id);
     expect(await service.listBuyOrders(buyer)).toMatchObject([{ status: 'ACTIVE' }]);
-    expect((await service.matchBuyOrder(buyer, order.id))?.id).not.toBe(quote.id);
+    expect((await service.matchBuyOrder(buyer, order.id, { idempotencyKey: randomUUID() }))?.id).not.toBe(quote.id);
     advance(2000);
     expect(await service.listBuyOrders(buyer)).toMatchObject([{ status: 'EXPIRED' }]);
-    await expect(service.matchBuyOrder(buyer, order.id)).rejects.toMatchObject({ code: 'ORDER_NOT_ACTIVE' });
+    await expect(service.matchBuyOrder(buyer, order.id, { idempotencyKey: randomUUID() })).rejects.toMatchObject({ code: 'ORDER_NOT_ACTIVE' });
   });
 
   it('can retry after a transactional write failure following successful settlement', async () => {

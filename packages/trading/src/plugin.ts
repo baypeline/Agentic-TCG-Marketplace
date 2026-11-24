@@ -45,7 +45,7 @@ export function createTradingPlugin({ tradingService, requireAuth }: TradingPlug
       tradingService.resumeBuyOrder(await requireBuyer(request), cardParamsSchema.parse(request.params).id));
     app.post('/buy-orders/:id/match', async (request, reply) =>
       reply.type('application/json').send(await tradingService.matchBuyOrder(
-        await requireBuyer(request), cardParamsSchema.parse(request.params).id,
+        await requireBuyer(request), cardParamsSchema.parse(request.params).id, mutation(request),
       )));
     for (const path of ['/purchases/fixed/quote', '/quotes/fixed']) {
       app.post(path, async request => tradingService.quoteFixedPurchase(await requireBuyer(request), fixedInputSchema.parse(request.body), mutation(request)));

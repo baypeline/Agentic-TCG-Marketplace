@@ -75,7 +75,7 @@ it('Agent 중단 시 미제출 예약은 유지하고 주문을 중지하며 재
   const { service, setOnline } = setup();
   await service.createListing(seller, { inventoryItemId: card.id, price: '10000000' }, context());
   const order = await service.createBuyOrder(buyer, { cardVariantId: card.cardVariantId, maxPrice: '20000000', expiresAt: '2098-01-01T00:00:00.000Z' }, context());
-  const quote = (await service.matchBuyOrder(buyer, order.id))!;
+  const quote = (await service.matchBuyOrder(buyer, order.id, { idempotencyKey: randomUUID() }))!;
   setOnline(false);
   expect(await service.pauseAgentOrders(buyer)).toMatchObject([{ id: order.id, status: 'PAUSED' }]);
   expect(await service.getMatch(buyer, quote.id)).toMatchObject({ status: 'RESERVED', expiresAt: quote.expiresAt });
@@ -84,7 +84,7 @@ it('Agent 중단 시 미제출 예약은 유지하고 주문을 중지하며 재
   expect(await service.resumeBuyOrder(buyer, order.id)).toMatchObject({ status: 'MATCH_PENDING' });
   await service.releaseQuote(buyer, quote.id);
   setOnline(false);
-  await expect(service.matchBuyOrder(buyer, order.id)).rejects.toMatchObject({ code: 'POLICY_VIOLATION' });
+  await expect(service.matchBuyOrder(buyer, order.id, { idempotencyKey: randomUUID() })).rejects.toMatchObject({ code: 'POLICY_VIOLATION' });
   await expect(service.pauseBuyOrder(other, order.id)).rejects.toMatchObject({ code: 'FORBIDDEN' });
 });
 
@@ -92,7 +92,7 @@ it('Agent 중단 후에도 제출된 결제를 보존하고 정산 복구·인�
   const { service, records, setOnline } = setup();
   await service.createListing(seller, { inventoryItemId: card.id, price: '10000000' }, context());
   const order = await service.createBuyOrder(buyer, { cardVariantId: card.cardVariantId, maxPrice: '10000000', expiresAt: '2098-01-01T00:00:00.000Z' }, context());
-  const quote = (await service.matchBuyOrder(buyer, order.id))!;
+  const quote = (await service.matchBuyOrder(buyer, order.id, { idempotencyKey: randomUUID() }))!;
   const attempt = randomUUID();
   await service.beginPayment(quote.id, attempt);
   setOnline(false);

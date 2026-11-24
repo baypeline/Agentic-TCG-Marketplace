@@ -373,11 +373,11 @@ export function createTradingService({ store, payment, quoteTtlMs = 120_000, now
         return reserve(tx, time, listing, buyer);
       });
     },
-    async matchBuyOrder(auth: Buyer, rawId: string) {
+    async matchBuyOrder(auth: Buyer, rawId: string, context: MutationContext) {
       const buyer = buyerSchema.parse(auth);
       const id = uuid.parse(rawId);
       await expireReservations();
-      return run(async (tx, time) => {
+      return mutate(buyer, 'matchBuyOrder', { id }, context, async (tx, time) => {
         const order = await tx.orders.get(id);
         if (!order) throw new AppError('ORDER_NOT_ACTIVE', '주문을 찾을 수 없습니다.', 404);
         authorize(order.buyerId === buyer.userId && order.agentId === buyer.agentId);
