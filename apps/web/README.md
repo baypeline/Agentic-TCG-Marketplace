@@ -18,9 +18,11 @@
 
 검색 폼은 `next/form`의 GET 클라이언트 이동을 사용해 검색 제출 시에도 공통 레이아웃과 대화를 유지합니다. 문서 전체를 새로 불러오는 일반 HTML 검색 폼으로 되돌리면 대화가 초기화됩니다.
 
-로컬 개발에서 `OPENAI_API_KEY`와 32자 이상의 `AGENT_LOCAL_SECRET`을 설정하면 `/api/agent/chat` BFF가 서명 쿠키로 Core API의 세션·SSE를 연결합니다. 카드 조회와 적정가 응답은 실제 모델을 사용하며 주문·결제 실행은 연결하지 않습니다. 답변은 마크다운으로 표시하고 원시 HTML은 실행하지 않습니다.
+로컬 개발에서 `OPENAI_API_KEY`와 32자 이상의 `AGENT_LOCAL_SECRET`을 설정하면 `/api/agent/chat` BFF가 서명 쿠키로 Core API의 세션·SSE를 연결합니다. 기본은 카드 조회이며 `DEMO_SCENARIOS_ENABLED=true`에서는 매물 조회와 실제 테스트넷 구매를 연결합니다. 답변은 마크다운으로 표시하고 원시 HTML은 실행하지 않습니다.
 
 카드 조회 경로는 `Web → Core API 세션 → Agent → MCP /mcp → Aggregator/Valuation`입니다. MCP 주소는 Core API의 실제 수신 주소로 자동 연결하므로 Web용 MCP 환경변수를 추가할 필요가 없습니다. CLI의 `AGENT_MCP_URL`과 `AGENT_MCP_TOKEN`은 Web 채팅에 적용하지 않습니다.
+
+시나리오 데모의 세 예시는 `/api/demo`에서 받습니다. 검증된 `purchaseOffers`를 구매 버튼으로 표시하고 `/api/agent/chat/purchases` BFF가 소유자 세션에 준비·제출·조회·취소를 전달합니다. 지갑 연결과 Base Sepolia 전환 후 구매 지갑·USDC 잔액·금액·수납 주소를 확인하고 EIP-712 서명을 받습니다. 서명 전 거절·실패는 예약을 해제하고, 제출 후 응답 유실·PENDING에서는 새 서명 대신 기존 상태를 조회합니다. 거래 완료 시 내 카드·거래 관리도 갱신하며 BaseScan 영수증 링크를 제공합니다. 서명과 대화 구매 상태는 localStorage에 저장하지 않습니다. [실행·한계](../../docs/demo-scenarios.md)를 참고하세요.
 
 카드 후보 선택이 필요하면 Agent의 `show_card_choices` 도구가 해당 턴의 실제 검색 결과만 `cardChoices`로 보냅니다. Web은 이를 공통 Schema로 검증해 카드명·세트·번호·언어·판본·상태가 보이는 버튼으로 표시합니다. 임의 마크다운 목록을 버튼으로 바꾸지 않습니다. 후보를 누르면 식별 정보를 포함한 적정가 후속 질문을 즉시 보내고, 화면에는 읽기 쉬운 선택 문장을 표시합니다. 작성 중인 입력은 보존하고 응답 중에는 중복 선택을 막습니다. 선택 상태를 표시하며 실패하면 재선택할 수 있습니다. 이전 검색의 후보 그룹은 새 후보 그룹이 오면 비활성화합니다. 기존 대화에 버튼을 소급 생성하지 않으므로 업데이트 후에는 대화를 비우고 다시 질문하세요.
 

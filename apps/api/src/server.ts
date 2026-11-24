@@ -5,12 +5,18 @@ import { createIntegrationPlugins } from './integrations.js';
 import { createLocalAgentOptions } from './local-agent.js';
 import { createX402SettlementAdapter } from '@tcg/payment-server';
 import { demoBuyerId, demoBuyerAgentId, createDemoAuthResolver } from './demo-auth.js';
+import { AppError } from '@tcg/contracts';
+import type { AgentSessionPluginOptions } from '@tcg/agent';
 
 config({ path: '../../.env', quiet: true });
 const env = parseApiEnv(process.env);
 const getWalletAddress = async (auth: { userId: string; agentId: string }) => auth.userId === demoBuyerId && auth.agentId === demoBuyerAgentId ? env.AGENT_WALLET_ADDRESS ?? null : null;
 const paymentOptions = env.PAYMENT_ENABLED ? { recipient: env.PAYMENT_RECIPIENT, getWalletAddress, adapter: createX402SettlementAdapter({ getWalletAddress }) } : undefined;
-const localAgent = createLocalAgentOptions(env, process.env);
+let demoPurchase: AgentSessionPluginOptions['purchase'];
+const localAgent = createLocalAgentOptions(env, process.env, { purchase: async input => {
+  if (!demoPurchase) throw new AppError('PAYMENT_UNAVAILABLE', '거래 데모가 연결되지 않았습니다.', 503);
+  return demoPurchase(input);
+} });
 const demoAuth = createDemoAuthResolver(env);
 const app = await buildApp({
   paymentOptions,
@@ -20,7 +26,7 @@ const app = await buildApp({
     return await localAgent.resolveAuth?.(request) ?? await demoAuth(request);
   },
   async createIntegrationPlugins(deps) {
-    const plugins = await createIntegrationPlugins(deps);
+    const plugins = await createIntegrationPlugins(deps, { onDemoPurchaseReady: handler => { demoPurchase = handler; } });
     const agentPlugins = await localAgent.createIntegrationPlugins?.(deps) ?? [];
     return [...plugins, ...agentPlugins];
   },

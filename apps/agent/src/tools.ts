@@ -6,6 +6,10 @@ import {
   type AggregatorService,
   type ValuationService,
   type CardVariant,
+  listingSchema,
+  agentPurchaseOfferSchema,
+  type Listing,
+  type AgentPurchaseOffer,
 } from '@tcg/contracts';
 import { z } from 'zod';
 import type { IntentDecision } from './decision.js';
@@ -13,12 +17,14 @@ import type { IntentDecision } from './decision.js';
 export interface CardToolDependencies {
   aggregatorService: Pick<AggregatorService, 'searchCards'>;
   valuationService: ValuationService;
+  marketplaceService?: { paymentReady: boolean; listListings(cardVariantId: string): Promise<Listing[]> };
 }
 
 export function createCardTools(
-  { aggregatorService, valuationService }: CardToolDependencies,
+  { aggregatorService, valuationService, marketplaceService }: CardToolDependencies,
   route: Extract<IntentDecision['route'], 'search_cards' | 'get_valuation'>,
   onCardChoices?: (cards: CardVariant[]) => void,
+  onPurchaseOffers?: (offers: AgentPurchaseOffer[]) => void,
 ) {
   // 도구를 매 턴 생성하므로 다른 요청의 variant ID가 섞이지 않는다.
   const foundVariants = new Map<string, CardVariant>();
@@ -46,7 +52,22 @@ export function createCardTools(
     },
     errorFunction: () => '카드 선택 버튼을 표시하지 못했습니다. 검색 결과의 ID를 확인해 주세요.',
   })] : [];
-  if (route === 'search_cards') return [searchCards, ...choiceTools];
+  const marketplaceTools = marketplaceService ? [tool({
+    name: 'list_listings',
+    description: '이번 턴에 검색한 카드의 현재 매물을 조회하고 구매 버튼을 표시합니다. 조회 자체로 예약·결제하지 않습니다.',
+    parameters: z.object({ cardVariantId: idSchema }),
+    async execute({ cardVariantId }) {
+      const card = foundVariants.get(cardVariantId);
+      if (!card) return '이번 턴에 검색한 카드만 매물을 조회할 수 있습니다. 먼저 카드를 검색하세요.';
+      const listings = z.array(listingSchema).parse(await marketplaceService.listListings(cardVariantId)).filter(listing => listing.cardVariantId === card.id && listing.status === 'ACTIVE');
+      listings.sort((a, b) => BigInt(a.price) < BigInt(b.price) ? -1 : BigInt(a.price) > BigInt(b.price) ? 1 : a.id.localeCompare(b.id));
+      const offers = listings.slice(0, 3).map(listing => agentPurchaseOfferSchema.parse({ listingId: listing.id, card, price: listing.price, dataSource: 'SYNTHETIC_DEMO', paymentMode: 'X402_BASE_SEPOLIA', paymentReady: marketplaceService.paymentReady }));
+      onPurchaseOffers?.(offers);
+      return { listings, availableCount: listings.length, dataSource: 'SYNTHETIC_DEMO', paymentMode: 'X402_BASE_SEPOLIA', paymentReady: marketplaceService.paymentReady, purchaseRequiresWalletSignature: true };
+    },
+    errorFunction: () => '매물 조회에 실패했습니다. 거래 가능 여부를 확인할 수 없습니다.',
+  })] : [];
+  if (route === 'search_cards' && !marketplaceService) return [searchCards, ...choiceTools];
 
   return [
     searchCards,
@@ -63,5 +84,6 @@ export function createCardTools(
       errorFunction: () => '적정가 조회에 실패했습니다. 카드 variant를 확인해 주세요.',
     }),
     ...choiceTools,
+    ...marketplaceTools,
   ];
 }

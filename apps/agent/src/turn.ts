@@ -1,16 +1,18 @@
 import type { AgentInputItem } from '@openai/agents';
-import type { CardVariant } from '@tcg/contracts';
+import type { CardVariant, AgentPurchaseOffer } from '@tcg/contracts';
 
 export interface AgentMessage {
   role: 'user' | 'assistant';
   content: string;
   cardChoices?: CardVariant[];
+  purchaseOffers?: AgentPurchaseOffer[];
 }
 
 export interface AgentTurnOptions {
   history?: readonly AgentMessage[];
   signal?: AbortSignal;
   onCardChoices?: (cards: CardVariant[]) => void;
+  onPurchaseOffers?: (offers: AgentPurchaseOffer[]) => void;
   onTextDelta?: (delta: string) => void | Promise<void>;
 }
 

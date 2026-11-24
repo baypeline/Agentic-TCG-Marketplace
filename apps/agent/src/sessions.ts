@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { PassThrough } from 'node:stream';
-import { AppError, idSchema, agentChatReplySchema, type AuthContext, type CardVariant } from '@tcg/contracts';
+import { AppError, idSchema, agentChatReplySchema, agentPurchaseInputSchema, agentPurchaseProgressSchema, type AuthContext, type CardVariant, type AgentPurchaseOffer, type AgentPurchaseInput, type AgentPurchaseProgress } from '@tcg/contracts';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { AgentMessage, AgentTurnOptions } from './turn.js';
@@ -13,6 +13,7 @@ export interface AgentSessionPluginOptions {
   onSessionStarted?: (auth: AuthContext, sessionId: string) => Promise<void>;
   // 호스트는 먼저 online 상태를 해제한 뒤 Trading.pauseAgentOrders를 호출한다.
   onSessionStopped?: (auth: AuthContext, sessionId: string) => Promise<void>;
+  purchase?: (input: AgentPurchaseInput & { offer: AgentPurchaseOffer; auth: AuthContext; sessionId: string }) => Promise<AgentPurchaseProgress>;
 }
 
 interface AgentSession {
@@ -26,6 +27,7 @@ interface AgentSession {
   stopNotified: boolean;
   stopTask?: Promise<void>;
   controller?: AbortController;
+  purchases: Map<string, { offer: AgentPurchaseOffer; tasks: Map<string, Promise<AgentPurchaseProgress>>; recorded: boolean }>;
 }
 
 const sessionParamsSchema = z.object({ sessionId: idSchema });
@@ -40,7 +42,7 @@ function sse(event: 'started' | 'delta' | 'completed' | 'error', data: object): 
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 }
 
-export function createAgentSessionPlugin({ runtime, requireAuth, onSessionStarted, onSessionStopped }: AgentSessionPluginOptions): FastifyPluginAsync {
+export function createAgentSessionPlugin({ runtime, requireAuth, onSessionStarted, onSessionStopped, purchase }: AgentSessionPluginOptions): FastifyPluginAsync {
   return async app => {
     const sessions = new Map<string, AgentSession>();
 
@@ -104,7 +106,7 @@ export function createAgentSessionPlugin({ runtime, requireAuth, onSessionStarte
       const id = randomUUID();
       const messages: AgentMessage[] = [];
       await onSessionStarted?.(auth, id);
-      sessions.set(id, { id, userId: auth.userId, agentId: auth.agentId, updatedAt: now, messages, busy: false, stopped: false, stopNotified: false });
+      sessions.set(id, { id, userId: auth.userId, agentId: auth.agentId, updatedAt: now, messages, busy: false, stopped: false, stopNotified: false, purchases: new Map() });
       return reply.code(201).send({ id, messages });
     });
 
@@ -117,6 +119,41 @@ export function createAgentSessionPlugin({ runtime, requireAuth, onSessionStarte
       const session = await getSession(request);
       await stopSession(session);
       return { id: session.id, status: 'STOPPED' };
+    });
+
+    if (purchase) app.post('/agent/sessions/:sessionId/purchases', async request => {
+      const session = await getSession(request);
+      const input = agentPurchaseInputSchema.parse(request.body);
+      if (session.stopped && !['status', 'cancel'].includes(input.action)) throw new AppError('POLICY_VIOLATION', '중단된 세션에서는 구매할 수 없습니다.', 409);
+      let state = session.purchases.get(input.requestId);
+      if (state && state.offer.listingId !== input.listingId) throw new AppError('IDEMPOTENCY_CONFLICT', '같은 구매 요청에 다른 매물을 사용할 수 없습니다.', 409);
+      if (!state) {
+        if (input.action !== 'prepare') throw new AppError('VALIDATION_ERROR', '구매 준비 요청이 필요합니다.', 400);
+        const offer = session.messages.flatMap(message => message.purchaseOffers ?? []).find(item => item.listingId === input.listingId);
+        if (!offer) throw new AppError('FORBIDDEN', '이 대화에서 안내한 매물만 구매할 수 있습니다.', 403);
+        if (session.purchases.size >= 100) throw new AppError('POLICY_VIOLATION', '새 대화에서 구매를 진행해 주세요.', 409);
+        state = { offer, tasks: new Map(), recorded: false };
+        session.purchases.set(input.requestId, state);
+      }
+      const cached = input.action !== 'status' ? state.tasks.get(input.action) : undefined;
+      if (cached) return cached;
+      if (session.busy) throw new AppError('SESSION_BUSY', '이전 요청을 처리 중입니다.', 409, true);
+      session.busy = true;
+      const current = state;
+      const task = (async () => {
+        try {
+          const result = agentPurchaseProgressSchema.parse(await purchase({ ...input, offer: current.offer, auth: { userId: session.userId, ...(session.agentId ? { agentId: session.agentId } : {}) }, sessionId: session.id }));
+          if (result.status === 'COMPLETED' && !current.recorded) {
+            current.recorded = true;
+            session.messages = [...session.messages, { role: 'assistant' as const, content: `${current.offer.card.name} 구매가 완료되었습니다. 카드가 구매자에게 이전되었으며 Base Sepolia 테스트 USDC 결제가 정산되었습니다. 거래 ID: ${result.tradeId}` }].slice(-maxHistoryMessages);
+          }
+          session.updatedAt = Date.now();
+          return result;
+        } catch (error) { current.tasks.delete(input.action); throw error; }
+        finally { session.busy = false; }
+      })();
+      if (input.action !== 'status') current.tasks.set(input.action, task);
+      return task;
     });
 
     app.post('/agent/sessions/:sessionId/messages', async (request, reply) => {
@@ -154,12 +191,14 @@ export function createAgentSessionPlugin({ runtime, requireAuth, onSessionStarte
       void (async () => {
         try {
           let cardChoices: CardVariant[] = [];
+          let purchaseOffers: AgentPurchaseOffer[] = [];
           const output = await runtime.runAgentTurn(message, { history: session.messages, signal,
             onCardChoices: cards => { cardChoices = cards; },
+            onPurchaseOffers: offers => { purchaseOffers = offers.length ? [...purchaseOffers.filter(old => !offers.some(offer => offer.card.id === old.card.id)), ...offers].slice(0, 10) : []; },
             onTextDelta: delta => emit('delta', { delta }),
           });
           signal.throwIfAborted();
-          const assistantMessage: AgentMessage = { role: 'assistant', ...agentChatReplySchema.parse({ content: output, ...(cardChoices.length ? { cardChoices } : {}) }) };
+          const assistantMessage: AgentMessage = { role: 'assistant', ...agentChatReplySchema.parse({ content: output, ...(cardChoices.length ? { cardChoices } : {}), ...(purchaseOffers.length ? { purchaseOffers } : {}) }) };
           session.messages = [...session.messages, { role: 'user', content: message } satisfies AgentMessage, assistantMessage].slice(-maxHistoryMessages);
           session.updatedAt = Date.now();
           await emit('completed', { sessionId: session.id, message: assistantMessage });

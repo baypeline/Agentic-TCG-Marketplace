@@ -16,6 +16,8 @@
 
 메인 모델의 도구 루프는 SDK Runner에서 최대 6회로 제한합니다. 카드 검색과 적정가 도구는 주입받은 서비스와 공통 DTO를 사용합니다.
 
+`DEMO_SCENARIOS_ENABLED=true`인 Web 세션은 선택적으로 주입한 `marketplaceService`를 통해 MCP 매물도 조회합니다. `list_listings`는 이번 턴에 검색한 카드의 활성 매물만 검증해 `purchaseOffers`로 전달합니다. 구매 조건 요청도 조회 도구 루프로 안내하며 모델에는 지급 실행 도구를 주지 않습니다. 실제 Base Sepolia USDC 지급은 구매 버튼과 브라우저 지갑 서명 이후 별도 세션 구매 경로에서 실행합니다. [세 시나리오 데모 가이드](../../docs/demo-scenarios.md)를 참고하세요.
+
 `DEMO_USD_REFERENCE` 평가는 실제 USD 시장 집계가를 1 USD ≈ 1 USDC로 표시한 데모 추정가입니다. Agent는 금액·출처와 판본/보존 상태 미보정 조건을 안내하며, 이를 합성 Mock 가격이나 검증된 상태별 적정가로 설명하지 않습니다. 판본·환율 승인 절차를 기다리지 않고 데모 가격을 안내할 수 있습니다.
 
 ## 검증

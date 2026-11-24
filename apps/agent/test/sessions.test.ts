@@ -14,7 +14,7 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-async function setup(runAgentTurn: AgentSessionPluginOptions['runtime']['runAgentTurn'], lifecycle: Pick<AgentSessionPluginOptions, 'onSessionStarted' | 'onSessionStopped'> = {}) {
+async function setup(runAgentTurn: AgentSessionPluginOptions['runtime']['runAgentTurn'], lifecycle: Pick<AgentSessionPluginOptions, 'onSessionStarted' | 'onSessionStopped' | 'purchase'> = {}) {
   const app = Fastify();
   apps.push(app);
 
@@ -34,6 +34,24 @@ async function setup(runAgentTurn: AgentSessionPluginOptions['runtime']['runAgen
 
 const baseUrl = '/api/agent/sessions';
 const owner = { authorization: 'Bearer owner' };
+
+it('구매 매물은 성공한 대화에 보존하며 소유자와 안내한 매물만 구매할 수 있다', async () => {
+  const offer = { listingId: '00000000-0000-4000-8200-000000000001', card: demoCards[0]!, price: '10000', dataSource: 'SYNTHETIC_DEMO' as const, paymentMode: 'X402_BASE_SEPOLIA' as const, paymentReady: true };
+  const purchase = vi.fn<NonNullable<AgentSessionPluginOptions['purchase']>>(async input => ({ requestId: input.requestId, listingId: input.listingId, card: input.offer.card, amount: input.offer.price, matchQuoteId: '00000000-0000-4000-8200-000000000002', status: 'PAYMENT_REQUIRED', paymentMode: 'X402_BASE_SEPOLIA', expiresAt: '2099-01-01T00:00:00Z', payer: `0x${'1'.repeat(40)}`, recipient: `0x${'2'.repeat(40)}` }));
+  const app = await setup(async (_message, options) => { options?.onPurchaseOffers?.([offer]); return '구매 가능한 매물이 있어요.'; }, { purchase });
+  const session = await createSession(app);
+  const body = { requestId: '00000000-0000-4000-8200-000000000003', listingId: offer.listingId, action: 'prepare', price: '1' };
+  const send = (payload = body, headers = owner) => app.inject({ method: 'POST', url: `${session}/purchases`, headers, payload });
+  expect((await send()).statusCode).toBe(403);
+  const reply = await app.inject({ method: 'POST', url: `${session}/messages`, headers: owner, payload: { message: '피카츄 매물' } });
+  expect(reply.body).toContain('purchaseOffers');
+  expect((await send(body, { authorization: 'Bearer other-user' })).statusCode).toBe(404);
+  expect((await send({ ...body, listingId: '00000000-0000-4000-8200-000000000099' })).statusCode).toBe(403);
+  expect((await send()).json().amount).toBe('10000');
+  expect((await send()).statusCode).toBe(200);
+  expect(purchase).toHaveBeenCalledTimes(1);
+  expect(purchase.mock.calls[0]![0].offer.price).toBe('10000');
+});
 
 async function createSession(app: Awaited<ReturnType<typeof setup>>) {
   const response = await app.inject({ method: 'POST', url: baseUrl, headers: owner });

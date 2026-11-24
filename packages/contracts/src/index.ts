@@ -23,10 +23,35 @@ export const cardVariantSchema = z.object({
 });
 export type CardVariant = z.infer<typeof cardVariantSchema>;
 
+export const agentPurchaseOfferSchema = z.object({
+  listingId: idSchema, card: cardVariantSchema, price: amountSchema,
+  dataSource: z.literal('SYNTHETIC_DEMO'), paymentMode: z.literal('X402_BASE_SEPOLIA'), paymentReady: z.boolean(),
+});
+export type AgentPurchaseOffer = z.infer<typeof agentPurchaseOfferSchema>;
+export const agentPurchaseInputSchema = z.object({
+  requestId: idSchema, listingId: idSchema, action: z.enum(['prepare', 'submit', 'status', 'cancel']), paymentPayload: z.unknown().optional(),
+});
+export type AgentPurchaseInput = z.infer<typeof agentPurchaseInputSchema>;
+export const agentPaymentRequirementsSchema = z.object({
+  scheme: z.literal('exact'), network: z.literal('eip155:84532'), asset: z.literal('0x036CbD53842c5426634e7929541eC2318f3dCF7e'),
+  amount: amountSchema, payTo: z.string().regex(/^0x[0-9a-fA-F]{40}$/), maxTimeoutSeconds: z.number().int().positive(), extra: z.record(z.string(), z.unknown()).default({}),
+});
+export const agentPurchaseProgressSchema = z.object({
+  requestId: idSchema, listingId: idSchema, card: cardVariantSchema, amount: amountSchema, matchQuoteId: idSchema,
+  status: z.enum(['PAYMENT_REQUIRED', 'PENDING', 'COMPLETED', 'CANCELLED', 'FAILED']),
+  paymentMode: z.literal('X402_BASE_SEPOLIA'), expiresAt: timestampSchema,
+  payer: z.string().regex(/^0x[0-9a-fA-F]{40}$/), recipient: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
+  requirements: agentPaymentRequirementsSchema.optional(), tradeId: idSchema.optional(),
+  transactionHash: z.string().regex(/^0x[0-9a-fA-F]{64}$/).optional(),
+});
+export type AgentPurchaseProgress = z.infer<typeof agentPurchaseProgressSchema>;
+export const demoStatusSchema = z.object({ enabled: z.boolean(), paymentEnabled: z.boolean(), suggestions: z.array(z.string()), payer: z.string().nullable(), recipient: z.string().nullable() });
+
 export const agentChatReplySchema = z.object({
   content: z.string().min(1),
   cardChoices: z.array(cardVariantSchema).min(1).max(10)
     .refine(cards => new Set(cards.map(card => card.id)).size === cards.length, '중복 카드 후보는 사용할 수 없습니다.').optional(),
+  purchaseOffers: z.array(agentPurchaseOfferSchema).max(10).refine(offers => new Set(offers.map(offer => offer.listingId)).size === offers.length, '중복 매물은 사용할 수 없습니다.').optional(),
 });
 export type AgentChatReply = z.infer<typeof agentChatReplySchema>;
 export const agentTextDeltaSchema = z.object({ delta: z.string().min(1) });

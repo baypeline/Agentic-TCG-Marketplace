@@ -1,5 +1,5 @@
 import { MCPServerStreamableHttp } from '@openai/agents';
-import { cardSearchResponseSchema, valuationSchema } from '@tcg/contracts';
+import { cardSearchResponseSchema, valuationSchema, listingSchema } from '@tcg/contracts';
 import { z } from 'zod';
 import type { CardToolDependencies } from './tools.js';
 
@@ -32,7 +32,7 @@ export async function connectMcpCardServices({ url, headers, signal, timeoutMs =
     throw error;
   }
 
-  async function callCardTool(name: 'search_cards' | 'get_valuation', args: Record<string, unknown>) {
+  async function callCardTool(name: 'search_cards' | 'get_valuation' | 'list_listings', args: Record<string, unknown>) {
     signal?.throwIfAborted();
     const result = await server.callToolResult(name, args, undefined, { signal });
     if (result.isError) throw new Error(`MCP 도구 호출에 실패했습니다: ${name}`);
@@ -64,5 +64,8 @@ export async function connectMcpCardServices({ url, headers, signal, timeoutMs =
     },
   };
 
-  return { ...services, close: () => server.close() };
+  return { ...services, async listListings(cardVariantId: string) {
+    const result = z.object({ ok: z.literal(true), data: z.array(listingSchema) }).parse(await callCardTool('list_listings', { cardVariantId }));
+    return result.data;
+  }, close: () => server.close() };
 }

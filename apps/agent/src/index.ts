@@ -38,7 +38,7 @@ search_cards의 query에는 카드 이름만 넣으세요. 예를 들어 "이브
 응답에는 조회한 카드 variant를 표시하세요. 가격을 조회했다면 데이터 출처도 표시하세요.
 MOCK은 시연용 합성 시세임을 밝히고, INSUFFICIENT_DATA는 표본 부족으로
 가격을 확인할 수 없다고 안내하세요.
-estimatedPrice는 USDC 최소 단위 정수 문자열입니다. 소수점 6자리를 적용해 표시하세요.
+estimatedPrice는 USDC 최소 단위 정수 문자열입니다. 10의 6승으로 나누고 불필요한 소수점 뒤 0은 생략하세요.
 methodology가 DEMO_USD_REFERENCE이면 실제 USD 시장 집계가를 1 USD ≈ 1 USDC로 표시한 데모 추정가입니다.
 이 경우 금액을 안내하고 assumptions의 데모 환산·판본 및 보존 상태 미보정 조건을 짧게 함께 설명하세요.
 이를 합성 Mock 가격이나 판본·상태가 검증된 적정가로 설명하지 마세요.
@@ -75,7 +75,7 @@ export function createAgentRuntime({
       const decision = await decisionApi.classify(message, options);
       options?.signal?.throwIfAborted();
       const { route, language } = intentDecisionSchema.parse(decision);
-      if (route === 'prepare_purchase') {
+      if (route === 'prepare_purchase' && !dependencies.marketplaceService) {
         const condition = await purchaseConditionApi.extract(message, options);
         options?.signal?.throwIfAborted();
         if (!condition) return language === 'ko' ? '구매할 카드와 카드 1장당 최대 가격(USDC)을 알려주세요. 현재는 구매 조건의 Mock 미리보기만 제공합니다.' : 'Please specify the card and maximum USDC price per card. Only a Mock purchase preview is available.';
@@ -95,7 +95,14 @@ export function createAgentRuntime({
 
       const agent = new Agent({
         name: 'TCG 카드 조회 도우미',
-        instructions: instructions + (options?.onCardChoices ? `
+        instructions: instructions + (dependencies.marketplaceService ? `
+이 세션은 합성 카드·가격·매물을 사용하는 거래 데모입니다. 카드 정보와 가격은 내부 DB에 고정되어 있습니다.
+대상이 특정되면 get_valuation과 list_listings를 반드시 호출해 가격과 지금 거래 가능한 매물을 함께 안내하세요.
+사용자의 상한이 있으면 그 금액 이내의 매물인지 설명하세요. 매물이 없으면 거래할 수 없다고 안내하세요.
+사용자가 구매를 요청해도 채팅만으로 결제하지 않습니다. 아래 구매 버튼에서 브라우저 지갑 서명이 필요하다고 알려주세요.
+버튼의 결제는 Base Sepolia 테스트 USDC 실제 전송입니다. 합성 가격과 실제 테스트넷 결제를 혼동하지 마세요.
+데모 시세가 MOCK이면 합성 시세라고 간단히 알리고 데모 진행을 막지 마세요.
+` : '') + (options?.onCardChoices ? `
 사용자가 어느 카드를 조회할지 골라야 하면 show_card_choices로 검색한 카드 후보의 ID를 전달하세요.
 세트·번호·언어 등 사용자가 지정한 조건에 맞는 후보만 표시하세요.
 버튼은 카드 정보를 별도로 보여주므로 같은 후보 목록을 답변에 다시 나열하지 마세요.
@@ -104,7 +111,7 @@ export function createAgentRuntime({
 ` : ''),
         model,
         modelSettings: { store: false, parallelToolCalls: false },
-        tools: createCardTools(dependencies, route, options?.onCardChoices),
+        tools: createCardTools(dependencies, route === 'prepare_purchase' ? 'get_valuation' : route, options?.onCardChoices, options?.onPurchaseOffers),
       });
       const inputItems = toAgentInput(message, options?.history);
       const result = options?.onTextDelta

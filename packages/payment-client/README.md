@@ -4,6 +4,7 @@
 
 - `validatePaymentRequirements()`는 네트워크, 결제 방식, 토큰, 수납 주소, 건별 한도를 확인한다.
 - `signPayment()`는 검사를 통과한 요청에 에이전트 지갑으로 서명한다.
+- signer는 로컬 계정뿐 아니라 address/signTypedData를 제공하는 브라우저 지갑 어댑터도 받는다. Web은 개인키를 서버로 보내지 않고 EIP-712 지급 승인만 전달한다.
 - 금액은 USDC 최소 단위로 비교한다. `10000`은 0.01 USDC다.
 
 ## 검증

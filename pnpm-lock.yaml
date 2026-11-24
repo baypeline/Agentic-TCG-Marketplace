@@ -273,6 +273,9 @@ importers:
       '@tcg/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@tcg/payment-client':
+        specifier: workspace:*
+        version: link:../../packages/payment-client
       dotenv:
         specifier: ^17.2.3
         version: 17.4.2
@@ -294,6 +297,9 @@ importers:
       server-only:
         specifier: ^0.0.1
         version: 0.0.1
+      viem:
+        specifier: ^2.58.4
+        version: 2.58.4(typescript@5.9.3)(zod@4.6.7)
       zustand:
         specifier: ^5.1.0
         version: 5.1.0(@types/react@19.3.0)(react@19.3.1)

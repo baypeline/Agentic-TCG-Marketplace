@@ -106,7 +106,15 @@ Inventory·Listing·BuyOrder·MatchQuote·Trade의 기존 DTO를 유지한 Tradi
 
 ## 조회 채팅의 카드 선택 후보
 
-`agentChatReplySchema`는 `{ content: string, cardChoices?: CardVariant[] }`입니다. SSE completed.message는 기존 role/content를 유지하며 선택이 필요할 때만 cardChoices를 포함합니다. 후보는 1~10개, UUID 중복 없이 검증합니다. 기존 문자열 응답 소비자는 확장 필드를 무시할 수 있습니다.
+### 시나리오 매물·구매 확장
+
+`agentChatReplySchema.purchaseOffers`는 optional 배열(최대 10개)입니다. 각 항목은 `{ listingId, card: CardVariant, price: USDC 최소 단위 문자열, dataSource: 'SYNTHETIC_DEMO', paymentMode: 'X402_BASE_SEPOLIA', paymentReady: boolean }`이며 listingId는 중복할 수 없습니다. 현재 턴에 검색한 카드의 활성 MCP 매물만 포함합니다. 모델의 문장이나 임의 ID에서 구매 버튼을 생성하지 않습니다.
+
+`POST /api/agent/sessions/:sessionId/purchases`는 `{ requestId, listingId, action: prepare|submit|status|cancel, paymentPayload? }`를 받습니다. 호스트가 구매 콜백을 등록할 때만 활성화하며 기존 소유자 인증과 대화에 보존된 매물을 확인합니다. 금액·카드·구매자는 서버에서 결정하고 같은 requestId의 다른 매물은 거부합니다. prepare는 예약과 x402 요구만 만들고 submit에는 브라우저 지갑 서명이 필요합니다.
+
+`agentPurchaseProgressSchema`는 requestId/listingId/card/amount/matchQuoteId/expiresAt/payer/recipient와 status(`PAYMENT_REQUIRED|PENDING|COMPLETED|CANCELLED|FAILED`), paymentMode를 제공합니다. optional requirements는 exact·Base Sepolia·지정 USDC 토큰만 허용하며, tradeId/transactionHash는 확인된 결과가 있을 때 제공합니다. PENDING은 새 지급 없이 status로 확인하고 COMPLETED는 Payment SETTLED와 Trade를 함께 확인한 상태입니다. 정책·예산·결제 및 체결 DTO 자체는 변경하지 않았습니다.
+
+`agentChatReplySchema`는 `{ content: string, cardChoices?: CardVariant[], purchaseOffers?: AgentPurchaseOffer[] }`입니다. SSE completed.message는 기존 role/content를 유지하며 선택이 필요할 때만 cardChoices를 포함합니다. 후보는 1~10개, UUID 중복 없이 검증합니다. 기존 문자열 응답 소비자는 확장 필드를 무시할 수 있습니다.
 
 세션 SSE는 `started` 이후 생성 중인 텍스트를 `delta` 이벤트의 `{ delta: string }`으로 전달합니다. `agentTextDeltaSchema`로 검증하며 도구 인자·추론 내용은 보내지 않습니다. `completed.message`가 최종 답변과 후보의 기준이고 중간 텍스트와 다를 수 있습니다. `error`나 완료 이벤트 없는 연결 종료는 미완료로 처리하고 후보를 활성화하지 않습니다. 고정 응답처럼 delta가 없는 경로도 지원합니다. 서버 대화 기록에는 성공한 최종 답변만 저장합니다.
 

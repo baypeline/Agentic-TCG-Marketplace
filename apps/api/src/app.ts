@@ -4,7 +4,7 @@ import Fastify, { type FastifyPluginAsync, type FastifyRequest } from 'fastify';
 import { ZodError } from 'zod';
 import { AppError, type AggregatorService, type AuthContext, type ValuationService, type TradingExecutionContextReader } from '@tcg/contracts';
 import { parseApiEnv, type ApiEnv } from '@tcg/config';
-import { createPrismaClient, type PrismaClient } from '@tcg/db';
+import { createPrismaClient, readDemoScenarios, type PrismaClient } from '@tcg/db';
 import { createAggregatorPlugin, createAggregatorService, createMockCardAdapter, createPrismaCardAdapter } from '@tcg/aggregator';
 import { createMarketPriceServices, createMockPriceAdapter, createPrismaMockPriceAdapter, createValuationPlugin, createValuationService } from '@tcg/valuation';
 
@@ -52,16 +52,19 @@ export async function buildApp(options: AppOptions = {}) {
   try {
     if (prisma) await prisma.$connect();
     const useDatabase = env.CARD_DATA_SOURCE === 'database';
-    const aggregatorService = createAggregatorService({ adapter: useDatabase ? createPrismaCardAdapter(prisma!) : createMockCardAdapter() });
+    const demoScenarios = env.DEMO_SCENARIOS_ENABLED ? await readDemoScenarios() : null;
+    const aggregatorService = createAggregatorService({ adapter: useDatabase ? createPrismaCardAdapter(prisma!, { cardIds: demoScenarios?.scenarios.map(card => card.cardId) }) : createMockCardAdapter() });
     const market = useDatabase ? createMarketPriceServices({ prisma: prisma! }) : null;
     const marketAdapter = env.MARKET_VALUATION_MODE === 'demo' ? market?.demoAdapter : market?.adapter;
-    const valuationService = createValuationService({ aggregatorService, adapter: env.PRICE_DATA_SOURCE === 'market' ? marketAdapter! : useDatabase ? createPrismaMockPriceAdapter(prisma!) : createMockPriceAdapter() });
+    const priceDataSource = demoScenarios ? 'mock' : env.PRICE_DATA_SOURCE;
+    const valuationService = createValuationService({ aggregatorService, adapter: priceDataSource === 'market' ? marketAdapter! : useDatabase ? createPrismaMockPriceAdapter(prisma!) : createMockPriceAdapter() });
     const marketPriceService = market?.marketPriceService ?? { async getPrices(id: string) {
       if (!await aggregatorService.getCardVariant(id)) throw new AppError('CARD_NOT_FOUND', '카드를 찾을 수 없습니다.', 404);
       return { cardVariantId: id, dataSource: 'MARKET' as const, items: [], maxAgeHours: 72, evaluatedAt: new Date().toISOString() };
     } };
     const plugins = await options.createIntegrationPlugins?.({ env, prisma, aggregatorService, valuationService, tradingExecutionContext: options.tradingExecutionContext, paymentOptions: options.paymentOptions, executeAgentRun: options.executeAgentRun }) ?? [];
-    app.get('/health', async () => ({ status: 'ok', dataMode: env.DATA_MODE, cardDataSource: env.CARD_DATA_SOURCE, priceDataSource: env.PRICE_DATA_SOURCE, marketValuationMode: env.MARKET_VALUATION_MODE, tradingDataSource: env.TRADING_DATA_SOURCE, database: prisma ? 'connected' : 'disabled' }));
+    app.get('/health', async () => ({ status: 'ok', dataMode: env.DATA_MODE, cardDataSource: env.CARD_DATA_SOURCE, priceDataSource, scenarioDemo: !!demoScenarios, paymentEnabled: env.PAYMENT_ENABLED, marketValuationMode: env.MARKET_VALUATION_MODE, tradingDataSource: env.TRADING_DATA_SOURCE, database: prisma ? 'connected' : 'disabled' }));
+    app.get('/api/demo', async () => ({ enabled: !!demoScenarios, paymentEnabled: env.PAYMENT_ENABLED, suggestions: demoScenarios?.scenarios.map(item => item.suggestion) ?? [], payer: demoScenarios ? env.AGENT_WALLET_ADDRESS ?? null : null, recipient: demoScenarios ? env.PAYMENT_RECIPIENT ?? null : null }));
     await app.register(createAggregatorPlugin({ aggregatorService }), { prefix: '/api' });
     await app.register(createValuationPlugin({ valuationService, marketPriceService }), { prefix: '/api' });
     for (const plugin of plugins) await app.register(plugin);

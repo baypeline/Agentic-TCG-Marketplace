@@ -3,7 +3,7 @@ import { renderUI } from './render';
 import { AppShell } from '../src/components/app-shell';
 
 const route = vi.hoisted(() => ({ pathname: '/' }));
-vi.mock('next/navigation', () => ({ usePathname: () => route.pathname }));
+vi.mock('next/navigation', () => ({ usePathname: () => route.pathname, useRouter: () => ({ refresh: vi.fn() }) }));
 
 it('랜딩에는 서비스 탭을 표시하지 않고 마켓 진입과 닫힌 에이전트를 제공한다', () => {
   route.pathname = '/';

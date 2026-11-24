@@ -10,6 +10,8 @@
 
 루트에서 `pnpm --filter @tcg/api test`와 `pnpm --filter @tcg/api typecheck`로 검증합니다.
 
+`DEMO_SCENARIOS_ENABLED=true`는 수집본에서 파생한 합성 카드 3종으로 검색 범위를 제한하고 고정 MOCK 시세를 사용합니다. 구매는 소유자 대화에 저장된 매물만 허용하며 서버가 기존 Policy/Trading/Payment 서비스와 MCP 예약·지급·상태 조회를 조립합니다. 데모 구매자 역할의 총예산은 0.1, 건당 한도는 0.025 USDC입니다. 결제·소유권 이전·멱등성 로직은 원래 모듈이 처리하고 호스트는 서명 원문을 저장하지 않습니다. [데모 가이드](../../docs/demo-scenarios.md)를 참고하세요.
+
 `GET /api/cards/:id/prices`는 DB에 저장된 외부 참고 시세와 strict 기준의 판본·환율 검증 상태를 제공합니다. 쓰기용 공개 API는 없습니다. `PRICE_DATA_SOURCE=market`에는 DB 카드 조회가 필요합니다. `MARKET_VALUATION_MODE=demo`(기본)는 TCGplayer의 대표 USD 시장 집계가를 1 USD ≈ 1 USDC로 표시하고, `strict`는 검증된 표본만 평가합니다. 실제 수집 가격과 합성 Mock은 섞지 않으며 `/health.priceDataSource`와 `marketValuationMode`로 선택 모드를 확인합니다. 수집·평가 정책은 `@tcg/valuation`이 소유하고 호스트는 Service·Plugin만 조립합니다.
 
 ## 거래·결제·서버 실행

@@ -1,8 +1,9 @@
 import { getLocalAgentSecret, isLoopbackHost, readLocalAgentUserId } from '@tcg/config/local-agent-auth';
 import type { ApiEnv } from '@tcg/config';
+import type { AgentSessionPluginOptions } from '@tcg/agent';
 import { requireAuth, type AppOptions } from './app.js';
 
-export function createLocalAgentOptions(env: ApiEnv, variables: NodeJS.ProcessEnv): Pick<AppOptions, 'resolveAuth' | 'createIntegrationPlugins'> {
+export function createLocalAgentOptions(env: ApiEnv, variables: NodeJS.ProcessEnv, options: { purchase?: AgentSessionPluginOptions['purchase'] } = {}): Pick<AppOptions, 'resolveAuth' | 'createIntegrationPlugins'> {
   const secret = getLocalAgentSecret(env.NODE_ENV, variables.AGENT_LOCAL_SECRET);
   if (!secret || !isLoopbackHost(env.API_HOST) || !variables.OPENAI_API_KEY?.trim()) return {};
 
@@ -16,7 +17,7 @@ export function createLocalAgentOptions(env: ApiEnv, variables: NodeJS.ProcessEn
     },
     async createIntegrationPlugins() {
       const { createAgentRuntime, createAgentSessionPlugin, createOpenAIDecisionApi, connectMcpCardServices } = await import('@tcg/agent');
-      const decisionApi = createOpenAIDecisionApi(variables.OPENAI_DECISION_MODEL?.trim() || undefined);
+      const decisionApi = createOpenAIDecisionApi(variables.OPENAI_DECISION_MODEL?.trim() || undefined, { marketplaceEnabled: env.DEMO_SCENARIOS_ENABLED });
       return [async host => {
         const runtime = {
           async runAgentTurn(message: string, options?: import('@tcg/agent').AgentTurnOptions) {
@@ -36,6 +37,7 @@ export function createLocalAgentOptions(env: ApiEnv, variables: NodeJS.ProcessEn
               decisionApi,
               aggregatorService: { async searchCards(input) { return (await connect()).aggregatorService.searchCards(input); } },
               valuationService: { async getValuation(id) { return (await connect()).valuationService.getValuation(id); } },
+              ...(env.DEMO_SCENARIOS_ENABLED ? { marketplaceService: { paymentReady: env.PAYMENT_ENABLED, async listListings(id: string) { return (await connect()).listListings(id); } } } : {}),
             });
             try { return await agent.runAgentTurn(message, options); }
             finally {
@@ -44,7 +46,7 @@ export function createLocalAgentOptions(env: ApiEnv, variables: NodeJS.ProcessEn
             }
           },
         };
-        await host.register(createAgentSessionPlugin({ runtime, requireAuth }), { prefix: '/api' });
+        await host.register(createAgentSessionPlugin({ runtime, requireAuth, ...(env.DEMO_SCENARIOS_ENABLED && options.purchase ? { purchase: options.purchase } : {}) }), { prefix: '/api' });
       }];
     },
   };

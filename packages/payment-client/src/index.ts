@@ -1,7 +1,6 @@
 import type { PaymentRequirements } from '@x402/core/types';
 import { x402Client } from '@x402/core/client';
 import { ExactEvmScheme } from '@x402/evm/exact/client';
-import type { PrivateKeyAccount } from 'viem/accounts';
 
 const BASE_SEPOLIA_USDC = '0x036CbD53842c5426634e7929541eC2318f3dCF7e';
 
@@ -41,7 +40,7 @@ export function validatePaymentRequirements(
 export async function signPayment(
     requirements: PaymentRequirements,
     policy: PaymentPolicy,
-    account: PrivateKeyAccount,
+    account: ConstructorParameters<typeof ExactEvmScheme>[0],
     resourceUrl: string,
 ) {
     validatePaymentRequirements(requirements, policy);

@@ -36,7 +36,13 @@ export function LiveTradingWorkspace({ mode, mine = false }: { mode: Mode; mine?
     const cards = await Promise.all(cardIds.map(async id => cardVariantSchema.parse(await read(`cards/${id}`))));
     if (mounted.current) setData({ me, items: inventory, listings: offers, policies: spendingPolicySchema.array().parse(policies), runs: agentRunSchema.array().parse(runs), orders: buyOrderSchema.array().parse(orders), trades: tradeSchema.array().parse(trades), cards, matches: matches as Data['matches'] });
   }, []);
-  useEffect(() => { mounted.current = true; void load().catch(failure => { if (mounted.current) setError(failure.message); }); return () => { mounted.current = false; }; }, [load]);
+  useEffect(() => {
+    mounted.current = true;
+    const refresh = () => { void load().catch(failure => { if (mounted.current) setError(failure.message); }); };
+    refresh();
+    window.addEventListener('tcg:purchase-completed', refresh);
+    return () => { mounted.current = false; window.removeEventListener('tcg:purchase-completed', refresh); };
+  }, [load]);
   async function run(work: () => Promise<unknown>, refreshed = false) {
     if (inflight.current) return;
     inflight.current = true; setBusy(true); setError(''); setNotice('');

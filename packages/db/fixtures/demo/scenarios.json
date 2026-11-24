@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "mode": "SYNTHETIC_DEMO",
+  "observedAt": "2026-11-19T00:00:00.000Z",
+  "sellerId": "00000000-0000-4000-8002-000000000001",
+  "scenarios": [
+    {
+      "id": "pikachu",
+      "cardId": "00000000-0000-4000-8100-000000000001",
+      "sourceCardId": "78620e14-6cce-44ff-b7b0-ba417648f5d5",
+      "koreanName": "피카츄",
+      "speciesId": 25,
+      "edition": "NORMAL",
+      "condition": "NM",
+      "referencePrice": "15000",
+      "listingPrices": ["10000", "12000"],
+      "suggestion": "피카츄 찾아서 구매 가능한 매물도 알려줘"
+    },
+    {
+      "id": "charizard",
+      "cardId": "00000000-0000-4000-8100-000000000002",
+      "sourceCardId": "56f950b8-c92f-4fb2-ae42-38897d072846",
+      "koreanName": "리자몽",
+      "speciesId": 6,
+      "edition": "HOLO",
+      "condition": "NM",
+      "referencePrice": "30000",
+      "listingPrices": ["20000", "25000"],
+      "suggestion": "리자몽 적정가와 지금 살 수 있는 가격을 알려줘"
+    },
+    {
+      "id": "eevee",
+      "cardId": "00000000-0000-4000-8100-000000000003",
+      "sourceCardId": "08bd31e8-2981-46d9-af01-b0538b7cef20",
+      "koreanName": "이브이",
+      "speciesId": 133,
+      "edition": "NORMAL",
+      "condition": "NM",
+      "referencePrice": "8000",
+      "listingPrices": ["5000", "6000"],
+      "suggestion": "이브이 시세와 거래 가능한 매물을 보여줘"
+    }
+  ]
+}

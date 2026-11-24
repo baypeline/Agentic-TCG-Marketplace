@@ -5,7 +5,11 @@ import styled from '@emotion/styled';
 import { keyframes } from '@emotion/react';
 import { readAgentMessage } from './agent-client';
 import { CardChoices, cardChoiceLabel, cardChoiceQuestion } from './card-choices';
-import type { CardVariant } from '@tcg/contracts';
+import { PurchaseOffers, PurchaseReceipt } from './purchase-offers';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
+import { agentPurchaseProgressSchema, demoStatusSchema, type AgentPurchaseOffer, type AgentPurchaseProgress, type CardVariant } from '@tcg/contracts';
+import { formatUsdc, getCardDisplayName } from '../../lib/formatters';
 
 const AgentMarkdown = lazy(() => import('./agent-markdown'));
 
@@ -15,6 +19,7 @@ interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   cardChoices?: CardVariant[];
+  purchaseOffers?: AgentPurchaseOffer[];
   selectedCardId?: string;
   interrupted?: boolean;
 }
@@ -25,14 +30,22 @@ export function AgentChat({ onClose }: { onClose: () => void }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
   const [streamingText, setStreamingText] = useState('');
+  const [purchaseStatus, setPurchaseStatus] = useState('');
+  const [receipts, setReceipts] = useState<AgentPurchaseProgress[]>([]);
+  const queryClient = useQueryClient();
+  const router = useRouter();
+  const demo = useQuery({ queryKey: ['demo-status'], queryFn: async () => { const result = await fetch('/api/demo'); if (!result.ok) throw new Error('Unavailable'); return demoStatusSchema.parse(await result.json()); }, staleTime: Infinity, retry: false });
+  const examples = demo.data?.enabled ? demo.data.suggestions : suggestions;
   const sessionId = useRef<string | undefined>(undefined);
   const activeRequest = useRef<AbortController | null>(null);
   const input = useRef<HTMLTextAreaElement>(null);
   const history = useRef<HTMLDivElement>(null);
   const composing = useRef(false);
   const followOutput = useRef(true);
+  const purchaseRequests = useRef(new Map<string, { id: string; sessionId: string; submitted: boolean; prepared?: AgentPurchaseProgress }>());
   const latestChoices = messages.reduce((last, message, index) => message.cardChoices?.length ? index : last, -1);
-  useEffect(() => { if (history.current && followOutput.current) history.current.scrollTop = history.current.scrollHeight; }, [messages, streamingText]);
+  const latestOffers = messages.length - 1;
+  useEffect(() => { if (history.current && followOutput.current) history.current.scrollTop = history.current.scrollHeight; }, [messages, streamingText, receipts, purchaseStatus]);
 
   useEffect(() => () => { activeRequest.current?.abort(); }, []);
 
@@ -105,6 +118,67 @@ export function AgentChat({ onClose }: { onClose: () => void }) {
     if (!succeeded && sessionId.current === selectedSession) setMessages(current => current.map((message, index) => index === messageIndex ? { ...message, selectedCardId: undefined } : message));
   }
 
+  async function buyOffer(offer: AgentPurchaseOffer) {
+    if (activeRequest.current || !sessionId.current) return;
+    const request = new AbortController();
+    activeRequest.current = request;
+    const state = purchaseRequests.current.get(offer.listingId) ?? { id: crypto.randomUUID(), sessionId: sessionId.current, submitted: false };
+    purchaseRequests.current.set(offer.listingId, state);
+    setPending(true); setError(''); followOutput.current = true;
+    const api = async (action: 'prepare' | 'submit' | 'status' | 'cancel', paymentPayload?: unknown, signal = request.signal) => {
+      const response = await fetch('/api/agent/chat/purchases', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: state.sessionId, requestId: state.id, listingId: offer.listingId, action, ...(paymentPayload ? { paymentPayload } : {}) }), signal });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.message ?? '거래 요청을 완료하지 못했어요.');
+      return agentPurchaseProgressSchema.parse(payload);
+    };
+    try {
+      let progress: AgentPurchaseProgress;
+      if (state.submitted) { setPurchaseStatus('기존 결제 상태를 확인하고 있어요.'); progress = await api('status'); }
+      else {
+        setPurchaseStatus('구매할 지갑을 연결하고 있어요.');
+        const { connectPaymentWallet } = await import('./wallet-payment');
+        const wallet = await connectPaymentWallet();
+        if (activeRequest.current !== request) return;
+        setPurchaseStatus('매물을 예약하고 결제 금액을 확인하고 있어요.');
+        progress = await api('prepare');
+        state.prepared = progress;
+        if (progress.status === 'PAYMENT_REQUIRED') {
+          setPurchaseStatus(`${formatUsdc(progress.amount)} 지급 승인을 지갑에서 확인해 주세요. Base Sepolia 테스트 USDC가 실제 전송됩니다.`);
+          const payload = await wallet.sign(progress, offer);
+          if (activeRequest.current !== request) return;
+          state.submitted = true;
+          setPurchaseStatus('서명한 지급을 제출하고 정산을 확인하고 있어요.');
+          progress = await api('submit', payload);
+        } else { state.submitted = progress.status === 'PENDING' || progress.status === 'COMPLETED'; }
+      }
+      for (let attempt = 0; progress.status === 'PENDING' && attempt < 8; attempt++) {
+        if (activeRequest.current !== request) return;
+        setPurchaseStatus('새 지급 없이 기존 결제·체결을 확인하고 있어요.');
+        await new Promise<void>(resolve => { const timer = setTimeout(done, 2000); function done() { clearTimeout(timer); request.signal.removeEventListener('abort', done); resolve(); } request.signal.addEventListener('abort', done, { once: true }); });
+        request.signal.throwIfAborted();
+        progress = await api('status');
+      }
+      if (activeRequest.current !== request) return;
+      setReceipts(current => [...current.filter(item => item.requestId !== progress.requestId), progress]);
+      if (progress.status === 'CANCELLED' || progress.status === 'FAILED') purchaseRequests.current.delete(offer.listingId);
+      if (progress.status === 'COMPLETED') {
+        setMessages(current => [...current, { role: 'assistant', content: `${getCardDisplayName(offer.card)} 카드를 ${formatUsdc(progress.amount)}에 구매했어요. 테스트 USDC 결제가 확인되어 내 카드와 거래 내역에 반영됐어요.` }]);
+        void queryClient.invalidateQueries(); window.dispatchEvent(new Event('tcg:purchase-completed')); router.refresh();
+      }
+    } catch (failure) {
+      if (activeRequest.current === request && !request.signal.aborted) {
+        const { walletErrorMessage } = await import('./wallet-payment');
+        setError(state.submitted ? '결제 응답을 확인하지 못했어요. 같은 매물의 버튼을 누르면 새 서명 없이 기존 결제를 조회해요.' : walletErrorMessage(failure));
+      }
+    } finally {
+      if (state.prepared && !state.submitted) {
+        await api('cancel', undefined, AbortSignal.timeout(5000)).catch(() => undefined);
+        purchaseRequests.current.delete(offer.listingId);
+      } else if (!state.prepared && !state.submitted) purchaseRequests.current.delete(offer.listingId);
+      if (activeRequest.current === request) { activeRequest.current = null; setPending(false); setPurchaseStatus(''); }
+    }
+  }
+
   function reset() {
     activeRequest.current?.abort();
     activeRequest.current = null;
@@ -114,6 +188,8 @@ export function AgentChat({ onClose }: { onClose: () => void }) {
     setError('');
     setPending(false);
     setStreamingText('');
+    setPurchaseStatus('');
+    setReceipts([]);
     followOutput.current = true;
     input.current?.focus();
   }
@@ -124,9 +200,9 @@ export function AgentChat({ onClose }: { onClose: () => void }) {
     }
   }
   return <Panel id="agent-panel" aria-labelledby="agent-heading" onKeyDown={event => { if (event.key === 'Escape' && !event.nativeEvent.isComposing) { event.stopPropagation(); onClose(); } }}>
-    <PanelHeader><div><h2 id="agent-heading">거래 에이전트</h2><span>카드 검색 및 적정가 조회</span></div><PanelActions><ResetButton type="button" disabled={!messages.length && !draft} onClick={reset} aria-label="대화 비우기" title="대화 비우기"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 10v7m4-7v7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg></ResetButton><ResetButton type="button" onClick={onClose} aria-label="에이전트 닫기" title="에이전트 닫기"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg></ResetButton></PanelActions></PanelHeader>
+    <PanelHeader><div><h2 id="agent-heading">거래 에이전트</h2><span>{demo.data?.enabled ? '카드 찾기 · 매물 확인 · 테스트넷 구매' : '카드 검색 및 적정가 조회'}</span></div><PanelActions><ResetButton type="button" disabled={!messages.length && !draft} onClick={reset} aria-label="대화 비우기" title="대화 비우기"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 10v7m4-7v7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg></ResetButton><ResetButton type="button" onClick={onClose} aria-label="에이전트 닫기" title="에이전트 닫기"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg></ResetButton></PanelActions></PanelHeader>
     <History ref={history} onScroll={() => { const pane = history.current; if (pane) followOutput.current = pane.scrollHeight - pane.scrollTop - pane.clientHeight < 60; }} role="log" aria-label="에이전트 대화" aria-live="polite" aria-relevant="additions">
-      {!messages.length && <Welcome><h3>어떤 카드를 찾고 있나요?</h3><p>카드 이름이나 조회할 적정가를 물어보세요.</p><Suggestions aria-label="대화 예시">{suggestions.map(text => <Suggestion key={text} type="button" onClick={() => { setDraft(text); input.current?.focus(); }}>{text}</Suggestion>)}</Suggestions></Welcome>}
+      {!messages.length && <Welcome><h3>어떤 카드를 찾고 있나요?</h3><p>{demo.data?.enabled ? '카드를 찾고 지금 구매할 수 있는 매물까지 확인해 보세요.' : '카드 이름이나 조회할 적정가를 물어보세요.'}</p><Suggestions aria-label="대화 예시">{examples.map(text => <Suggestion key={text} type="button" onClick={() => { setDraft(text); input.current?.focus(); }}>{text}</Suggestion>)}</Suggestions></Welcome>}
       {messages.map((message, index) => (
         <Message key={index}>
           <span>{message.role === 'user' ? '나' : '에이전트'}</span>
@@ -138,11 +214,13 @@ export function AgentChat({ onClose }: { onClose: () => void }) {
             ) : <PlainMessage>{message.content}</PlainMessage>}
             {message.interrupted && <ReplyState>중단된 답변 · 완료되지 않은 내용이에요.</ReplyState>}
             {message.role === 'assistant' && message.cardChoices?.length ? <CardChoices cards={message.cardChoices} disabled={pending || index !== latestChoices} selectedId={message.selectedCardId} onSelect={card => { void selectCard(card, index); }} /> : null}
+            {message.purchaseOffers?.length ? <PurchaseOffers offers={message.purchaseOffers} disabled={pending || index !== latestOffers} completedIds={receipts.filter(item => item.status === 'COMPLETED').map(item => item.listingId)} submittedIds={[...purchaseRequests.current.entries()].filter(([, item]) => item.submitted).map(([id]) => id)} onBuy={offer => { void buyOffer(offer); }} /> : null}
           </MessageBody>
         </Message>
       ))}
       {pending && streamingText && <Message aria-live="off"><span>에이전트</span><MessageBody><PlainMessage>{streamingText}</PlainMessage><ReplyState>답변을 작성하고 있어요.</ReplyState></MessageBody></Message>}
-      {pending && !streamingText && <Waiting role="status">카드를 확인하고 답변을 준비하고 있어요.</Waiting>}
+      {pending && !streamingText && <Waiting role="status">{purchaseStatus || '카드를 확인하고 답변을 준비하고 있어요.'}</Waiting>}
+      {receipts.map(progress => <PurchaseReceipt key={progress.requestId} progress={progress} disabled={pending} onCheck={() => { void buyOffer({ listingId: progress.listingId, card: progress.card, price: progress.amount, dataSource: 'SYNTHETIC_DEMO', paymentMode: 'X402_BASE_SEPOLIA', paymentReady: true }); }} />)}
       {error && <Waiting role="alert">{error}</Waiting>}
     </History>
     <Composer onSubmit={submit}><label htmlFor="agent-message">에이전트에게 보낼 내용</label><InputBox><ChatInput ref={input} id="agent-message" value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={keyDown} onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }} placeholder="카드 이름이나 조회할 내용" maxLength={2000} rows={3} aria-describedby="agent-connection-note" /><ComposerActions><span>{draft.length.toLocaleString()} / 2,000</span><SendButton type="submit" disabled={pending || !draft.trim()} aria-label="메시지 보내기"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg></SendButton></ComposerActions></InputBox><ConnectionNote id="agent-connection-note">카드 검색과 적정가를 조회할 수 있어요. 새로고침하면 새 대화로 시작해요.</ConnectionNote></Composer>

@@ -41,12 +41,12 @@ export function createMockCardAdapter(cards: readonly CardVariant[] = mockCards)
     async getCardVariant(id) { const card = cards.find(card => card.id === id); return card ? structuredClone(card) : null; },
   };
 }
-export function createPrismaCardAdapter(prisma: PrismaClient): CardDataAdapter {
+export function createPrismaCardAdapter(prisma: PrismaClient, options: { cardIds?: readonly string[] } = {}): CardDataAdapter {
   return {
     async searchCards({ query, limit }) {
       const search = query.normalize('NFKC').trim().replace(/[\\%_]/g, character => `\\${character}`);
       const rows = await prisma.cardVariant.findMany({
-        where: { OR: [{ name: { contains: search, mode: 'insensitive' } }, { localizedNames: { some: { locale: 'ko', name: { contains: search, mode: 'insensitive' } } } }] },
+        where: { ...(options.cardIds ? { id: { in: [...options.cardIds] } } : {}), OR: [{ name: { contains: search, mode: 'insensitive' } }, { localizedNames: { some: { locale: 'ko', name: { contains: search, mode: 'insensitive' } } } }] },
         include: { localizedNames: { orderBy: { locale: 'asc' } } },
         orderBy: { id: 'asc' }, take: limit,
       });
