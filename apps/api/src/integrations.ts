@@ -4,9 +4,11 @@ import { createMockTradingStore, createPrismaTradingStore, createTradingPlugin, 
 import { requireAuth, type IntegrationDependencies } from './app.js';
 
 // 통합 순서는 Trading → Payment → MCP. 실결제 증빙 연결은 후속 단계에서 주입한다.
-export async function createIntegrationPlugins({ env, prisma, aggregatorService, valuationService }: IntegrationDependencies): Promise<FastifyPluginAsync[]> {
+export async function createIntegrationPlugins({ env, prisma, aggregatorService, valuationService, tradingExecutionContext }: IntegrationDependencies): Promise<FastifyPluginAsync[]> {
   const tradingService = createTradingService({
     store: env.TRADING_DATA_SOURCE === 'database' ? createPrismaTradingStore(prisma!) : createMockTradingStore(),
+    executionContext: tradingExecutionContext,
+    valuationService,
   });
   const tradingPlugin: FastifyPluginAsync = async app => {
     await app.register(createTradingPlugin({ tradingService, requireAuth }), { prefix: '/api' });

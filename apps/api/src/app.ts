@@ -1,6 +1,6 @@
 import Fastify, { type FastifyPluginAsync, type FastifyRequest } from 'fastify';
 import { ZodError } from 'zod';
-import { AppError, type AggregatorService, type AuthContext, type ValuationService } from '@tcg/contracts';
+import { AppError, type AggregatorService, type AuthContext, type ValuationService, type TradingExecutionContextReader } from '@tcg/contracts';
 import { parseApiEnv, type ApiEnv } from '@tcg/config';
 import { createPrismaClient, type PrismaClient } from '@tcg/db';
 import { createAggregatorPlugin, createAggregatorService, createMockCardAdapter, createPrismaCardAdapter } from '@tcg/aggregator';
@@ -12,11 +12,13 @@ export interface IntegrationDependencies {
   prisma: PrismaClient | null;
   aggregatorService: AggregatorService;
   valuationService: ValuationService;
+  tradingExecutionContext?: TradingExecutionContextReader;
 }
 export interface AppOptions {
   env?: ApiEnv;
   logger?: boolean;
   resolveAuth?: (request: FastifyRequest) => Promise<AuthContext | null>;
+  tradingExecutionContext?: TradingExecutionContextReader;
   // Trading → Payment → MCP 생성·주입은 통합 단계에서 이 팩토리에 구성한다.
   createIntegrationPlugins?: (deps: IntegrationDependencies) => Promise<FastifyPluginAsync[]>;
 }
@@ -51,7 +53,7 @@ export async function buildApp(options: AppOptions = {}) {
       if (!await aggregatorService.getCardVariant(id)) throw new AppError('CARD_NOT_FOUND', '카드를 찾을 수 없습니다.', 404);
       return { cardVariantId: id, dataSource: 'MARKET' as const, items: [], maxAgeHours: 72, evaluatedAt: new Date().toISOString() };
     } };
-    const plugins = await options.createIntegrationPlugins?.({ env, prisma, aggregatorService, valuationService }) ?? [];
+    const plugins = await options.createIntegrationPlugins?.({ env, prisma, aggregatorService, valuationService, tradingExecutionContext: options.tradingExecutionContext }) ?? [];
     app.get('/health', async () => ({ status: 'ok', dataMode: env.DATA_MODE, cardDataSource: env.CARD_DATA_SOURCE, priceDataSource: env.PRICE_DATA_SOURCE, tradingDataSource: env.TRADING_DATA_SOURCE, database: prisma ? 'connected' : 'disabled' }));
     await app.register(createAggregatorPlugin({ aggregatorService }), { prefix: '/api' });
     await app.register(createValuationPlugin({ valuationService, marketPriceService }), { prefix: '/api' });
