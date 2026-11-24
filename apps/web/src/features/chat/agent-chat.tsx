@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import styled from '@emotion/styled';
 import { keyframes } from '@emotion/react';
 import { readAgentReply } from './agent-client';
+
+const AgentMarkdown = lazy(() => import('./agent-markdown'));
 
 const suggestions = ['피카츄 찾아줘', '리자몽 적정가 알려줘', '이브이 시세가 어느 정도야?'];
 
@@ -92,7 +94,18 @@ export function AgentChat({ onClose }: { onClose: () => void }) {
     <PanelHeader><div><h2 id="agent-heading">거래 에이전트</h2><span>카드 검색 및 적정가 조회</span></div><PanelActions><ResetButton type="button" disabled={!messages.length && !draft} onClick={reset} aria-label="대화 비우기" title="대화 비우기"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 10v7m4-7v7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg></ResetButton><ResetButton type="button" onClick={onClose} aria-label="에이전트 닫기" title="에이전트 닫기"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg></ResetButton></PanelActions></PanelHeader>
     <History ref={history} role="log" aria-label="에이전트 대화" aria-live="polite" aria-relevant="additions">
       {!messages.length && <Welcome><h3>어떤 카드를 찾고 있나요?</h3><p>카드 이름이나 조회할 적정가를 물어보세요.</p><Suggestions aria-label="대화 예시">{suggestions.map(text => <Suggestion key={text} type="button" onClick={() => { setDraft(text); input.current?.focus(); }}>{text}</Suggestion>)}</Suggestions></Welcome>}
-      {messages.map((message, index) => <Message key={index}><span>{message.role === 'user' ? '나' : '에이전트'}</span><p>{message.content}</p></Message>)}
+      {messages.map((message, index) => (
+        <Message key={index}>
+          <span>{message.role === 'user' ? '나' : '에이전트'}</span>
+          <MessageBody>
+            {message.role === 'assistant' ? (
+              <Suspense fallback={<PlainMessage role="status">답변을 표시하고 있어요.</PlainMessage>}>
+                <AgentMarkdown content={message.content} />
+              </Suspense>
+            ) : <PlainMessage>{message.content}</PlainMessage>}
+          </MessageBody>
+        </Message>
+      ))}
       {pending && <Waiting role="status">에이전트가 답변을 준비하고 있어요.</Waiting>}
       {error && <Waiting role="alert">{error}</Waiting>}
     </History>
@@ -109,7 +122,9 @@ const History = styled.div({ flex: 1, minHeight: 0, overflowY: 'auto', overscrol
 const Welcome = styled.div(({ theme }) => ({ paddingTop: 32, '& h3': { fontSize: 23, fontWeight: 550, letterSpacing: '-.025em', textWrap: 'balance' }, '& p': { marginTop: 16, fontSize: 14, color: theme.color.muted, lineHeight: 1.8 } }));
 const Suggestions = styled.div({ display: 'grid', gap: 10, marginTop: 28 });
 const Suggestion = styled.button(({ theme }) => ({ textAlign: 'left', background: theme.color.surface, border: `1px solid ${theme.color.line}`, borderRadius: 6, minHeight: 48, padding: '12px 14px', color: theme.color.ink, fontSize: 13, '&:hover': { borderColor: theme.color.input } }));
-const Message = styled.div(({ theme }) => ({ marginBottom: 24, animation: `${messageEnter} ${theme.motion.standard} ${theme.motion.ease} both`, '@media(prefers-reduced-motion:reduce)': { animation: 'none' }, '& > span': { display: 'block', color: theme.color.muted, fontSize: 12, marginBottom: 8 }, '& p': { whiteSpace: 'pre-wrap', padding: '12px 14px', border: `1px solid ${theme.color.line}`, borderRadius: 8, fontSize: 14, lineHeight: 1.8 } }));
+const Message = styled.div(({ theme }) => ({ marginBottom: 24, animation: `${messageEnter} ${theme.motion.standard} ${theme.motion.ease} both`, '@media(prefers-reduced-motion:reduce)': { animation: 'none' }, '& > span': { display: 'block', color: theme.color.muted, fontSize: 12, marginBottom: 8 } }));
+const MessageBody = styled.div(({ theme }) => ({ padding: '12px 14px', border: `1px solid ${theme.color.line}`, borderRadius: 8, fontSize: 14, lineHeight: 1.8 }));
+const PlainMessage = styled.p({ margin: 0, whiteSpace: 'pre-wrap' });
 const Waiting = styled.p(({ theme }) => ({ color: theme.color.muted, fontSize: 13, lineHeight: 1.8, paddingBottom: 8 }));
 const Composer = styled.form({ padding: '16px 24px max(20px, env(safe-area-inset-bottom))', flexShrink: 0, '& > label': { display: 'block', fontSize: 12, marginBottom: 8 }, '@media(max-height:600px)': { padding: '8px 20px max(8px, env(safe-area-inset-bottom))', '& > label': { marginBottom: 4 } } });
 const InputBox = styled.div(({ theme }) => ({ border: `1px solid ${theme.color.input}`, borderRadius: 8, padding: '12px 12px 8px', '&:focus-within': { borderColor: theme.color.focus }, '@media(max-height:600px)': { padding: 8 } }));
