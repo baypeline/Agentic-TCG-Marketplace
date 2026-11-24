@@ -1,5 +1,7 @@
 # 모듈 통합 가이드
 
+이 가이드는 현재 코드의 조립 방법입니다. 2026년 11월 24일 확정한 목표 규칙은 [시스템 설계서 v2.2](system-design.md)·[API 계약서 v2.1](api-contract.md)·[합의 사항과 구현 차이](decisions.md)를 따릅니다. 현재의 SSE 종료 시 중단·미제출 예약 해제 동작은 새 합의와 달라 후속 코드 수정이 필요합니다.
+
 ## 공개 API
 
 ```typescript
@@ -62,3 +64,8 @@ Web은 Server Component를 통해 Core API를 호출하므로 API 주소·비밀
 Core API는 `buildApp({ tradingExecutionContext })`에 주입된 현재 상태를 Trading으로 전달합니다. 토큰 인증만으로 신규 예약 권한을 부여하지 않으며, 기본 server.ts는 제공자 미주입으로 예약·매칭·주문 재개를 거부합니다. 등록·주문·예약 생성에는 Idempotency-Key가 필요합니다.
 
 Agent의 `createAgentExecutionController({ resolvePolicy, pauseOrders })`는 단일 호스트의 세션 online 상태와 서버 측 승인 정책을 연결합니다. 반환된 실행 컨텍스트를 Trading에, 수명 콜백을 Agent 세션 Plugin에 주입합니다. 마지막 세션이 중단되면 먼저 offline으로 전환하고 미제출 주문을 중지합니다. Payment 제출 이후의 증빙 조회·체결 복구는 세션 상태로 중단하지 않습니다. 운영 팩토리에 Agent 세션을 등록하고 영속 정책을 제공하는 전체 연결은 이번 1차 계약 보정 범위 밖입니다.
+
+
+## 합의 이후 변경할 실행 수명
+
+브라우저/SSE 연결은 조회·구독의 수명이며 서버 Agent 실행의 수명과 분리합니다. 명시적 중단은 신규 실행을 막고 대기 주문을 중지하지만 기존 미제출 카드 예약을 즉시 해제하지 않습니다. 예약은 보류 상태로 원래 TTL을 유지합니다. 정책 수정에도 같은 원칙을 적용하고 결제 제출 승인 직전에 최신 정책·예산을 원자적으로 검사합니다. 현재 pauseAgentOrders의 즉시 해제와 sessions Plugin의 연결 종료 취소는 이 규칙에 맞춰 변경해야 합니다. Payment 제출 승인 이후는 Agent online 여부와 관계없이 서버가 증빙 확인·체결 복구를 계속합니다.

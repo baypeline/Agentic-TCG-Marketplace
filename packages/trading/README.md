@@ -1,5 +1,7 @@
 # Trading
 
+2026년 11월 24일 [합의 사항](../../docs/decisions.md)에 따라 정책 변경·Agent 중단 시 미제출 예약을 원래 TTL까지 유지하고 결제를 보류해야 합니다. 아래 pauseAgentOrders·주문 pause 설명은 아직 예약을 해제하는 현재 구현이며 후속 수정 대상입니다. TRANSFERRED 제거와 완료 Trade 기반 모의 수익 집계도 목표 계약에 반영했으며 코드·DB 변경은 별도입니다.
+
 원본: [BAY-TCG-Trading](https://github.com/chaedotxyz/BAY-TCG-Trading/tree/ed1e7b9d984567750514478d1478c86960b9f037/tcg-trading-engine/packages/trading), 기준 커밋 `ed1e7b9d984567750514478d1478c86960b9f037`. 현재 workspace의 공통 계약과 Prisma Client를 사용하도록 선별 이식했습니다.
 
 인벤토리, 고정가 매물, 매수 지정가 주문, 카드 예약, 소유권 이전을 처리합니다. Service와 Fastify Plugin은 `@tcg/trading`에서 import합니다. 거래 DTO·오류는 `@tcg/contracts`를 사용합니다. 가격은 USDC 최소 단위의 정수 문자열입니다. 예를 들어 10 USDC는 `"10000000"`입니다.

@@ -135,3 +135,8 @@ Trading 엔진의 인벤토리·매물·지정가 주문·예약·거래 조회 
 전체 카탈로그 동기화, 거래 가능한 카드 변형·상태 확정, 자동 환율 수집, 상용 인증, 구매 정책 API, 자동 매칭, 거래 MCP 도구, 세션 영속화, Agent와 Core API·Web의 실제 연결, x402 거래 결제 및 전체 거래 E2E는 후속 통합 범위입니다. Web의 거래·대화 화면은 미리보기이며 실제 요청·결제를 실행하지 않습니다.
 
 가격은 USDC 최소 단위 정수 문자열입니다. UUID 및 UTC ISO 8601을 사용합니다. Mock 가격은 `dataSource: "MOCK"`로 구분하고, 표본이 없으면 `status: "INSUFFICIENT_DATA"`, `estimatedPrice: null`을 반환합니다. 이 확장은 초안 계약의 미정 부분을 구체화한 **팀 검토 대상**입니다. [계약 결정 사항](docs/contracts.md), [통합 가이드](docs/integration.md)를 확인하세요.
+
+
+## 합의된 설계·API 계약
+
+2026년 11월 24일 사용자 합의를 반영한 [시스템 설계서 v2.2](docs/system-design.md), [API 계약서 v2.1](docs/api-contract.md), [결정 사항과 구현 차이](docs/decisions.md)를 저장소에서 관리합니다. 정책별 누적 예산·예약 보류·결제/거래 상태 분리·서버 Agent 실행·Trade 기반 이력/모의 수익을 기준으로 합니다. 이 문서 개정은 코드 구현 완료가 아니며, SSE 연결 종료에 따른 중단과 Agent 중단 시 예약 해제 등은 후속 수정 대상입니다.

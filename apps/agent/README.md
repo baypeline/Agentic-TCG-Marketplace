@@ -1,5 +1,7 @@
 # Agent Runtime
 
+2026년 11월 24일 [합의 사항](../../docs/decisions.md)은 서버 실행을 브라우저/SSE 연결과 분리하고 명시적 중단 시 미제출 예약을 유지·보류하도록 정합니다. 아래 세션·콜백 설명은 현재 코드 동작이며 이 합의의 구현 완료를 뜻하지 않습니다.
+
 담당: 최재민
 
 `createAgentRuntime({ aggregatorService, valuationService, model, decisionApi })`로 런타임을 생성합니다. `runAgentTurn(message)`는 Decision API로 의도를 분류한 뒤 독립된 한 턴의 최종 응답을 반환합니다. 기본 분류기는 OpenAI Responses API 구조화 출력을 사용하며, 같은 `DecisionApi` 인터페이스의 구현을 주입할 수 있습니다. 분류 모델과 메인 모델은 기본적으로 `gpt-5.6-luna`를 사용합니다.
