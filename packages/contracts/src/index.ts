@@ -86,7 +86,7 @@ export const cardParamsSchema = z.object({ id: idSchema });
 export const cardSearchResponseSchema = z.object({ items: z.array(cardVariantSchema), nextCursor: z.null() });
 export const errorCodeSchema = z.enum([
   'VALIDATION_ERROR', 'UNAUTHORIZED', 'FORBIDDEN', 'CARD_NOT_FOUND', 'SESSION_NOT_FOUND', 'SESSION_BUSY',
-  'LISTING_UNAVAILABLE', 'PRICE_LIMIT_EXCEEDED', 'ORDER_NOT_ACTIVE',
+  'LISTING_UNAVAILABLE', 'PRICE_LIMIT_EXCEEDED', 'ORDER_NOT_ACTIVE', 'IDEMPOTENCY_CONFLICT', 'TRADE_NOT_FOUND',
   'INVENTORY_CONFLICT', 'BUDGET_EXCEEDED', 'POLICY_VIOLATION',
   'PAYMENT_REQUIRED', 'PAYMENT_FAILED', 'PAYMENT_UNKNOWN', 'QUOTE_EXPIRED', 'INTERNAL_ERROR',
 ]);
@@ -120,3 +120,29 @@ export type BuyOrder = z.infer<typeof buyOrderSchema>;
 export type MatchQuote = z.infer<typeof matchQuoteSchema>;
 export type Trade = z.infer<typeof tradeSchema>;
 export type SpendingPolicy = z.infer<typeof spendingPolicySchema>;
+
+// REST·MCP·Service가 함께 사용하는 거래 입력. 인증 ID는 요청 본문에서 받지 않는다.
+export const tradingIdSchema = idSchema.transform(value => value.toLowerCase());
+export const tradingUserSchema = z.object({ userId: tradingIdSchema });
+export const tradingBuyerSchema = tradingUserSchema.extend({ agentId: tradingIdSchema });
+export const createListingInputSchema = z.object({ inventoryItemId: tradingIdSchema, price: amountSchema });
+export const createBuyOrderInputSchema = z.object({ cardVariantId: tradingIdSchema, maxPrice: amountSchema, expiresAt: timestampSchema });
+export const fixedPurchaseInputSchema = z.object({ listingId: tradingIdSchema, maxPrice: amountSchema });
+export const marketPurchaseInputSchema = z.object({ cardVariantId: tradingIdSchema, maxPrice: amountSchema });
+export const listingQuerySchema = z.object({ cardVariantId: tradingIdSchema.optional(), maxPrice: amountSchema.optional() });
+export const mutationContextSchema = z.object({ idempotencyKey: z.string().min(1).max(128).regex(/^[A-Za-z0-9._:-]+$/) });
+export type MutationContext = z.infer<typeof mutationContextSchema>;
+export type TradingBuyer = z.infer<typeof tradingBuyerSchema>;
+
+export interface TradingExecutionContextReader {
+  // 인증 사용자·Agent 쌍에 대한 서버 측 현재 상태를 반환한다. 없으면 신규 실행을 거부한다.
+  getExecutionContext(buyer: TradingBuyer): Promise<{ online: boolean; policy: SpendingPolicy } | null>;
+}
+
+export const purchaseConditionSchema = z.object({
+  cardQuery: z.string().trim().min(1).max(200),
+  strategy: z.enum(['FIXED', 'LIMIT', 'MARKET']),
+  maxPrice: amountSchema,
+  minDiscountPercent: z.number().min(0).max(100).nullable(),
+});
+export type PurchaseCondition = z.infer<typeof purchaseConditionSchema>;

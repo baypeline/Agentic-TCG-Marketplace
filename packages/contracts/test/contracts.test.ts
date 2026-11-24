@@ -1,7 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { amountSchema, idSchema, valuationSchema } from '../src/index.js';
+import { amountSchema, idSchema, valuationSchema, marketPurchaseInputSchema, mutationContextSchema, purchaseConditionSchema } from '../src/index.js';
 
 describe('공통 계약', () => {
+  it('시장가 상한과 안정적인 요청 키를 요구한다', () => {
+    const cardVariantId = '00000000-0000-4000-8000-000000000001';
+    expect(marketPurchaseInputSchema.safeParse({ cardVariantId }).success).toBe(false);
+    expect(marketPurchaseInputSchema.parse({ cardVariantId, maxPrice: '1000000' }).maxPrice).toBe('1000000');
+    for (const key of ['', 'a b', 'x'.repeat(129)]) expect(mutationContextSchema.safeParse({ idempotencyKey: key }).success).toBe(false);
+    expect(mutationContextSchema.parse({ idempotencyKey: 'order-123' }).idempotencyKey).toBe('order-123');
+  });
+  it('구매 조건은 가격 상한과 전략을 구조화한다', () => {
+    expect(purchaseConditionSchema.parse({ cardQuery: '피카츄', strategy: 'LIMIT', maxPrice: '30000000', minDiscountPercent: null }).maxPrice).toBe('30000000');
+    expect(purchaseConditionSchema.safeParse({ cardQuery: '피카츄', strategy: 'LIMIT', maxPrice: '30.0', minDiscountPercent: null }).success).toBe(false);
+  });
   it('부동소수점·음수·지수 표기 가격을 거부한다', () => {
     for (const amount of ['1.5', '-1', '1e6', '01', '']) expect(amountSchema.safeParse(amount).success).toBe(false);
     expect(amountSchema.parse('9007199254740993000000')).toBe('9007199254740993000000');
