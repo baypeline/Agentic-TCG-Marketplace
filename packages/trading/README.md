@@ -13,7 +13,7 @@ pnpm --filter @tcg/trading build
 pnpm --filter @tcg/trading test
 ```
 
-`createMockTradingStore()`는 공용 시연 CardVariant 세 종의 카드 여섯 장을 `demoSellerId`에 배정합니다. PostgreSQL 모드는 `pnpm db:migrate` 후 `createPrismaTradingStore(prisma)`를 사용합니다. PostgreSQL 인벤토리는 운영 쪽에서 등록해야 합니다. DB 검증은 Migration을 적용한 테스트 DB의 연결 문자열을 `DATABASE_TEST_URL`에 지정한 뒤 Trading 테스트를 실행합니다.
+`createMockTradingStore()`는 공용 시연 CardVariant 세 종의 카드 여섯 장을 `demoSellerId`에 배정합니다. PostgreSQL 모드는 `pnpm db:migrate` 후 `createPrismaTradingStore(prisma)`를 사용합니다. 로컬 DB 시연은 루트에서 `pnpm trading:seed`로 동일한 재고 여섯 장을 추가합니다. 재실행해도 기존 재고 소유자·상태는 변경하지 않습니다. 운영 인벤토리 등록 API는 아직 없습니다. DB 검증은 Migration을 적용한 테스트 DB의 연결 문자열을 `DATABASE_TEST_URL`에 지정한 뒤 Trading 테스트를 실행합니다.
 
 Core API의 `createIntegrationPlugins`에서 아래처럼 등록할 수 있습니다. `requireAuth`는 호스트가 검증한 사용자와 Agent를 가져오는 콜백입니다. Agent·MCP에서도 동일한 Service와 DTO를 사용할 수 있습니다.
 

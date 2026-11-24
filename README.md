@@ -35,17 +35,17 @@ packages/
   contracts/           공통 DTO, Zod v4 Schema, 오류 코드
   db/                  Prisma 7 Client, Schema, Migration
   config/              환경변수 검증, 공통 TypeScript 설정
-  trading/             [예약] 이채영
-  mcp-server/          [예약] 김민지
-  mcp-client/          [예약] 김민지
-  payment-server/      [예약] 최승원
-  payment-client/      [예약] 최승원
+  trading/             인벤토리·매물·주문·예약·체결 Service, REST Plugin
+  mcp-server/          카드 검색·적정가 조회 MCP Plugin
+  mcp-client/          카드 조회 MCP 클라이언트
+  payment-server/      x402 테스트 결제 검증·정산
+  payment-client/      x402 테스트 결제 클라이언트
 infra/                 PostgreSQL Docker Compose
 research/              이재환 연구·실험
 docs/                  통합 규칙 및 계약 결정 사항
 ```
 
-예약 패키지는 `src/index.ts`와 README만 제공하며 업무 로직·실행·테스트가 아직 없습니다.
+Trading REST는 Core API에 등록됩니다. [트레이딩 통합 가이드](docs/trading-integration.md)에서 저장소 모드·로컬 인증·시연 재고·요청 예시를 확인하세요.
 
 ## PostgreSQL 연결
 
@@ -130,6 +130,8 @@ pnpm --filter @tcg/aggregator test
 
 카드 검색·상세 화면·Mock 적정가, API 오류 처리, 인증 컨텍스트 주입 지점, PostgreSQL 조회 어댑터·시연 seed·실제 DB 통합 테스트를 구현했습니다. [TCGdex 외부 카드 수집·영구 UUID 매핑·DB 저장](packages/aggregator/README.md) 후 기존 REST 경로에서 조회할 수 있으며 [외부 참고 시세 수집과 검증 표본 평가](packages/valuation/README.md)도 지원합니다. [Agent Runtime](apps/agent/README.md)은 카드 검색과 적정가를 조회하며, MCP 클라이언트 연결과 인증 컨텍스트 기반 세션 HTTP/SSE 플러그인을 제공합니다. 기존 DB/Mock 모드는 유지하며 미구현 live 모드로 조용히 대체하지 않습니다.
 
-전체 카탈로그 동기화, 거래 가능한 카드 변형·상태 확정, 자동 환율 수집, 상용 인증, 매물·주문·정책 API, 팀 MCP 서버, 세션 영속화, Agent와 Core API·Web의 실제 연결, x402 결제 및 전체 거래 E2E는 후속 통합 범위입니다. Web의 거래·대화 화면은 미리보기이며 Agent 패키지 병합만으로 실제 요청·결제를 실행하지 않습니다.
+Trading 엔진의 인벤토리·매물·지정가 주문·예약 REST와 DB 영속화, 예약 만료 작업을 연결했습니다. 로컬 데모 인증과 `pnpm trading:seed`를 제공합니다. 체결 로직은 결제 증빙을 주입하는 Service 테스트로 검증하며, 실행 서버의 실결제에는 아직 연결하지 않았습니다.
+
+전체 카탈로그 동기화, 거래 가능한 카드 변형·상태 확정, 자동 환율 수집, 상용 인증, 구매 정책 API, 자동 매칭, 거래 MCP 도구, 세션 영속화, Agent와 Core API·Web의 실제 연결, x402 거래 결제 및 전체 거래 E2E는 후속 통합 범위입니다. Web의 거래·대화 화면은 미리보기이며 실제 요청·결제를 실행하지 않습니다.
 
 가격은 USDC 최소 단위 정수 문자열입니다. UUID 및 UTC ISO 8601을 사용합니다. Mock 가격은 `dataSource: "MOCK"`로 구분하고, 표본이 없으면 `status: "INSUFFICIENT_DATA"`, `estimatedPrice: null`을 반환합니다. 이 확장은 초안 계약의 미정 부분을 구체화한 **팀 검토 대상**입니다. [계약 결정 사항](docs/contracts.md), [통합 가이드](docs/integration.md)를 확인하세요.

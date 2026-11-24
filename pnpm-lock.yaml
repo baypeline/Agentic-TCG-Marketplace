@@ -431,12 +431,19 @@ importers:
       '@tcg/db':
         specifier: workspace:*
         version: link:../db
+      dotenv:
+        specifier: ^17.2.3
+        version: 17.4.2
       fastify:
         specifier: 5.12.8
         version: 5.12.8
       zod:
         specifier: 4.6.7
         version: 4.6.7
+    devDependencies:
+      tsx:
+        specifier: ^4.21.0
+        version: 4.23.15
 
   packages/valuation:
     dependencies:

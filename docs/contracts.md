@@ -75,4 +75,4 @@ Aggregator의 `CardDataAdapter`, Valuation의 `PriceDataAdapter`는 실제 제�
 
 Valuation의 추가 필드는 optional이고 기존 USDC·UUID·오류 코드와 거래 DTO는 유지했습니다. MCP·Trading·Payment 소비자는 확장 필드와 표본 수의 의미를 함께 검토해야 합니다. [수집·검증 명령과 제한](../packages/valuation/README.md)을 확인하세요.
 
-Inventory·Listing·BuyOrder·MatchQuote·Trade·SpendingPolicy는 초안의 DTO/Zod Schema만 제공합니다. 아직 Trading·Payment Service 입력, 인증 방식, SDK 종속 x402 타입을 임의로 고정하지 않았습니다. 관련 담당자와 합의한 뒤 계약과 테스트를 먼저 변경하세요. 이번 작업에서 다른 담당자에게 메시지를 발송하지 않았으므로 이 문서와 변경 내용을 팀에 공유해야 합니다.
+Inventory·Listing·BuyOrder·MatchQuote·Trade의 기존 DTO를 유지한 Trading Service와 REST Plugin을 통합했습니다. 입력은 `@tcg/trading`의 Zod Schema로 검증하며 구매에는 인증된 userId·agentId가 필요합니다. 체결은 결제 시도 ID·예약 ID·통화·금액이 일치하는 서버 측 SETTLED 증빙을 요구합니다. SpendingPolicy는 아직 DTO만 제공하며 Payment 영속 기록과 SDK 종속 x402 연결은 후속 범위입니다. 경로와 결제 경계는 [Trading README](../packages/trading/README.md), [통합 가이드](trading-integration.md)를 참고하세요.

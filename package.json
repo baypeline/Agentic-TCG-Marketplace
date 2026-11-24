@@ -18,6 +18,7 @@
     "db:check": "pnpm --filter @tcg/db db:check",
     "db:seed": "pnpm --filter @tcg/db db:seed",
     "db:seed:collected": "pnpm --filter @tcg/db db:seed:collected",
+    "trading:seed": "pnpm --filter @tcg/trading seed:demo",
     "fixtures:export": "pnpm --filter @tcg/db fixtures:export",
     "cards:collect": "pnpm --filter @tcg/aggregator collect",
     "cards:collect:set": "pnpm --filter @tcg/aggregator collect:set",

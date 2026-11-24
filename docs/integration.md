@@ -29,6 +29,8 @@ DB 조회는 `createPrismaCardAdapter(prisma)`와 `createPrismaMockPriceAdapter(
 
 후속 통합 코드는 `createIntegrationPlugins` 안에서 Trading → Payment → MCP 순서로 생성하고 해당 Plugin들을 반환합니다. 팩토리에서 초기화한 외부 리소스도 Plugin의 종료 hook으로 정리하세요. 테스트는 `buildApp()`과 `app.inject()`를 사용합니다.
 
+현재 운영 팩토리는 Trading REST와 MCP를 등록합니다. `IntegrationDependencies.env`의 `TRADING_DATA_SOURCE`로 메모리/Prisma Store를 선택하고 Trading Plugin에서 예약 만료 타이머를 관리합니다. DB 거래는 DB 연결 및 DB 카드 조회를 함께 요구합니다. 인증·시연 seed·실행 경로는 [트레이딩 통합 가이드](trading-integration.md)에 있습니다. Payment 증빙과 거래 MCP 도구는 아직 주입하지 않습니다.
+
 Payment가 Trading Service 또는 정산 완료 콜백을 받는 단방향 연결을 권장합니다. Trading이 다시 Payment를 생성·호출하는 순환 의존성을 만들지 않습니다. 정산 증빙 확인, 멱등 체결, UNKNOWN 복구는 담당 모듈에서 구현하며 Core API에 복제하지 않습니다.
 
 ## 인증
@@ -48,7 +50,7 @@ Web은 Server Component를 통해 Core API를 호출하므로 API 주소·비밀
 | trading | 이채영: 주문·예약·체결 |
 | payment | 최승원: 결제·예산·정산 증빙 |
 
-초기 Migration은 6개 논리 스키마와 catalog.CardVariant만 생성합니다. 타 담당 모델·예약 유일성 제약은 아직 확정하지 않았습니다. Prisma 정의는 `packages/db/prisma/schema/`에서 관리하며 `base.prisma`는 공통 설정, `catalog.prisma`는 정연한 담당 모델입니다. 다른 담당자의 모델 파일은 해당 담당자가 구현할 때 추가합니다. 모델 변경 후 `pnpm --filter @tcg/db db:dev --name <변경명>`으로 Migration을 추가하고 검토합니다. 기존 Migration을 덮어쓰지 않습니다. 파일 분리만 수행한 경우에는 DB 변경이나 신규 Migration이 필요하지 않습니다.
+초기 Migration은 6개 논리 스키마와 catalog.CardVariant를 생성합니다. `20261124000000_trading_engine`은 market의 인벤토리·매물과 trading의 주문·예약·체결을 추가하며, 부분 유일 인덱스로 중복 활성 매물·예약을 제한합니다. Prisma 정의는 `packages/db/prisma/schema/`에서 관리하며 `base.prisma`는 공통 설정, `catalog.prisma`는 카드·시세, `trading.prisma`는 거래 모델입니다. 모델 변경 후 `pnpm --filter @tcg/db db:dev --name <변경명>`으로 Migration을 추가하고 검토합니다. 기존 Migration을 덮어쓰지 않습니다.
 
 두 번째 Migration은 `catalog.PriceObservation`과 `PriceDataSource`를 추가합니다. 가격은 정수 문자열로 저장하며 Mock/시장 구분, 출처, 관측 시각과 카드 FK를 보존합니다. `pnpm db:seed`는 시연 데이터만 upsert합니다. 다른 모듈이 참조할 카드 UUID는 DB 모드와 Mock 모드에서 동일합니다.
 
