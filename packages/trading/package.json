@@ -5,5 +5,16 @@
   "name": "@tcg/trading",
   "exports": {
     ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@tcg/contracts": "workspace:*",
+    "@tcg/db": "workspace:*",
+    "fastify": "5.12.8",
+    "zod": "4.6.7"
   }
 }
