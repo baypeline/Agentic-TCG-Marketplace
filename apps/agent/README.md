@@ -1,6 +1,6 @@
 # Agent Runtime
 
-2026년 11월 24일 [합의 사항](../../docs/decisions.md)은 서버 실행을 브라우저/SSE 연결과 분리하고 명시적 중단 시 미제출 예약을 유지·보류하도록 정합니다. 아래 세션·콜백 설명은 현재 코드 동작이며 이 합의의 구현 완료를 뜻하지 않습니다.
+서버 실행 `/sessions`와 기존 메모리 대화 플러그인을 구분합니다. 두 경로 모두 조회 SSE 종료로 서버 작업을 중단하지 않습니다. 명시적 중단은 미제출 예약을 유지·보류하고 제출된 결제 복구는 계속합니다.
 
 담당: 최재민
 
@@ -75,7 +75,7 @@ const app = await buildApp({
 
 `completed`의 `message`에 최종 답변이 담깁니다. 브라우저에서는 POST 응답의 스트림을 `fetch()`로 읽습니다. 요청은 인증 컨텍스트의 사용자와 Agent가 일치하는 세션에만 접근할 수 있습니다. 같은 세션은 한 번에 한 턴을 처리합니다.
 
-세션은 프로세스 메모리에 저장하며, 최근 24개 메시지를 다음 턴에 전달합니다. 세션은 마지막 성공 턴 이후 1시간 동안 유지되고, 서버를 재시작하면 초기화됩니다. Core API의 인증 제공자 연결, 세션 영속화 및 x402 Client는 후속 통합 범위입니다.
+세션은 프로세스 메모리에 저장하며, 최근 24개 메시지를 다음 턴에 전달합니다. 세션은 마지막 성공 턴 이후 1시간 동안 유지되고, 서버를 재시작하면 초기화됩니다. 이 대화 세션은 메모리 미리보기 전용입니다. 정책 기반 서버 실행은 아래 별도 플러그인을 사용합니다.
 
 ## 구매 조건 해석과 Mock 미리보기
 
@@ -89,8 +89,16 @@ pnpm --filter @tcg/agent demo "피카츄를 30 USDC 이하 지정가로 구매�
 
 ## 세션 중단과 Trading 연결 경계
 
-`POST /api/agent/sessions/:sessionId/stop`은 인증된 소유자의 세션을 중단하고 실행 중인 턴의 AbortSignal을 취소합니다. 중단된 세션은 새 턴을 거부합니다. `createAgentSessionPlugin()`의 `onSessionStarted(auth, sessionId)`와 `onSessionStopped(auth, sessionId)`는 서버 측 활성 상태 관리자를 연결하는 선택적 콜백입니다. 명시적 중단·SSE 연결 중단·1시간 유휴 만료·호스트 종료에 중단 콜백을 호출합니다. 만료는 조회·생성 및 1분 주기 작업으로 정리합니다. 중복 중단은 콜백을 한 번만 완료하며 실패한 콜백은 재시도할 수 있습니다.
+`POST /api/agent/sessions/:sessionId/stop`은 인증된 소유자의 세션을 중단하고 실행 중인 턴의 AbortSignal을 취소합니다. 중단된 세션은 새 턴을 거부합니다. `createAgentSessionPlugin()`의 `onSessionStarted(auth, sessionId)`와 `onSessionStopped(auth, sessionId)`는 서버 측 활성 상태 관리자를 연결하는 선택적 콜백입니다. 명시적 중단·1시간 유휴 만료·호스트 종료에 중단 콜백을 호출합니다. SSE 연결 종료는 실행/중단 콜백에 영향을 주지 않습니다. 만료는 조회·생성 및 1분 주기 작업으로 정리합니다. 중복 중단은 콜백을 한 번만 완료하며 실패한 콜백은 재시도할 수 있습니다.
 
-호스트는 `onSessionStopped`에서 먼저 해당 세션의 online 상태를 해제한 뒤, 해당 사용자·Agent에 다른 활성 세션이 없으면 `tradingService.pauseAgentOrders(auth)`를 호출합니다. 이미 제출된 결제는 중단하지 않습니다. Trading에 같은 상태 관리자의 `TradingExecutionContextReader`를 주입해야 합니다. 콜백에는 요청 본문의 사용자 ID를 사용하지 않습니다. 실제 정책 저장소·여러 호스트 간 세션 동기화·운영 Core API에 Agent 세션을 등록하는 작업은 후속 통합 범위입니다.
+호스트는 `onSessionStopped`에서 먼저 해당 세션의 online 상태를 해제한 뒤, 해당 사용자·Agent에 다른 활성 세션이 없으면 `tradingService.pauseAgentOrders(auth)`를 호출합니다. 이미 제출된 결제는 중단하지 않습니다. Trading에 같은 상태 관리자의 `TradingExecutionContextReader`를 주입해야 합니다. 콜백에는 요청 본문의 사용자 ID를 사용하지 않습니다. Core API는 별도의 영속 정책·서버 실행 서비스를 연결합니다. 기존 대화 플러그인을 운영 실행 상태 저장소로 사용하지 않습니다.
 
 `createAgentExecutionController({ resolvePolicy, pauseOrders })`는 이 단일 호스트 연결을 제공합니다. 서버 측 정책 조회 함수와 Trading의 `pauseAgentOrders`를 주입하고 반환된 `executionContext`를 Trading에, `onSessionStarted`·`onSessionStopped`를 세션 Plugin에 전달합니다. 현재 승인 정책을 매 조회마다 재검증하고 같은 Agent의 마지막 세션이 중단될 때만 주문을 중지합니다. 중지 실패 중에도 offline 상태를 유지하며 재시도를 허용합니다. 정책 없는 구매 실행 세션의 시작은 거부합니다. 이 컨트롤러를 운영 팩토리에 자동 등록하거나 사용자 입력으로 정책을 승인하지는 않습니다.
+
+## 영속 서버 실행과 MCP 작업 키
+
+Core API는 `createServerRunPlugin({ runs, requireAuth, execute })`을 등록합니다. POST `/sessions`는 policyId·instruction·Idempotency-Key로 실행을 생성하며 GET 목록/상세, POST `/:id/stop`, GET `/:id/events`로 제어·조회합니다. SSE는 현재 스냅샷이며 과거 로그 재생은 없습니다. 연결 해제는 실행에 영향을 주지 않습니다. 정책 비활성화·명시적 중단·기한 만료는 서버 작업의 취소 신호로 전달합니다.
+
+`execute`(Core API `executeAgentRun`)는 실제 작업 실행기의 주입점입니다. 기본 진입점에는 실제 LLM 구매·서명 실행기가 없으며 기존 `createAgentRuntime`의 구매는 여전히 Mock입니다. 작업 결과는 DB에 저장하고 서버 재시작 때 RUNNING 실행을 재인계합니다. 단일 작업 호스트를 전제하며 여러 호스트의 작업 임대는 제공하지 않습니다.
+
+`createServerMcpClient({ url, headers, keyFor })`는 작업별 영속 키를 받아 HTTP 전송 실패에 같은 키/인수로 재시도합니다. `keyFor`에 `policies.actionKey(auth, runId, action, input)`를 연결합니다. 같은 작업 이름의 다른 인수는 충돌이며 새 탐색/의도에는 서버가 새 작업 이름을 할당해야 합니다. 서명은 모델 인수 대신 x402 메타데이터로 보냅니다. 지급 서명 생성은 이 클라이언트의 기능이 아닙니다.

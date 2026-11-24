@@ -28,6 +28,16 @@ export function createServerRunPlugin({ runs, requireAuth, execute }: {
       const controller = new AbortController();
       const remaining = Math.max(1, new Date(run.expiresAt).getTime() - Date.now());
       const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(remaining)]);
+      // 정책 비활성화·기한 만료 등 다른 제어 경로도 실행 취소 신호로 전달한다.
+      let checking = false;
+      const control = setInterval(() => {
+        if (checking || controller.signal.aborted) return;
+        checking = true;
+        void runs.getRun(auth, run.id).then(current => {
+          if (current.status !== 'RUNNING' || new Date(current.expiresAt) <= new Date()) controller.abort();
+        }).catch(error => app.log.error({ err: error }, 'Agent control status failed')).finally(() => { checking = false; });
+      }, 1000);
+      control.unref();
       const done = Promise.resolve().then(async () => {
         try {
           const output = await execute(run, auth, signal);
@@ -36,15 +46,17 @@ export function createServerRunPlugin({ runs, requireAuth, execute }: {
           app.log.error({ err: error }, 'Agent execution failed');
           if (!signal.aborted) { if (runs.failRun) await runs.failRun(auth, run.id); else await runs.recordResult(auth, run.id, '실행 오류가 발생했습니다. 상태를 확인하세요.'); }
         }
-      }).catch(error => app.log.error({ err: error }, 'Agent result persistence failed')).finally(() => tasks.delete(run.id));
+      }).catch(error => app.log.error({ err: error }, 'Agent result persistence failed')).finally(() => { clearInterval(control); tasks.delete(run.id); });
       tasks.set(run.id, { controller, done });
     }
     app.addHook('onListen', async () => { for (const active of await runs.activeRuns?.() ?? []) launch(active.run, active.auth); });
     app.post('/sessions', async (request, reply) => {
       const auth = buyer(request);
       const run = await runs.startRun(auth, agentRunInputSchema.parse(request.body), mutationContextSchema.parse({ idempotencyKey: request.headers['idempotency-key'] }));
-      launch(run, auth);
-      return reply.code(201).send(run);
+      // 생성 응답 재시도로 이미 중단된 실행을 다시 시작하지 않는다.
+      const current = await runs.getRun(auth, run.id);
+      launch(current, auth);
+      return reply.code(201).send(current);
     });
     app.get('/sessions', async request => runs.listRuns(buyer(request)));
     app.get('/sessions/:id', async request => {
