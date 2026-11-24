@@ -16,6 +16,7 @@ export async function createIntegrationPlugins({ env, prisma, aggregatorService,
   });
   const payments = createPaymentService({ ...paymentOptions, store, tradingService: trading, valuationService });
   const plugin: FastifyPluginAsync = async app => {
+    app.get('/api/me', async request => { const { userId, agentId } = requireAuth(request); return { userId, ...(agentId ? { agentId } : {}) }; });
     await app.register(createTradingPlugin({ tradingService: trading, requireAuth }), { prefix: '/api' });
     await app.register(createCommercePlugin({ policies, payments, requireAuth }), { prefix: '/api' });
     await app.register(createServerRunPlugin({ runs: policies, requireAuth, execute: executeAgentRun }));

@@ -79,3 +79,14 @@ it('정책 비활성화는 관찰 연결과 무관하게 진행 중인 서버 �
   await expect.poll(() => signal?.aborted, { timeout: 3000 }).toBe(true);
   expect((await f.app.inject({ url: `/sessions/${f.run.id}`, headers: f.buyer })).json().status).toBe('STOPPED');
 });
+
+it('Web 신원 조회는 인증된 사용자·Agent만 반환하고 임의 ID 헤더를 신뢰하지 않는다', async () => {
+  const f = await setup();
+  expect((await f.app.inject({ url:'/api/me' })).statusCode).toBe(401);
+  const me = await f.app.inject({ url:'/api/me', headers:{ ...f.buyer, 'x-user-id':randomUUID(), 'x-agent-id':randomUUID() } });
+  expect(me.json()).toEqual({ userId:'00000000-0000-4000-8002-000000000002', agentId:'00000000-0000-4000-8002-000000000003' });
+  expect((await f.app.inject({ url:'/api/me', headers:f.seller })).json()).toEqual({ userId:'00000000-0000-4000-8002-000000000001' });
+  const custom = await buildApp({ env:parseApiEnv({ NODE_ENV:'test' }), createIntegrationPlugins, resolveAuth:async () => ({ userId:'00000000-0000-4000-8002-000000000001', internalCredential:'must-not-leak' }) });
+  apps.push(custom);
+  expect((await custom.inject({ url:'/api/me' })).json()).toEqual({ userId:'00000000-0000-4000-8002-000000000001' });
+});
