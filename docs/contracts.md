@@ -106,4 +106,6 @@ Inventory·Listing·BuyOrder·MatchQuote·Trade의 기존 DTO를 유지한 Tradi
 
 `agentChatReplySchema`는 `{ content: string, cardChoices?: CardVariant[] }`입니다. SSE completed.message는 기존 role/content를 유지하며 선택이 필요할 때만 cardChoices를 포함합니다. 후보는 1~10개, UUID 중복 없이 검증합니다. 기존 문자열 응답 소비자는 확장 필드를 무시할 수 있습니다.
 
+세션 SSE는 `started` 이후 생성 중인 텍스트를 `delta` 이벤트의 `{ delta: string }`으로 전달합니다. `agentTextDeltaSchema`로 검증하며 도구 인자·추론 내용은 보내지 않습니다. `completed.message`가 최종 답변과 후보의 기준이고 중간 텍스트와 다를 수 있습니다. `error`나 완료 이벤트 없는 연결 종료는 미완료로 처리하고 후보를 활성화하지 않습니다. 고정 응답처럼 delta가 없는 경로도 지원합니다. 서버 대화 기록에는 성공한 최종 답변만 저장합니다.
+
 후보는 해당 턴의 검색 결과에서 `show_card_choices`가 선택한 카드만 전달합니다. Web은 마크다운의 번호·이름을 해석하지 않고 구조화된 UUID·세트·번호·언어·판본·상태로 조회 대상을 표현합니다. 선택은 후속 적정가 질문이며 주문·구매 승인이나 소유권 검증을 대신하지 않습니다. 실제 적정가 조회 시에는 기존 도구의 현재 턴 검색 ID 검증을 유지합니다. 런타임의 optional `onCardChoices` 콜백과 Web의 `readAgentMessage`가 이 확장을 사용하고 기존 `readAgentReply`는 문자열 반환을 유지합니다.

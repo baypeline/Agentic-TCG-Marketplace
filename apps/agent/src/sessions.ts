@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { Readable } from 'node:stream';
+import { PassThrough } from 'node:stream';
 import { AppError, idSchema, agentChatReplySchema, type AuthContext, type CardVariant } from '@tcg/contracts';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { z } from 'zod';
@@ -36,7 +36,7 @@ const maxSessions = 1000;
 const maxHistoryMessages = 24;
 const turnTimeoutMs = 60_000;
 
-function sse(event: 'started' | 'completed' | 'error', data: object): string {
+function sse(event: 'started' | 'delta' | 'completed' | 'error', data: object): string {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 }
 
@@ -133,32 +133,47 @@ export function createAgentSessionPlugin({ runtime, requireAuth, onSessionStarte
       const execution = new AbortController();
       session.controller = execution;
       const signal = AbortSignal.any([execution.signal, AbortSignal.timeout(turnTimeoutMs)]);
+      const stream = new PassThrough();
+      async function emit(event: 'delta' | 'completed' | 'error', data: object) {
+        if (stream.destroyed || stream.writableEnded) return;
+        if (!stream.write(sse(event, data)) && !stream.destroyed && !signal.aborted) {
+          // 느린 독자에는 역압을 적용하고 연결 종료·실행 중단 시 기다림을 해제한다.
+          await new Promise<void>(resolve => {
+            const done = () => {
+              stream.off('drain', done); stream.off('close', done);
+              signal.removeEventListener('abort', done); resolve();
+            };
+            stream.once('drain', done); stream.once('close', done);
+            signal.addEventListener('abort', done, { once: true });
+            if (stream.destroyed || signal.aborted) done();
+          });
+        }
+      }
+      stream.write(sse('started', { sessionId: session.id }));
       // 서버가 작업 Promise를 소유한다. 조회 스트림의 수명으로 취소하지 않는다.
-      const task = (async () => {
+      void (async () => {
         try {
           let cardChoices: CardVariant[] = [];
           const output = await runtime.runAgentTurn(message, { history: session.messages, signal,
             onCardChoices: cards => { cardChoices = cards; },
+            onTextDelta: delta => emit('delta', { delta }),
           });
           signal.throwIfAborted();
           const assistantMessage: AgentMessage = { role: 'assistant', ...agentChatReplySchema.parse({ content: output, ...(cardChoices.length ? { cardChoices } : {}) }) };
           session.messages = [...session.messages, { role: 'user', content: message } satisfies AgentMessage, assistantMessage].slice(-maxHistoryMessages);
           session.updatedAt = Date.now();
-          return sse('completed', { sessionId: session.id, message: assistantMessage });
+          await emit('completed', { sessionId: session.id, message: assistantMessage });
         } catch (error) {
           request.log.error({ err: error }, 'Agent turn failed');
-          return sse('error', { code: 'INTERNAL_ERROR', message: '에이전트 응답을 완료하지 못했습니다.', retryable: true, requestId: request.id });
-        } finally { session.busy = false; session.controller = undefined; }
+          await emit('error', { code: 'INTERNAL_ERROR', message: '에이전트 응답을 완료하지 못했습니다.', retryable: true, requestId: request.id });
+        } finally { session.busy = false; session.controller = undefined; stream.end(); }
       })();
-      async function* events() {
-        yield sse('started', { sessionId: session.id });
-        yield await task;
-      }
 
       return reply
         .type('text/event-stream; charset=utf-8')
         .header('Cache-Control', 'no-cache, no-transform')
-        .send(Readable.from(events()));
+        .header('X-Accel-Buffering', 'no')
+        .send(stream);
     });
   };
 }

@@ -128,10 +128,45 @@ it('처리 중인 턴과 겹치는 요청을 막고 실패 후 재요청을 허�
   expect((await send()).body).toContain('event: completed');
 });
 
+it('완료를 기다리지 않고 텍스트를 SSE로 보내며 성공한 최종 답변만 이력에 저장한다', async () => {
+  const finish = deferred<string>();
+  const app = await setup(async (_message, options) => {
+    await options?.onTextDelta?.('먼저 도착한 문장');
+    return finish.promise;
+  });
+  const base = await app.listen({ port: 0, host: '127.0.0.1' });
+  const url = await createSession(app);
+  const response = await fetch(`${base}${url}/messages`, { method: 'POST', headers: { ...owner, 'content-type': 'application/json' }, body: JSON.stringify({ message: '조회' }) });
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  let body = '';
+  try {
+    while (!body.includes('event: delta')) body += decoder.decode((await reader.read()).value, { stream: true });
+    expect(body).toContain('먼저 도착한 문장');
+    expect(body).not.toContain('event: completed');
+    expect((await app.inject({ url, headers: owner })).json().messages).toEqual([]);
+    finish.resolve('완성된 최종 답변');
+    while (true) { const item = await reader.read(); if (item.done) break; body += decoder.decode(item.value, { stream: true }); }
+    expect(body).toContain('event: completed');
+    expect((await app.inject({ url, headers: owner })).json().messages[1].content).toBe('완성된 최종 답변');
+  } finally { finish.resolve('완성된 최종 답변'); await reader.cancel(); reader.releaseLock(); }
+});
+
+it('부분 출력 이후 실패하면 완료 이벤트와 성공 이력을 만들지 않는다', async () => {
+  const app = await setup(async (_message, options) => { await options?.onTextDelta?.('부분 응답'); throw new Error('내부 실패 정보'); });
+  const url = await createSession(app);
+  const response = await app.inject({ method: 'POST', url: `${url}/messages`, headers: owner, payload: { message: '조회' } });
+  expect(response.body).toContain('event: delta');
+  expect(response.body).toContain('event: error');
+  expect(response.body).not.toContain('event: completed');
+  expect(response.body).not.toContain('내부 실패 정보');
+  expect((await app.inject({ url, headers: owner })).json().messages).toEqual([]);
+});
+
 it('SSE 연결이 끊겨도 서버 작업을 계속하고 재접속으로 결과를 조회한다', async () => {
   const result = deferred<string>();
   let executionSignal: AbortSignal | undefined;
-  const app = await setup(async (_message, options) => { executionSignal = options?.signal; return result.promise; });
+  const app = await setup(async (_message, options) => { executionSignal = options?.signal; const output = await result.promise; await options?.onTextDelta?.(output); return output; });
   const base = await app.listen({ port: 0, host: '127.0.0.1' });
   const url = await createSession(app);
   const response = await fetch(`${base}${url}/messages`, { method: 'POST', headers: { ...owner, 'content-type': 'application/json' }, body: JSON.stringify({ message: '피카츄 찾아줘' }) });

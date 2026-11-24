@@ -1,4 +1,4 @@
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { readAgentMessage, readAgentReply } from '../src/features/chat/agent-client';
 import { demoCards } from '@tcg/contracts/fixtures';
 
@@ -13,6 +13,26 @@ function stream(text: string, chunkSize = 7) {
     },
   });
 }
+
+it('완료 전 델타를 콜백으로 전달하고 완료 시 검증된 후보와 최종 문장을 반환한다', async () => {
+  let controller!: ReadableStreamDefaultController<Uint8Array>;
+  const input = new ReadableStream<Uint8Array>({ start(value) { controller = value; } });
+  const encode = (text: string) => new TextEncoder().encode(text);
+  const onTextDelta = vi.fn();
+  const task = readAgentMessage(input, { onTextDelta });
+  controller.enqueue(encode('event: delta\r\ndata: {"delta":"피카츄"}\r\n\r\n'));
+  await vi.waitFor(() => expect(onTextDelta).toHaveBeenCalledExactlyOnceWith('피카츄'));
+  const message = { content: '피카츄를 찾았어요.', cardChoices: [demoCards[0]!] };
+  controller.enqueue(encode(`event: completed\ndata: ${JSON.stringify({ message })}\n\n`));
+  await expect(task).resolves.toEqual(message);
+});
+
+it('델타 뒤 끊긴 응답이나 오류를 완료로 오인하지 않는다', async () => {
+  const onTextDelta = vi.fn();
+  await expect(readAgentMessage(stream('event: delta\ndata: {"delta":"부분 출력"}\n\n'), { onTextDelta })).rejects.toThrow('답변을 받지 못했습니다');
+  expect(onTextDelta).toHaveBeenCalledWith('부분 출력');
+  await expect(readAgentMessage(stream('event: delta\ndata: {"delta":123}\n\n'))).rejects.toThrow();
+});
 
 it('여러 청크로 나뉜 SSE에서 최종 한국어 메시지를 읽는다', async () => {
   const content = '피카츄\n데모 가격 12 USDC';

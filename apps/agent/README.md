@@ -55,6 +55,8 @@ pnpm --filter @tcg/agent demo "피카츄 적정가 알려줘"
 
 ## 세션 HTTP/SSE
 
+`runAgentTurn(message, { onTextDelta })`는 모델의 텍스트 조각을 생성 즉시 콜백에 전달합니다. 옵션이 없으면 기존 문자열 응답 방식을 유지합니다. 세션 SSE는 `started` 이후 `delta` 이벤트의 `{ delta: string }`을 전달하고 `completed.message`로 최종 답변과 카드 후보를 확정합니다. 추론 내용과 도구 인자는 텍스트 스트림에 포함하지 않습니다. 성공한 최종 답변만 대화 기록에 저장하며 연결 종료는 서버 실행을 중단하지 않습니다.
+
 Web처럼 선택 UI를 제공하는 소비자는 `runAgentTurn(message, { onCardChoices })`로 카드 후보 콜백을 받을 수 있습니다. 이 옵션이 있을 때만 `show_card_choices` 도구와 관련 지침을 추가하며 기존 문자열 반환과 CLI 도구 구성은 유지합니다. 도구는 그 턴에 검색한 카드 ID만 허용하고 최대 10개의 서로 다른 후보를 전달합니다. 모델이 사용자 조건에 맞는 후보를 선택하며 텍스트 목록을 파싱하지 않습니다. 세션 Plugin은 공통 `agentChatReplySchema`로 검증한 후보를 SSE completed.message의 optional cardChoices와 세션 메시지에 보존합니다. 다음 턴에는 후보를 자동 재사용하지 않으며, 선택 후 적정가 도구도 새 턴의 검색 검증을 그대로 거칩니다.
 
 로컬 웹 채팅은 루트 `.env`에 `OPENAI_API_KEY`와 `AGENT_LOCAL_SECRET`이 있으면 `pnpm dev`에서 사용할 수 있습니다. `pnpm env:init`은 새 로컬 환경에 `AGENT_LOCAL_SECRET`을 생성합니다. 기존 `.env`에는 `openssl rand -hex 32`로 생성한 값을 추가할 수 있습니다.
@@ -77,7 +79,7 @@ const app = await buildApp({
 | --- | --- |
 | `POST /api/agent/sessions` | `201`과 세션 ID 및 빈 메시지 목록 |
 | `GET /api/agent/sessions/:sessionId` | 세션 ID 및 최근 메시지 목록 |
-| `POST /api/agent/sessions/:sessionId/messages` | `{ message }`를 받아 SSE로 `started`와 `completed` 또는 `error` 발행 |
+| `POST /api/agent/sessions/:sessionId/messages` | `{ message }`를 받아 SSE로 `started`, 선택적 `delta`, `completed` 또는 `error` 발행 |
 
 `completed`의 `message`에 최종 답변이 담깁니다. 브라우저에서는 POST 응답의 스트림을 `fetch()`로 읽습니다. 요청은 인증 컨텍스트의 사용자와 Agent가 일치하는 세션에만 접근할 수 있습니다. 같은 세션은 한 번에 한 턴을 처리합니다.
 

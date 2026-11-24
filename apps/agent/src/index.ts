@@ -102,7 +102,17 @@ export function createAgentRuntime({
         modelSettings: { store: false, parallelToolCalls: false },
         tools: createCardTools(dependencies, route, options?.onCardChoices),
       });
-      const result = await runner.run(agent, toAgentInput(message, options?.history), { maxTurns: 6, signal: options?.signal });
+      const inputItems = toAgentInput(message, options?.history);
+      const result = options?.onTextDelta
+        ? await runner.run(agent, inputItems, { maxTurns: 6, signal: options.signal, stream: true })
+        : await runner.run(agent, inputItems, { maxTurns: 6, signal: options?.signal });
+      if (options?.onTextDelta && 'toTextStream' in result) {
+        for await (const delta of result.toTextStream()) {
+          if (delta) await options.onTextDelta(delta);
+        }
+        await result.completed;
+        if (result.error) throw result.error;
+      }
       const output = result.finalOutput?.trim();
       if (!output) throw new Error('에이전트 응답이 비어 있습니다.');
       return output;

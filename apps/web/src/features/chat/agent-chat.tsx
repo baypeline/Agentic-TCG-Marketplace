@@ -16,6 +16,7 @@ interface ChatMessage {
   content: string;
   cardChoices?: CardVariant[];
   selectedCardId?: string;
+  interrupted?: boolean;
 }
 
 export function AgentChat({ onClose }: { onClose: () => void }) {
@@ -23,13 +24,15 @@ export function AgentChat({ onClose }: { onClose: () => void }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
+  const [streamingText, setStreamingText] = useState('');
   const sessionId = useRef<string | undefined>(undefined);
   const activeRequest = useRef<AbortController | null>(null);
   const input = useRef<HTMLTextAreaElement>(null);
   const history = useRef<HTMLDivElement>(null);
   const composing = useRef(false);
+  const followOutput = useRef(true);
   const latestChoices = messages.reduce((last, message, index) => message.cardChoices?.length ? index : last, -1);
-  useEffect(() => { if (history.current) history.current.scrollTop = history.current.scrollHeight; }, [messages]);
+  useEffect(() => { if (history.current && followOutput.current) history.current.scrollTop = history.current.scrollHeight; }, [messages, streamingText]);
 
   useEffect(() => () => { activeRequest.current?.abort(); }, []);
 
@@ -37,11 +40,14 @@ export function AgentChat({ onClose }: { onClose: () => void }) {
     if (!message || message.length > 2000 || activeRequest.current) return false;
 
     const request = new AbortController();
+    let partial = '';
     activeRequest.current = request;
+    followOutput.current = true;
     setMessages(current => [...current, { role: 'user', content: displayedMessage }]);
     if (!preserveDraft) setDraft('');
     setError('');
     setPending(true);
+    setStreamingText('');
     input.current?.focus();
 
     try {
@@ -59,7 +65,11 @@ export function AgentChat({ onClose }: { onClose: () => void }) {
       const id = response.headers.get('x-agent-session-id');
       if (!id) throw new Error('대화 세션을 확인하지 못했습니다.');
       sessionId.current = id;
-      const reply = await readAgentMessage(response.body);
+      const reply = await readAgentMessage(response.body, { onTextDelta: delta => {
+        if (activeRequest.current !== request) return;
+        partial += delta;
+        setStreamingText(partial);
+      } });
       if (activeRequest.current === request) {
         setMessages(current => [...current, { role: 'assistant', ...reply }]);
         return true;
@@ -68,7 +78,7 @@ export function AgentChat({ onClose }: { onClose: () => void }) {
     } catch (failure) {
       if (activeRequest.current === request && !request.signal.aborted) {
         setError(failure instanceof Error ? failure.message : '에이전트 답변을 받지 못했습니다.');
-        setMessages(current => current.slice(0, -1));
+        setMessages(current => partial ? [...current, { role: 'assistant', content: partial, interrupted: true }] : current.slice(0, -1));
         if (!preserveDraft) setDraft(current => current || message);
       }
       return false;
@@ -76,6 +86,7 @@ export function AgentChat({ onClose }: { onClose: () => void }) {
       if (activeRequest.current === request && !request.signal.aborted) {
         activeRequest.current = null;
         setPending(false);
+        setStreamingText('');
       }
     }
   }
@@ -102,6 +113,8 @@ export function AgentChat({ onClose }: { onClose: () => void }) {
     setDraft('');
     setError('');
     setPending(false);
+    setStreamingText('');
+    followOutput.current = true;
     input.current?.focus();
   }
 
@@ -112,22 +125,24 @@ export function AgentChat({ onClose }: { onClose: () => void }) {
   }
   return <Panel id="agent-panel" aria-labelledby="agent-heading" onKeyDown={event => { if (event.key === 'Escape' && !event.nativeEvent.isComposing) { event.stopPropagation(); onClose(); } }}>
     <PanelHeader><div><h2 id="agent-heading">거래 에이전트</h2><span>카드 검색 및 적정가 조회</span></div><PanelActions><ResetButton type="button" disabled={!messages.length && !draft} onClick={reset} aria-label="대화 비우기" title="대화 비우기"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 10v7m4-7v7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg></ResetButton><ResetButton type="button" onClick={onClose} aria-label="에이전트 닫기" title="에이전트 닫기"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg></ResetButton></PanelActions></PanelHeader>
-    <History ref={history} role="log" aria-label="에이전트 대화" aria-live="polite" aria-relevant="additions">
+    <History ref={history} onScroll={() => { const pane = history.current; if (pane) followOutput.current = pane.scrollHeight - pane.scrollTop - pane.clientHeight < 60; }} role="log" aria-label="에이전트 대화" aria-live="polite" aria-relevant="additions">
       {!messages.length && <Welcome><h3>어떤 카드를 찾고 있나요?</h3><p>카드 이름이나 조회할 적정가를 물어보세요.</p><Suggestions aria-label="대화 예시">{suggestions.map(text => <Suggestion key={text} type="button" onClick={() => { setDraft(text); input.current?.focus(); }}>{text}</Suggestion>)}</Suggestions></Welcome>}
       {messages.map((message, index) => (
         <Message key={index}>
           <span>{message.role === 'user' ? '나' : '에이전트'}</span>
           <MessageBody>
-            {message.role === 'assistant' ? (
+            {message.role === 'assistant' && !message.interrupted ? (
               <Suspense fallback={<PlainMessage role="status">답변을 표시하고 있어요.</PlainMessage>}>
                 <AgentMarkdown content={message.content} />
               </Suspense>
             ) : <PlainMessage>{message.content}</PlainMessage>}
+            {message.interrupted && <ReplyState>중단된 답변 · 완료되지 않은 내용이에요.</ReplyState>}
             {message.role === 'assistant' && message.cardChoices?.length ? <CardChoices cards={message.cardChoices} disabled={pending || index !== latestChoices} selectedId={message.selectedCardId} onSelect={card => { void selectCard(card, index); }} /> : null}
           </MessageBody>
         </Message>
       ))}
-      {pending && <Waiting role="status">에이전트가 답변을 준비하고 있어요.</Waiting>}
+      {pending && streamingText && <Message aria-live="off"><span>에이전트</span><MessageBody><PlainMessage>{streamingText}</PlainMessage><ReplyState>답변을 작성하고 있어요.</ReplyState></MessageBody></Message>}
+      {pending && !streamingText && <Waiting role="status">카드를 확인하고 답변을 준비하고 있어요.</Waiting>}
       {error && <Waiting role="alert">{error}</Waiting>}
     </History>
     <Composer onSubmit={submit}><label htmlFor="agent-message">에이전트에게 보낼 내용</label><InputBox><ChatInput ref={input} id="agent-message" value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={keyDown} onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }} placeholder="카드 이름이나 조회할 내용" maxLength={2000} rows={3} aria-describedby="agent-connection-note" /><ComposerActions><span>{draft.length.toLocaleString()} / 2,000</span><SendButton type="submit" disabled={pending || !draft.trim()} aria-label="메시지 보내기"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg></SendButton></ComposerActions></InputBox><ConnectionNote id="agent-connection-note">카드 검색과 적정가를 조회할 수 있어요. 새로고침하면 새 대화로 시작해요.</ConnectionNote></Composer>
@@ -146,6 +161,7 @@ const Suggestion = styled.button(({ theme }) => ({ textAlign: 'left', background
 const Message = styled.div(({ theme }) => ({ marginBottom: 24, animation: `${messageEnter} ${theme.motion.standard} ${theme.motion.ease} both`, '@media(prefers-reduced-motion:reduce)': { animation: 'none' }, '& > span': { display: 'block', color: theme.color.muted, fontSize: 12, marginBottom: 8 } }));
 const MessageBody = styled.div(({ theme }) => ({ padding: '12px 14px', border: `1px solid ${theme.color.line}`, borderRadius: 8, fontSize: 14, lineHeight: 1.8 }));
 const PlainMessage = styled.p({ margin: 0, whiteSpace: 'pre-wrap' });
+const ReplyState = styled.small(({ theme }) => ({ display: 'block', marginTop: 10, fontSize: 12, color: theme.color.muted, lineHeight: 1.7 }));
 const Waiting = styled.p(({ theme }) => ({ color: theme.color.muted, fontSize: 13, lineHeight: 1.8, paddingBottom: 8 }));
 const Composer = styled.form({ padding: '16px 24px max(20px, env(safe-area-inset-bottom))', flexShrink: 0, '& > label': { display: 'block', fontSize: 12, marginBottom: 8 }, '@media(max-height:600px)': { padding: '8px 20px max(8px, env(safe-area-inset-bottom))', '& > label': { marginBottom: 4 } } });
 const InputBox = styled.div(({ theme }) => ({ border: `1px solid ${theme.color.input}`, borderRadius: 8, padding: '12px 12px 8px', '&:focus-within': { borderColor: theme.color.focus }, '@media(max-height:600px)': { padding: 8 } }));

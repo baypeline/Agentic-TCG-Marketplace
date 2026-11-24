@@ -11,6 +11,7 @@ export interface AgentTurnOptions {
   history?: readonly AgentMessage[];
   signal?: AbortSignal;
   onCardChoices?: (cards: CardVariant[]) => void;
+  onTextDelta?: (delta: string) => void | Promise<void>;
 }
 
 export function toAgentInput(message: string, history?: readonly AgentMessage[]): string | AgentInputItem[] {

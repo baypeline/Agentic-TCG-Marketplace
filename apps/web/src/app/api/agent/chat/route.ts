@@ -60,6 +60,7 @@ export async function POST(request: NextRequest) {
       headers: {
         'content-type': 'text/event-stream; charset=utf-8',
         'cache-control': 'no-cache, no-transform',
+        'x-accel-buffering': 'no',
         'x-agent-session-id': sessionId,
       },
     });
