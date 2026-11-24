@@ -31,11 +31,11 @@ export function AppShell({ children }: { children: ReactNode }) {
       Agentic TCG</Brand><Navigation aria-label="주요 메뉴"><Link href={isLanding ? '/cards' : '/'}>{isLanding ? <>마켓<NavDetail> 둘러보기</NavDetail></> : '홈'}</Link><ChatToggle ref={chatToggle} type="button" aria-controls="agent-panel" aria-expanded={chatOpen} onClick={toggleChat}>에이전트 {chatOpen ? '닫기' : '열기'}</ChatToggle></Navigation>
     </HeaderInner></Header>
     <Workspace data-chat-open={chatOpen}><BrowsePane ref={browse} id="browse-pane">
-    {!isLanding && <ServiceNav aria-label="서비스 메뉴">{[['/cards', '카드 검색'], ['/marketplace', '매물'], ['/collection', '내 카드'], ['/activity', '거래 관리'], ['/agent', '에이전트 설정'], ['/agent/logs', 'Agent 로그']].map(([href, label]) => <Link key={href} href={href!} aria-current={(pathname === href || href === '/cards' && pathname.startsWith('/cards/')) ? 'page' : undefined}>{label}</Link>)}</ServiceNav>}
+    {!isLanding && <ServiceNav aria-label="서비스 메뉴"><ServiceNavInner>{[['/cards', '카드 검색'], ['/marketplace', '매물'], ['/collection', '내 카드'], ['/activity', '거래 관리'], ['/agent', '에이전트 설정'], ['/agent/logs', 'Agent 로그']].map(([href, label]) => <Link key={href} href={href!} aria-current={(pathname === href || href === '/cards' && pathname.startsWith('/cards/')) ? 'page' : undefined}>{label}</Link>)}</ServiceNavInner></ServiceNav>}
     <PageFrame id="main-content" tabIndex={-1}>{children}</PageFrame>
     <Footer id="data-guide"><FooterBrand>Agentic TCG</FooterBrand><details><summary>데이터 안내</summary>
       <p>영어판의 한국어 이름은 포켓몬 종명 표기이며, 한국어판은 원문 이름을 표시합니다. 해외 참고 시세는 제공자의 집계·판매 희망 가격으로, 한국어판 실거래가와 다를 수 있습니다.</p>
-      <p>데모 가격은 합성 데이터로 구분합니다. 매물·내 카드·거래 관리·Agent 설정과 로그는 화면 미리보기이며 실제 주문·결제를 실행하지 않아요.</p>
+      <p>데모 매물과 가격은 합성 데이터입니다. 구매 시 Base Sepolia 테스트 USDC가 실제 전송되며, 결제가 완료되면 보유 카드와 거래 내역에 반영됩니다. ‘화면 미리보기’로 표시된 화면의 데이터는 예시입니다.</p>
     </details></Footer></BrowsePane><ChatPane inert={!chatOpen} aria-hidden={!chatOpen}><AgentChat onClose={closeChat} /></ChatPane></Workspace>
   </>;
 }
@@ -64,7 +64,8 @@ const ChatPane = styled.div(({ theme }) => ({
   '@media(prefers-reduced-motion:reduce)': { transform: 'none', transition: 'none' },
 }));
 const BrowsePane = styled.div({ minWidth: 0, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', containerType: 'inline-size', containerName: 'browse', scrollPaddingTop: 80, '@media(max-width:899px)': { gridArea: '1 / 1' } });
-const ServiceNav = styled.nav(({ theme }) => ({ display: 'flex', gap: 24, position: 'sticky', top: 0, zIndex: 10, minHeight: 52, padding: '0 32px', overflowX: 'auto', scrollbarWidth: 'thin', background: theme.color.surface, borderBottom: `1px solid ${theme.color.line}`, '& a': { display: 'inline-flex', alignItems: 'center', flexShrink: 0, minHeight: 52, color: theme.color.muted, fontSize: 13, textDecoration: 'none', whiteSpace: 'nowrap', borderBottom: '2px solid transparent' }, '& a[aria-current=page]': { color: theme.color.ink, borderBottomColor: theme.color.ink }, '& a:hover': { color: theme.color.link }, '@media(max-width:639px)': { paddingInline: 20, gap: 20 } }));
+const ServiceNav = styled.nav(({ theme }) => ({ position: 'sticky', top: 0, zIndex: 10, background: theme.color.surface, borderBottom: `1px solid ${theme.color.line}` }));
+const ServiceNavInner = styled.div(({ theme }) => ({ display: 'flex', gap: 24, width: '100%', maxWidth: 1280, margin: '0 auto', minHeight: 52, padding: '0 32px', overflowX: 'auto', scrollbarWidth: 'thin',  '& a': { display: 'inline-flex', alignItems: 'center', flexShrink: 0, minHeight: 52, color: theme.color.muted, fontSize: 13, textDecoration: 'none', whiteSpace: 'nowrap', borderBottom: '2px solid transparent' }, '& a[aria-current=page]': { color: theme.color.ink, borderBottomColor: theme.color.ink }, '& a:hover': { color: theme.color.link }, '@media(max-width:639px)': { paddingInline: 20, gap: 20 } }));
 const PageFrame = styled.main({ maxWidth: 1280, margin: '0 auto', padding: '32px 32px 48px', minHeight: 'calc(100svh - 190px)', '&:focus': { outline: 'none' }, '@media(max-width:639px)': { padding: '28px 20px 40px' } });
 const Footer = styled.footer(({ theme }) => ({ width: 'calc(100% - 64px)', maxWidth: 1216, margin: '0 auto', padding: '28px 0 36px', borderTop: `1px solid ${theme.color.line}`, color: theme.color.muted, fontSize: 13, display: 'flex', justifyContent: 'space-between', gap: 32, '& summary': { cursor: 'pointer', minHeight: 44, paddingBlock: 10, color: theme.color.ink }, '& details': { maxWidth: 700 }, '& p': { marginTop: 10 }, '@media(max-width:639px)': { width: 'calc(100% - 40px)', display: 'block' } }));
 const FooterBrand = styled.strong(({ theme }) => ({ color: theme.color.ink, fontSize: 16, paddingTop: 8 }));

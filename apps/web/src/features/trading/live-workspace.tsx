@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import Link from 'next/link';
+import styled from '@emotion/styled';
 import { agentRunSchema, buyOrderSchema, cardVariantSchema, inventoryItemSchema, listingSchema, spendingPolicySchema, tradeSchema, type AgentRun, type BuyOrder, type CardVariant, type InventoryItem, type Listing, type SpendingPolicy, type Trade } from '@tcg/contracts';
 import { Button } from '../../components/ui';
 import { formatUsdc, getCardDisplayName } from '../../lib/formatters';
 import { createTradingClient } from '../../lib/trading-client';
 import { parseUsdcInput, usdcDecimal } from './demo-model';
 import { LiveTradingStatus } from './live-status';
+import { LiveCollection } from './live-collection';
 import { Actions, EmptyRows, ErrorText, Field, FormGrid, QuietButton, RecordTable, ResultNote, Section, StateBadge } from './trading-ui';
 
 type Mode = 'agent' | 'marketplace' | 'collection' | 'activity';
@@ -15,6 +17,7 @@ type Identity = { userId: string; agentId?: string };
 type Data = { me: Identity; policies: SpendingPolicy[]; runs: AgentRun[]; orders: BuyOrder[]; items: InventoryItem[]; listings: Listing[]; trades: Trade[]; cards: CardVariant[]; matches: { id: string; status: string }[] };
 type Mutate = (method: string, path: string, input?: unknown) => Promise<void>;
 const titles: Record<Mode, string> = { agent: '거래 정책과 실행 허용', marketplace: '고정가 매물', collection: '내 카드', activity: '거래 관리' };
+const descriptions: Record<Mode, string> = { agent: '에이전트가 거래할 수 있는 조건과 예산을 설정하세요.', marketplace: '판매 중인 카드를 둘러보고 구매 조건을 정하세요.', collection: '구매한 카드를 모아 보고, 판매할 카드를 관리하세요.', activity: '주문부터 결제, 거래 완료까지 진행 상황을 확인하세요.' };
 async function read(path: string): Promise<unknown> {
   const response = await fetch(`/api/trading/${path}`, { cache: 'no-store' });
   const data = await response.json();
@@ -57,15 +60,14 @@ export function LiveTradingWorkspace({ mode, mine = false }: { mode: Mode; mine?
   const unresolved = Boolean(client.current?.pending());
   const cardName = (id: string) => { const card = data?.cards.find(card => card.id === id); return card ? getCardDisplayName(card) : '카드 상세에서 확인'; };
   return <div>
-    <Actions><h1>{titles[mode]}</h1><Link href={`/${mode}?preview=1`}>화면 미리보기</Link><QuietButton disabled={busy} onClick={() => void run(load, true)}>상태 새로고침</QuietButton></Actions>
-    <ResultNote>이 화면은 서버에 저장됩니다. LLM 자동 구매와 지급 서명은 연결하지 않았으며, 예약만으로 결제되지 않습니다.</ResultNote>
+    <WorkspaceHeading><div><h1>{titles[mode]}</h1><p>{descriptions[mode]}</p></div><QuietButton disabled={busy} onClick={() => void run(load, true)}>새로고침</QuietButton></WorkspaceHeading>
     {error && <ErrorText role="alert">{error}</ErrorText>}{notice && <ResultNote role="status">{notice}</ResultNote>}
     {busy && <ResultNote role="status">서버 응답을 확인하고 있어요.</ResultNote>}
     {unresolved && <Section><h2>이전 요청 확인 필요</h2><ResultNote>응답을 받지 못한 요청이 있습니다. 새 작업 전에 같은 요청 키로 결과를 확인해 주세요. 새 결제나 서명을 만들지 않습니다.</ResultNote><QuietButton disabled={busy} onClick={() => void run(() => client.current!.retry())}>같은 요청 다시 확인</QuietButton></Section>}
     {!data && !error && <ResultNote role="status">거래 정보를 불러오고 있어요.</ResultNote>}
     {data && <fieldset disabled={busy || unresolved} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
       {mode === 'agent' && (data.me.agentId ? <PolicyAndRuns data={data} mutate={mutate} /> : <ResultNote>구매자 계정에서 거래 정책을 관리할 수 있어요.</ResultNote>)}
-      {mode === 'collection' && <Section id="owned-cards"><h2>보유 카드</h2>{!data.items.length && <EmptyRows text="보유한 카드가 없어요." />}{data.items.map(item => <Section key={item.id}><h3><Link href={`/cards/${item.cardVariantId}`}>{cardName(item.cardVariantId)}</Link> · <StateBadge status={item.status} /></h3>{item.status === 'AVAILABLE' ? <AmountForm id={item.id} label="판매 가격 (USDC)" button="고정가 매물 등록" submit={amount => mutate('POST','listings',{ inventoryItemId: item.id, price: amount })} /> : <ResultNote>판매 중인 매물은 마켓에서 관리할 수 있어요. 예약 중이면 결과 확인을 기다려 주세요.</ResultNote>}</Section>)}</Section>}
+      {mode === 'collection' && <LiveCollection items={data.items} cards={data.cards} renderSale={item => <AmountForm id={item.id} label="판매 가격 (USDC)" button="고정가 매물 등록" submit={amount => mutate('POST', 'listings', { inventoryItemId: item.id, price: amount })} />} />}
       {mode === 'marketplace' && <Section><h2>{mine ? '내 판매 매물' : '판매 중인 매물'}</h2>{!data.listings.filter(row => !mine || row.sellerId === data.me.userId).length && <EmptyRows text="현재 판매 중인 매물이 없어요." />}{data.listings.filter(row => !mine || row.sellerId === data.me.userId).map(listing => <Section key={listing.id}><h3><Link href={`/cards/${listing.cardVariantId}`}>{cardName(listing.cardVariantId)}</Link> · {formatUsdc(listing.price)}</h3>{listing.sellerId === data.me.userId ? <QuietButton onClick={() => void mutate('DELETE',`listings/${listing.id}`)}>매물 등록 취소</QuietButton> : data.me.agentId ? <><AmountForm id={listing.id} label="최대 구매 가격 (USDC)" initial={usdcDecimal(listing.price)} button="이 매물 예약" submit={maxPrice => mutate('POST','purchases/fixed/quote',{ listingId: listing.id, maxPrice })} /><AmountForm id={`order-${listing.id}`} label="지정가 주문 상한 (USDC)" button="지정가 주문 등록" expires submit={(maxPrice, expiresAt) => mutate('POST','buy-orders',{ cardVariantId: listing.cardVariantId, maxPrice, expiresAt })} /></> : <ResultNote>구매자 계정에서 주문·예약할 수 있어요.</ResultNote>}</Section>)}{data.me.agentId && <MarketQuote key={data.cards.map(card => card.id).join(',')} cards={data.cards} mutate={mutate} />}</Section>}
       {mode === 'activity' && <>
         {data.me.agentId && <Section><h2>구매 주문</h2>{!data.orders.length && <EmptyRows text="등록한 구매 주문이 없어요." />}{data.orders.map(order => <Section key={order.id}><h3><Link href={`/cards/${order.cardVariantId}`}>{cardName(order.cardVariantId)}</Link> · {formatUsdc(order.maxPrice)} · <StateBadge status={order.status} /></h3><Actions>{order.status === 'ACTIVE' && <><QuietButton onClick={() => void mutate('POST',`buy-orders/${order.id}/match`)}>새 매칭 탐색</QuietButton><QuietButton onClick={() => void mutate('POST',`buy-orders/${order.id}/pause`)}>주문 일시중지</QuietButton></>}{order.status === 'MATCH_PENDING' && <QuietButton onClick={() => void mutate('POST',`buy-orders/${order.id}/pause`)}>결제 보류</QuietButton>}{order.status === 'PAUSED' && <QuietButton onClick={() => void mutate('POST',`buy-orders/${order.id}/resume`)}>주문 재개</QuietButton>}{['ACTIVE','PAUSED','MATCH_PENDING'].includes(order.status) && <QuietButton onClick={() => void mutate('POST',`buy-orders/${order.id}/cancel`)}>주문 취소</QuietButton>}</Actions></Section>)}</Section>}
@@ -84,8 +86,9 @@ function AmountForm({ id, label, button, initial = '', expires = false, submit }
     if (expires && !/^\d{4}-\d{2}-\d{2}$/.test(until)) { setError('주문 유효 날짜를 선택해 주세요.'); return; }
     setError(''); void submit(amount, expires ? `${until}T23:59:59.000Z` : undefined);
   }
-  return <form onSubmit={save}><FormGrid><Field id={`amount-${id}`} label={label} error={error}><input id={`amount-${id}`} required inputMode="decimal" value={value} onChange={e => setValue(e.target.value)} aria-invalid={!!error} aria-describedby={error ? `amount-${id}-error` : undefined} /></Field>{expires && <Field id={`until-${id}`} label="주문 유효 날짜 (UTC 마지막 시각)"><input id={`until-${id}`} type="date" required value={until} onChange={e => setUntil(e.target.value)} /></Field>}</FormGrid><Button type="submit">{button}</Button></form>;
+  return <AmountFormRoot onSubmit={save}><AmountFields data-expires={expires}><Field id={`amount-${id}`} label={label} error={error}><input id={`amount-${id}`} required inputMode="decimal" value={value} onChange={e => setValue(e.target.value)} aria-invalid={!!error} aria-describedby={error ? `amount-${id}-error` : undefined} /></Field>{expires && <Field id={`until-${id}`} label="주문 유효 날짜 (UTC 마지막 시각)"><input id={`until-${id}`} type="date" required value={until} onChange={e => setUntil(e.target.value)} /></Field>}</AmountFields><Button type="submit">{button}</Button></AmountFormRoot>;
 }
+
 function MarketQuote({ cards, mutate }: { cards: CardVariant[]; mutate: Mutate }) {
   const [id, setId] = useState(cards[0]?.id ?? '');
   return <Section><h2>시장가 예약</h2><Field id="market-card" label="카드"><select id="market-card" value={id} onChange={e => setId(e.target.value)}>{cards.map(card => <option key={card.id} value={card.id}>{getCardDisplayName(card)}</option>)}</select></Field>{id && <AmountForm id="market" label="최대 구매 가격 (USDC)" button="최적 매물 탐색·예약" submit={maxPrice => mutate('POST','purchases/market/quote',{ cardVariantId: id, maxPrice })} />}</Section>;
@@ -111,3 +114,7 @@ function PolicyEditor({ policy, cards, mutate }: { policy?: SpendingPolicy; card
     <Section><h3>허용 카드</h3><ResultNote>선택하지 않으면 카드 제한을 두지 않습니다. 기존에 허용한 카드는 현재 매물에 없어도 유지됩니다.</ResultNote>{cards.map(card => <label key={card.id} style={{ display: 'block', minHeight: 44 }}><input type="checkbox" checked={allowed.includes(card.id)} onChange={e => setAllowed(e.target.checked ? [...allowed,card.id] : allowed.filter(id => id !== card.id))} /> {getCardDisplayName(card)}</label>)}<label style={{ display: 'block', minHeight: 44 }}><input type="checkbox" checked={enabled} onChange={e => setEnabled(e.target.checked)} /> 이 정책으로 거래 허용</label></Section>{error && <ErrorText role="alert">{error}</ErrorText>}<Button type="submit">{policy ? '정책 수정 저장' : '새 정책 저장'}</Button>
   </form>;
 }
+
+const WorkspaceHeading = styled.div(({ theme }) => ({ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 20, paddingBottom: 28, borderBottom: `1px solid ${theme.color.line}`, '& h1': { fontSize: 30, fontWeight: 600, letterSpacing: '-.035em' }, '& p': { margin: '10px 0 0', fontSize: 14, lineHeight: 1.8, color: theme.color.muted }, '& > button': { flexShrink: 0 }, '@container browse (max-width:500px)': { gap: 12, '& h1': { fontSize: 26 } } }));
+const AmountFormRoot = styled.form({ display: 'grid', gap: 16, justifyItems: 'start', '& > div': { width: '100%' } });
+const AmountFields = styled.div({ display: 'grid', gridTemplateColumns: 'minmax(0,1fr)', gap: 20, '&[data-expires=true]': { gridTemplateColumns: 'repeat(2,minmax(0,1fr))' }, '@container browse (max-width:650px)': { '&[data-expires=true]': { gridTemplateColumns: 'minmax(0,1fr)' } } });
