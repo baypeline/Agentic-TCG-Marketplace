@@ -1,0 +1,14 @@
+// 업무 변경과 같은 트랜잭션에서 저장하는 사용자·Agent·작업별 재시도 결과.
+model TradingRequest {
+  id          String   @id @db.VarChar(64)
+  userId      String   @db.Uuid
+  agentId     String?  @db.Uuid
+  operation   String   @db.VarChar(32)
+  requestKey  String   @db.VarChar(128)
+  inputHash   String   @db.VarChar(64)
+  resultJson  String
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([userId, agentId])
+  @@schema("trading")
+}
