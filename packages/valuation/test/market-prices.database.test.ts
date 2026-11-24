@@ -38,6 +38,17 @@ integration('동시 수집과 재실행은 중복하지 않으며 미검증 가�
   expect(prices.items[0]).toMatchObject({ eligibility: 'UNVERIFIED_VARIANT', originalCurrency: 'USD' });
   expect(await c.valuation.getValuation(c.id)).toMatchObject({ dataSource: 'MARKET', status: 'INSUFFICIENT_DATA', estimatedPrice: null, sampleSize: 0 });
 }));
+
+integration('데모는 미확정 카드의 USD 시장 집계가를 1:1 환산하고 검증 기록을 만들지 않는다', async () => fixture(async c => {
+  await c.prisma.cardVariant.update({ where: { id: c.id }, data: { edition: 'UNSPECIFIED', condition: 'UNSPECIFIED' } });
+  c.inputs.push({ ...c.sample, providerVariant: 'holofoil', originalAmount: '999' });
+  await c.service.collectPrices(c.id);
+  const aggregatorService = { async searchCards() { return []; }, async getCardVariant() { return { id: c.id, game: 'POKEMON' as const, name: 'Demo', setCode: 'test', cardNumber: '1', language: 'EN', edition: 'UNSPECIFIED', condition: 'UNSPECIFIED' }; } };
+  const demo = createValuationService({ aggregatorService, adapter: c.service.demoAdapter, now: () => at });
+  expect(await demo.getValuation(c.id)).toMatchObject({ status: 'AVAILABLE', estimatedPrice: '12345678', sampleSize: 1, dataSource: 'MARKET', methodology: 'DEMO_USD_REFERENCE', confidence: 'LOW', assumptions: expect.arrayContaining([expect.stringContaining('1 USD ≈ 1 USDC')]) });
+  expect((await c.service.marketPriceService.getPrices(c.id)).items.every(price => !price.assessment && price.eligibility === 'UNVERIFIED_VARIANT')).toBe(true);
+  expect((await c.valuation.getValuation(c.id)).status).toBe('INSUFFICIENT_DATA');
+}));
 integration('속성과 환율을 확인한 가격만 정수 정밀도로 환산하고 속성 변경 시 제외한다', async () => fixture(async c => {
   await c.service.collectPrices(c.id);
   const snapshot = (await c.service.marketPriceService.getPrices(c.id)).items[0]!;

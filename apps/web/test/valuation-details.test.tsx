@@ -53,3 +53,12 @@ it('정상 평가에서 제공자 표본의 의미와 관측 범위를 표시한
   expect(html).toContain('실제 체결 건수가 아닙니다');
   expect(html).not.toContain('참고 시세만 확인할 수 있어요');
 });
+
+it('실제 USD 데모 환산을 합성 데이터나 검증 적정가로 표시하지 않는다', () => {
+  const html = renderUI(<ValuationDetails valuation={{ ...market, status: 'AVAILABLE', estimatedPrice: '12500000', sampleSize: 1, sourceSummary: ['TCGPLAYER:normal'], methodology: 'DEMO_USD_REFERENCE', assumptions: ['1 USD ≈ 1 USDC 데모 환산', '판본·보존 상태 미보정'] }} />);
+  expect(html).toContain('12.5 USDC');
+  expect(html).toContain('데모 참고 추정가');
+  expect(html).toContain('판본·보존 상태 미보정');
+  expect(html).not.toContain('Mock / 합성 데이터');
+  expect(html).not.toContain('검증된 제공자 집계가의 중앙값');
+});

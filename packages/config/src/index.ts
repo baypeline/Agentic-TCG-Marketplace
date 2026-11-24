@@ -7,6 +7,7 @@ export const apiEnvSchema = z.object({
   DATA_MODE: z.literal('mock').default('mock'),
   CARD_DATA_SOURCE: z.enum(['mock', 'database']).default('mock'),
   PRICE_DATA_SOURCE: z.enum(['mock', 'market']).default('mock'),
+  MARKET_VALUATION_MODE: z.enum(['demo', 'strict']).default('demo'),
   PAYMENT_ENABLED: z.enum(['true', 'false']).default('false').transform(value => value === 'true'),
   PAYMENT_RECIPIENT: z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional(),
   AGENT_WALLET_ADDRESS: z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional(),

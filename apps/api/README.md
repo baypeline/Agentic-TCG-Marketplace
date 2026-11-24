@@ -10,7 +10,7 @@
 
 루트에서 `pnpm --filter @tcg/api test`와 `pnpm --filter @tcg/api typecheck`로 검증합니다.
 
-`GET /api/cards/:id/prices`는 DB에 저장된 외부 참고 시세와 판본·환율 검증 상태를 제공합니다. 쓰기용 공개 API는 없습니다. `PRICE_DATA_SOURCE=market`은 DB 카드 조회가 필요하며 검증된 표본만 평가합니다. 기본 mock과 실제 데이터를 섞지 않고, `/health.priceDataSource`에서 선택 모드를 확인합니다. 수집·검증 정책은 `@tcg/valuation`이 소유하고 호스트는 Service·Plugin만 조립합니다.
+`GET /api/cards/:id/prices`는 DB에 저장된 외부 참고 시세와 strict 기준의 판본·환율 검증 상태를 제공합니다. 쓰기용 공개 API는 없습니다. `PRICE_DATA_SOURCE=market`에는 DB 카드 조회가 필요합니다. `MARKET_VALUATION_MODE=demo`(기본)는 TCGplayer의 대표 USD 시장 집계가를 1 USD ≈ 1 USDC로 표시하고, `strict`는 검증된 표본만 평가합니다. 실제 수집 가격과 합성 Mock은 섞지 않으며 `/health.priceDataSource`와 `marketValuationMode`로 선택 모드를 확인합니다. 수집·평가 정책은 `@tcg/valuation`이 소유하고 호스트는 Service·Plugin만 조립합니다.
 
 ## 거래·결제·서버 실행
 

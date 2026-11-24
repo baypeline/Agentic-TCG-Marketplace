@@ -54,13 +54,14 @@ export async function buildApp(options: AppOptions = {}) {
     const useDatabase = env.CARD_DATA_SOURCE === 'database';
     const aggregatorService = createAggregatorService({ adapter: useDatabase ? createPrismaCardAdapter(prisma!) : createMockCardAdapter() });
     const market = useDatabase ? createMarketPriceServices({ prisma: prisma! }) : null;
-    const valuationService = createValuationService({ aggregatorService, adapter: env.PRICE_DATA_SOURCE === 'market' ? market!.adapter : useDatabase ? createPrismaMockPriceAdapter(prisma!) : createMockPriceAdapter() });
+    const marketAdapter = env.MARKET_VALUATION_MODE === 'demo' ? market?.demoAdapter : market?.adapter;
+    const valuationService = createValuationService({ aggregatorService, adapter: env.PRICE_DATA_SOURCE === 'market' ? marketAdapter! : useDatabase ? createPrismaMockPriceAdapter(prisma!) : createMockPriceAdapter() });
     const marketPriceService = market?.marketPriceService ?? { async getPrices(id: string) {
       if (!await aggregatorService.getCardVariant(id)) throw new AppError('CARD_NOT_FOUND', '카드를 찾을 수 없습니다.', 404);
       return { cardVariantId: id, dataSource: 'MARKET' as const, items: [], maxAgeHours: 72, evaluatedAt: new Date().toISOString() };
     } };
     const plugins = await options.createIntegrationPlugins?.({ env, prisma, aggregatorService, valuationService, tradingExecutionContext: options.tradingExecutionContext, paymentOptions: options.paymentOptions, executeAgentRun: options.executeAgentRun }) ?? [];
-    app.get('/health', async () => ({ status: 'ok', dataMode: env.DATA_MODE, cardDataSource: env.CARD_DATA_SOURCE, priceDataSource: env.PRICE_DATA_SOURCE, tradingDataSource: env.TRADING_DATA_SOURCE, database: prisma ? 'connected' : 'disabled' }));
+    app.get('/health', async () => ({ status: 'ok', dataMode: env.DATA_MODE, cardDataSource: env.CARD_DATA_SOURCE, priceDataSource: env.PRICE_DATA_SOURCE, marketValuationMode: env.MARKET_VALUATION_MODE, tradingDataSource: env.TRADING_DATA_SOURCE, database: prisma ? 'connected' : 'disabled' }));
     await app.register(createAggregatorPlugin({ aggregatorService }), { prefix: '/api' });
     await app.register(createValuationPlugin({ valuationService, marketPriceService }), { prefix: '/api' });
     for (const plugin of plugins) await app.register(plugin);

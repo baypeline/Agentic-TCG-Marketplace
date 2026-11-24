@@ -72,10 +72,12 @@ Aggregator의 `CardDataAdapter`, Valuation의 `PriceDataAdapter`는 실제 제�
 - priceType: ASKING_LOW / PROVIDER_MARKET / PROVIDER_AVERAGE / PROVIDER_TREND. 개별 체결가는 포함하지 않습니다.
 - eligibility: ELIGIBLE / UNVERIFIED_VARIANT / STALE_PRICE / STALE_FX / VARIANT_MISMATCH / UNSUPPORTED_PRICE_TYPE.
 - 검증 기록이 있으면 optional `assessment`에 확인 속성(language, edition, condition), matchEvidenceUrl, usdcAmount, fxRate, fxSourceUrl, fxObservedAt, assessedAt을 제공합니다. fxRate는 원본 통화 1단위당 USDC입니다. 검증 기록이 있어도 만료·속성 변경으로 평가에서 제외될 수 있습니다.
-- 평가에는 제공자별 최신 검증 집계가를 최대 한 개 사용합니다. sampleSize는 집계 표본 수이며 실제 거래 건수가 아닙니다. 판매 희망가·추세가·미검증 판본을 실제 거래 가능 가격으로 보증하지 않습니다.
+- strict 평가에는 제공자별 최신 검증 집계가를 최대 한 개 사용합니다. sampleSize는 집계 표본 수이며 실제 거래 건수가 아닙니다. 판매 희망가·추세가·미검증 판본을 실제 거래 가능 가격으로 보증하지 않습니다.
 - `PRICE_DATA_SOURCE=mock`은 기존 평가를 유지하며 market은 DB 카드 조회가 필요합니다. 두 출처를 혼합하지 않고, 적합한 시장 표본이 없으면 INSUFFICIENT_DATA입니다.
 
 Valuation의 추가 필드는 optional이고 기존 USDC·UUID·오류 코드와 거래 DTO는 유지했습니다. MCP·Trading·Payment 소비자는 확장 필드와 표본 수의 의미를 함께 검토해야 합니다. [수집·검증 명령과 제한](../packages/valuation/README.md)을 확인하세요.
+
+2026년 11월 24일 데모 정책 변경: `MARKET_VALUATION_MODE=demo`를 기본으로 사용합니다. TCGplayer의 최신 USD `PROVIDER_MARKET` 대표 가격 하나를 1 USD ≈ 1 USDC로 표시하며 판본·상태·환율 승인을 요구하지 않습니다. EUR·판매 희망가·만료 가격은 포함하지 않습니다. 기존 strict 경로와 검증 기록은 유지합니다. Valuation은 실제 출처인 `dataSource=MARKET`을 유지하고 `methodology=DEMO_USD_REFERENCE` 및 optional `assumptions: string[]`로 데모 가정을 전달합니다. `estimatedPrice`는 여전히 소수 6자리의 USDC 최소 단위 정수 문자열이며 `sampleSize`는 대표 제공자 표본 1개입니다. `/prices.eligibility`는 계속 strict 검증 상태이므로 데모 가격의 존재와 별개입니다. 공유 Schema와 MCP 응답, Web·Agent 소비자는 이 구분을 함께 사용합니다.
 
 Inventory·Listing·BuyOrder·MatchQuote·Trade의 기존 DTO를 유지한 Trading Service와 REST Plugin을 통합했습니다. 입력은 `@tcg/contracts`의 공유 Zod Schema로 검증하며 구매에는 인증된 userId·agentId가 필요합니다. 체결은 결제 시도 ID·예약 ID·통화·금액이 일치하는 서버 측 SETTLED 증빙을 요구합니다. SpendingPolicy는 Trading 실행 경계에서 검증하며 영속 정책·누적 예산·Payment 기록과 x402 MCP 전송을 연결합니다. 실제 지급은 명시적 DB/결제 설정이 필요합니다. 경로와 결제 경계는 [Trading README](../packages/trading/README.md), [통합 가이드](trading-integration.md)를 참고하세요.
 

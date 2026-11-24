@@ -20,13 +20,13 @@ try {
     orderBy: { id: 'asc' }, take: limit,
   });
   if (cardId && !cards.length) throw new Error('Card not found');
-  const { marketPriceService } = createMarketPriceServices({ prisma });
+  const { marketPriceService, demoAdapter } = createMarketPriceServices({ prisma });
   const results = [];
   for (const card of cards) {
     const prices = await marketPriceService.getPrices(card.id);
     const byStatus: Partial<Record<MarketPrice['eligibility'], number>> = {};
     for (const price of prices.items) byStatus[price.eligibility] = (byStatus[price.eligibility] ?? 0) + 1;
-    results.push({ ...card, referencePrices: prices.items.length,
+    results.push({ ...card, referencePrices: prices.items.length, demoPrices: (await demoAdapter.getObservations(card.id)).length,
       eligibleProviders: new Set(prices.items.filter(price => price.eligibility === 'ELIGIBLE').map(price => price.provider)).size,
       unconfirmedAttributes: ['edition', 'condition'].filter(key => card[key as 'edition' | 'condition'].toUpperCase() === 'UNSPECIFIED'),
       byStatus,
@@ -35,6 +35,7 @@ try {
   const report = { checkedAt: new Date().toISOString(), scope: cardId ? 'SINGLE_CARD' : 'TCGDEX_ENGLISH_CARDS', limit,
     summary: { checkedCards: results.length, cardsWithPrices: results.filter(card => card.referencePrices > 0).length,
       cardsWithEligiblePrices: results.filter(card => card.eligibleProviders > 0).length,
+      cardsWithDemoPrices: results.filter(card => card.demoPrices > 0).length,
       cardsWithUnconfirmedAttributes: results.filter(card => card.unconfirmedAttributes.length > 0).length,
       referencePrices: results.reduce((sum, card) => sum + card.referencePrices, 0) }, cards: results };
   if (values.file) await writeFile(values.file, `${JSON.stringify(report, null, 2)}\n`, 'utf8');

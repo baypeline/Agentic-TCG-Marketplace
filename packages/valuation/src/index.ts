@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { PrismaClient } from '@tcg/db';
 import { demoPriceObservations, demoPriceSource } from '@tcg/contracts/fixtures';
-import { AppError, cardParamsSchema, priceObservationSchema, valuationSchema, marketPricesResponseSchema, type AggregatorService, type ValuationService, type PriceObservation } from '@tcg/contracts';
+import { AppError, cardParamsSchema, priceObservationSchema, valuationSchema, marketPricesResponseSchema, type AggregatorService, type ValuationService, type PriceObservation, type Valuation } from '@tcg/contracts';
 import type { MarketPriceService } from './market-types.js';
 export { createTcgdexPriceProvider, MarketPriceError } from './tcgdex-prices.js';
 export { createMarketPriceServices } from './market-prices.js';
@@ -13,6 +13,8 @@ export type { PriceObservation } from '@tcg/contracts';
 export interface PriceDataAdapter {
   dataSource: 'MOCK' | 'MARKET';
   sourceSummary: string[];
+  methodology?: Valuation['methodology'];
+  assumptions?: string[];
   getObservations(cardVariantId: string): Promise<PriceObservation[]>;
 }
 export interface ValuationDependencies {
@@ -35,7 +37,8 @@ export function createValuationService({ aggregatorService, adapter, now = () =>
       const sourceSummary = [...new Set([...adapter.sourceSummary, ...samples.map(sample => sample.source)])];
       const times = samples.map(sample => sample.observedAt).sort((a, b) => Date.parse(a) - Date.parse(b));
       const base = { cardVariantId, currency: 'USDC' as const, sampleSize: samples.length, confidence: 'LOW' as const, evaluatedAt, dataSource: adapter.dataSource, sourceSummary,
-        methodology: adapter.dataSource === 'MOCK' ? 'MEDIAN_OF_MOCK_SAMPLES' as const : 'MEDIAN_OF_PROVIDER_AGGREGATES' as const,
+        methodology: adapter.methodology ?? (adapter.dataSource === 'MOCK' ? 'MEDIAN_OF_MOCK_SAMPLES' as const : 'MEDIAN_OF_PROVIDER_AGGREGATES' as const),
+        ...(adapter.assumptions ? { assumptions: adapter.assumptions } : {}),
         ...(times.length ? { oldestObservedAt: times[0], latestObservedAt: times[times.length - 1] } : {}),
       };
       if (samples.length === 0) return valuationSchema.parse({ ...base, status: 'INSUFFICIENT_DATA', estimatedPrice: null });

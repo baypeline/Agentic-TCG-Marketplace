@@ -56,6 +56,10 @@ JSON 한 개의 구조는 다음과 같습니다. 자리표시자는 실제 저�
 
 ## 평가와 조회
 
+데모 프로젝트의 기본 API 정책은 `MARKET_VALUATION_MODE=demo`입니다. `PRICE_DATA_SOURCE=market`에서 `demoAdapter`를 사용해 TCGplayer의 최신 USD 시장 집계가를 **1 USD ≈ 1 USDC**로 표시합니다. 실제 수집 가격이므로 `dataSource=MARKET`이며 합성 Mock이 아닙니다. `methodology=DEMO_USD_REFERENCE`, `assumptions`에 환산과 판본·보존 상태 미보정 조건을 명시합니다. 일반판(normal), unlimited, holofoil, unlimited-holofoil, reverse-holofoil, 1st-edition, 1st-edition-holofoil 순서로 존재하는 대표 가격 하나를 선택하며 판본별 금액을 평균내지 않습니다. 최근 72시간의 양수 가격만 사용하고 EUR·판매 희망가·추세 가격은 대체 표본으로 쓰지 않습니다.
+
+`MARKET_VALUATION_MODE=strict`는 기존 `adapter`의 판본·상태·환율 검증 규칙을 그대로 사용합니다. 이 라이브러리의 `adapter`를 직접 주입한 기존 소비자도 기존 동작을 유지합니다. `/prices`의 eligibility와 assessment는 항상 strict 기준이며 데모 환산은 승인 기록이나 카드 속성을 변경하지 않습니다. 아래 상세 평가 규칙은 strict 모드 기준입니다. `prices:check`의 `cardsWithDemoPrices`와 카드별 `demoPrices`는 데모 사용 가능 상태, `cardsWithEligiblePrices`와 `eligibleProviders`는 strict 상태입니다.
+
 `pnpm prices:check`는 저장된 영어 TCGdex 카드의 최신 참고 가격과 평가 사용 가능 상태를 읽기 전용으로 확인합니다. 기본 최대 200장이고 `--limit 1~500`, `--card-id <UUID>`, `--file <절대경로.json>`을 지원합니다. 보고서는 카드별 미확정 속성, 제외 사유별 가격 수와 평가 가능한 제공자 수를 포함합니다. 수집·판본 승인·환율 변경은 하지 않으며, 성공 종료는 사용 가능한 적정가가 있다는 뜻이 아닙니다. `--file`을 생략하면 전체 JSON을 출력합니다.
 
 2026년 11월 24일 재수집 결과와 아직 승인할 수 없는 이유는 [가격 데이터 점검 기록](../../docs/market-price-readiness.md)에 정리했습니다.

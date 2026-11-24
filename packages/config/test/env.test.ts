@@ -4,6 +4,11 @@ import { parseApiEnv } from '../src/index.js';
 it('문자열 false는 false로 파싱한다', () => {
   expect(parseApiEnv({ DATABASE_ENABLED: 'false' }).DATABASE_ENABLED).toBe(false);
 });
+it('시장 가격의 기본 방식은 demo이며 strict를 명시할 수 있다', () => {
+  expect(parseApiEnv({}).MARKET_VALUATION_MODE).toBe('demo');
+  expect(parseApiEnv({ MARKET_VALUATION_MODE: 'strict' }).MARKET_VALUATION_MODE).toBe('strict');
+  expect(() => parseApiEnv({ MARKET_VALUATION_MODE: 'invalid' })).toThrow();
+});
 it('DB 활성화 시 URL이 필요하며 미구현 실제 데이터 모드는 거부한다', () => {
   expect(() => parseApiEnv({ DATABASE_ENABLED: 'true' })).toThrow();
   expect(() => parseApiEnv({ DATA_MODE: 'live' })).toThrow();

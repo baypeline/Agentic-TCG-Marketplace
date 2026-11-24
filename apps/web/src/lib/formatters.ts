@@ -1,6 +1,9 @@
 import type { CardVariant, MarketPrice, MarketPricesResponse, Valuation } from '@tcg/contracts';
 
 export function getCardDisplayName(card: CardVariant): string { return card.localizedNames?.find(name => name.locale === 'ko')?.name ?? card.name; }
+export function getValuationLabel(valuation: Valuation): string {
+  return valuation.dataSource === 'MOCK' ? '데모 가격' : valuation.methodology === 'DEMO_USD_REFERENCE' ? '데모 참고 추정가' : '추정 적정가';
+}
 export function formatUsdc(amount: string): string {
   const value = BigInt(amount);
   const whole = (value / 1_000_000n).toLocaleString('en-US');

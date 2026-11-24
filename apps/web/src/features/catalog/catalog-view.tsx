@@ -4,14 +4,14 @@ import Link from 'next/link';
 import Form from 'next/form';
 import styled from '@emotion/styled';
 import { CardImage } from '../../components/card-image';
-import { getCardDisplayName, formatSet, formatUsdc, getReferencePrice, eligibilityLabels, type CatalogItem } from '../../lib/formatters';
+import { getCardDisplayName, formatSet, formatUsdc, getReferencePrice, eligibilityLabels, getValuationLabel, type CatalogItem } from '../../lib/formatters';
 
 export function CatalogView({ items, query }: { items: CatalogItem[]; query: string }) {
   return <CatalogLayout>
     <SearchHeader><Title>카드 검색</Title>
       <SearchForm action="/cards" role="search"><label htmlFor="query">카드 이름</label><SearchBox><SearchInput key={query} id="query" name="q" defaultValue={query} maxLength={200} placeholder="한국어 또는 영문" /><SearchButton type="submit" aria-label="카드 검색"><SearchIcon viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" stroke="currentColor" strokeWidth="1.7" /><path d="m16 16 4.5 4.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></SearchIcon></SearchButton></SearchBox></SearchForm>
       {query && <ClearLink href="/cards">검색 초기화</ClearLink>}
-      <PriceGuide><summary>가격 표시 안내</summary><p>EUR/USD는 해외 참고 시세입니다. 판본·환율을 확인하지 않은 가격은 USDC로 환산하지 않습니다. 데모 가격은 합성 데이터입니다. 출처와 검증 상태는 카드 상세에서 확인하세요.</p></PriceGuide>
+      <PriceGuide><summary>가격 표시 안내</summary><p>데모 참고 추정가는 실제 USD 시장 집계가를 1 USD ≈ 1 USDC로 표시해요. 판본·보존 상태는 보정하지 않아요. 합성 Mock 가격과 원본 EUR/USD 참고 시세는 별도로 구분하며, 출처는 카드 상세에서 확인할 수 있어요.</p></PriceGuide>
     </SearchHeader>
     <Results><ResultBar><h2 id="results-heading">{query ? `“${query}” 검색 결과` : '카드 둘러보기'}</h2><ResultCount>{items.length}종 조회</ResultCount></ResultBar>
     <section aria-labelledby="results-heading">{items.length ? <Grid>{items.map((item, index) => <CardTile key={item.card.id} item={item} query={query} priority={index < 4} />)}</Grid> : <Empty><h3>검색 결과가 없습니다.</h3><p>다른 이름으로 검색하거나 검색 조건을 초기화하세요.</p><Link href="/cards">검색 초기화</Link></Empty>}</section>
@@ -24,12 +24,13 @@ function CardTile({ item, query, priority }: { item: CatalogItem; query: string;
   const { card, valuation } = item;
   const reference = getReferencePrice(item.prices);
   const available = valuation?.status === 'AVAILABLE';
-  const label = available ? valuation.dataSource === 'MOCK' ? '데모 가격' : '추정 적정가' : reference ? '해외 참고 시세' : '평가 정보';
+  const label = available ? getValuationLabel(valuation) : reference ? '해외 참고 시세' : '평가 정보';
   const amount = available ? formatUsdc(valuation.estimatedPrice) : reference ? `${reference.originalAmount} ${reference.originalCurrency}` : item.valuationFailed ? '가격 조회 실패' : '평가 자료 부족';
   return <Tile href={`/cards/${card.id}${query ? `?${new URLSearchParams({ q: query })}` : ''}`} aria-label={`${getCardDisplayName(card)} 상세 보기`}>
     <CardImage card={card} priority={priority} /><TileText><h3>{getCardDisplayName(card)}</h3><CardMeta>{formatSet(card.setCode)} / {card.cardNumber}<span>{card.language}</span></CardMeta>
-      <PriceLine title={reference ? eligibilityLabels[reference.eligibility] : undefined}><span>{label}</span><strong>{amount}</strong></PriceLine>
+      <PriceLine title={!available && reference ? eligibilityLabels[reference.eligibility] : undefined}><span>{label}</span><strong>{amount}</strong></PriceLine>
       {available && valuation.dataSource === 'MOCK' && <Secondary>데모 · 합성 데이터</Secondary>}
+      {available && valuation.methodology === 'DEMO_USD_REFERENCE' && <Secondary>USD 1:1 환산 · 상태 미보정</Secondary>}
       {item.valuationFailed && reference && <Secondary>평가 정보 조회 실패</Secondary>}
       {item.pricesFailed && !available && <Secondary>참고 시세 조회 실패</Secondary>}
       {reference && !available && ['STALE_PRICE', 'STALE_FX', 'VARIANT_MISMATCH'].includes(reference.eligibility) && <Secondary>{eligibilityLabels[reference.eligibility]}</Secondary>}

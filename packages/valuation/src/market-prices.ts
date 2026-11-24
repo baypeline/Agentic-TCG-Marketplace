@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { assessmentInputSchema, decimalToMicros, snapshotInputSchema, type AssessmentInput, type MarketPriceProvider, type MarketPriceService } from './market-types.js';
 import { MarketPriceError } from './tcgdex-prices.js';
 import type { PriceDataAdapter } from './index.js';
+import { demoPriceAssumptions, selectDemoUsdPrice } from './demo-prices.js';
 
 const hour = 3_600_000;
 export const DEFAULT_PRICE_MAX_AGE_HOURS = 72;
@@ -59,8 +60,18 @@ export function createMarketPriceServices(options: { prisma: PrismaClient; provi
       providers.add(row.provider); return true;
     }).map(row => ({ amount: row.assessment!.usdcAmount, source: `${row.provider}:${row.providerVariant}:${row.priceType} ${row.sourceUrl}`, observedAt: row.observedAt.toISOString() }));
   } };
+  const demoAdapter: PriceDataAdapter = {
+    dataSource: 'MARKET', sourceSummary: [], methodology: 'DEMO_USD_REFERENCE', assumptions: demoPriceAssumptions,
+    async getObservations(cardVariantId) {
+      const card = await getCard(cardVariantId);
+      if (card.language !== 'EN') return [];
+      const row = selectDemoUsdPrice(latestRows(await loadRows(prisma, card.id)), now(), maxAgeHours);
+      return row ? [{ amount: decimalToMicros(row.originalAmount).toString(),
+        source: `TCGPLAYER:${row.providerVariant}:PROVIDER_MARKET ${row.sourceUrl} · USD→USDC 데모 환산 1:1`, observedAt: row.observedAt.toISOString() }] : [];
+    },
+  };
   return {
-    marketPriceService, adapter,
+    marketPriceService, adapter, demoAdapter,
     async collectPrices(cardVariantId: string) {
       const card = await getCard(cardVariantId);
       if (!provider) throw new AppError('VALIDATION_ERROR', '가격 수집 제공자가 필요합니다.', 400);

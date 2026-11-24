@@ -78,7 +78,8 @@ const valuationBaseSchema = z.object({
   dataSource: z.enum(['MOCK', 'MARKET']),
   oldestObservedAt: timestampSchema.optional(),
   latestObservedAt: timestampSchema.optional(),
-  methodology: z.enum(['MEDIAN_OF_PROVIDER_AGGREGATES', 'MEDIAN_OF_MOCK_SAMPLES']).optional(),
+  methodology: z.enum(['MEDIAN_OF_PROVIDER_AGGREGATES', 'MEDIAN_OF_MOCK_SAMPLES', 'DEMO_USD_REFERENCE']).optional(),
+  assumptions: z.array(z.string().trim().min(1)).optional(),
 });
 export const valuationSchema = z.discriminatedUnion('status', [
   valuationBaseSchema.extend({ status: z.literal('AVAILABLE'), estimatedPrice: amountSchema, sampleSize: z.number().int().positive(), sourceSummary: z.array(z.string().trim().min(1)).min(1) }),
