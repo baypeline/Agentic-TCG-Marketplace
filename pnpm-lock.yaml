@@ -227,6 +227,9 @@ importers:
       '@tcg/mcp-server':
         specifier: workspace:*
         version: link:../../packages/mcp-server
+      '@tcg/payment-client':
+        specifier: workspace:*
+        version: link:../../packages/payment-client
       '@tcg/payment-server':
         specifier: workspace:*
         version: link:../../packages/payment-server
@@ -242,6 +245,9 @@ importers:
       fastify:
         specifier: 5.12.8
         version: 5.12.8
+      viem:
+        specifier: ^2.58.4
+        version: 2.58.4(typescript@5.9.3)(zod@4.6.7)
       zod:
         specifier: 4.6.7
         version: 4.6.7

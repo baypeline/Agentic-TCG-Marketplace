@@ -138,21 +138,28 @@ export function AgentChat({ onClose }: { onClose: () => void }) {
       let progress: AgentPurchaseProgress;
       if (state.submitted) { setPurchaseStatus('기존 결제 상태를 확인하고 있어요.'); progress = await api('status'); }
       else {
-        setPurchaseStatus('구매할 지갑을 연결하고 있어요.');
-        const { connectPaymentWallet } = await import('./wallet-payment');
-        const wallet = await connectPaymentWallet();
-        if (activeRequest.current !== request) return;
         setPurchaseStatus('매물을 예약하고 결제 금액을 확인하고 있어요.');
         progress = await api('prepare');
         state.prepared = progress;
         if (progress.status === 'PAYMENT_REQUIRED') {
-          setPurchaseStatus(`${formatUsdc(progress.amount)} 지급 승인을 지갑에서 확인해 주세요. Base Sepolia 테스트 USDC가 실제 전송됩니다.`);
-          const payload = await wallet.sign(progress, offer);
+          let payload: unknown;
+          if (progress.signingMode === 'server') {
+            setPurchaseStatus(`에이전트 지갑에서 ${formatUsdc(progress.amount)} 지급을 승인하고 있어요.`);
+          } else {
+            setPurchaseStatus(`${formatUsdc(progress.amount)} 지급 승인을 지갑에서 확인해 주세요. Base Sepolia 테스트 USDC가 실제 전송됩니다.`);
+            const { connectPaymentWallet } = await import('./wallet-payment');
+            const wallet = await connectPaymentWallet();
+            payload = await wallet.sign(progress, offer);
+          }
           if (activeRequest.current !== request) return;
           state.submitted = true;
           setPurchaseStatus('서명한 지급을 제출하고 정산을 확인하고 있어요.');
           progress = await api('submit', payload);
         } else { state.submitted = progress.status === 'PENDING' || progress.status === 'COMPLETED'; }
+      }
+      if (progress.status === 'PAYMENT_REQUIRED' && state.submitted) {
+        state.submitted = false;
+        throw new Error('지급이 제출되지 않았어요. 에이전트 지갑 잔액과 정책을 확인한 뒤 다시 구매해 주세요.');
       }
       for (let attempt = 0; progress.status === 'PENDING' && attempt < 8; attempt++) {
         if (activeRequest.current !== request) return;
@@ -173,7 +180,7 @@ export function AgentChat({ onClose }: { onClose: () => void }) {
     } catch (failure) {
       if (activeRequest.current === request && !request.signal.aborted) {
         const { walletErrorMessage } = await import('./wallet-payment');
-        setError(state.submitted ? '결제 응답을 확인하지 못했어요. 같은 매물의 버튼을 누르면 새 서명 없이 기존 결제를 조회해요.' : walletErrorMessage(failure));
+        setError(state.submitted ? `${state.prepared?.signingMode === 'server' && failure instanceof Error ? `${failure.message} ` : '결제 응답을 확인하지 못했어요. '}같은 매물의 버튼을 누르면 새 서명 없이 기존 결제를 조회해요.` : walletErrorMessage(failure));
       }
     } finally {
       if (state.prepared && !state.submitted) {
@@ -220,7 +227,7 @@ export function AgentChat({ onClose }: { onClose: () => void }) {
             ) : <PlainMessage>{message.content}</PlainMessage>}
             {message.interrupted && <ReplyState>중단된 답변 · 완료되지 않은 내용이에요.</ReplyState>}
             {message.role === 'assistant' && message.cardChoices?.length ? <CardChoices cards={message.cardChoices} disabled={pending || index !== latestChoices} selectedId={message.selectedCardId} onSelect={card => { void selectCard(card, index); }} /> : null}
-            {message.purchaseOffers?.length ? <PurchaseOffers offers={message.purchaseOffers} disabled={pending || index !== latestOffers} completedIds={receipts.filter(item => item.status === 'COMPLETED').map(item => item.listingId)} submittedIds={[...purchaseRequests.current.entries()].filter(([, item]) => item.submitted).map(([id]) => id)} onBuy={offer => { void buyOffer(offer); }} /> : null}
+            {message.purchaseOffers?.length ? <PurchaseOffers offers={message.purchaseOffers} signingMode={demo.data?.signingMode} payer={demo.data?.payer} disabled={pending || index !== latestOffers} completedIds={receipts.filter(item => item.status === 'COMPLETED').map(item => item.listingId)} submittedIds={[...purchaseRequests.current.entries()].filter(([, item]) => item.submitted).map(([id]) => id)} onBuy={offer => { void buyOffer(offer); }} /> : null}
           </MessageBody>
         </Message>
       ))}

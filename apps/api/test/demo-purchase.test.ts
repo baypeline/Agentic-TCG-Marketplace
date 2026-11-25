@@ -13,7 +13,7 @@ import { demoBuyerId, demoBuyerAgentId } from '../src/demo-auth.js';
 const apps: ReturnType<typeof Fastify>[] = [];
 afterEach(async () => { await Promise.all(apps.splice(0).map(app => app.close())); });
 
-async function fixture(unknown = false) {
+async function fixture(unknown = false, serverSigning = false) {
   const pack = await readDemoScenarios();
   const buyer = { userId: demoBuyerId, agentId: demoBuyerAgentId };
   const wallet = `0x${'2'.repeat(40)}`;
@@ -33,10 +33,11 @@ async function fixture(unknown = false) {
   const app = Fastify(); apps.push(app);
   await app.register(createMcpPlugin({ aggregatorService: { async searchCards() { return offers.map(offer => offer.card); }, async getCardVariant(id) { return offers.find(offer => offer.card.id === id)?.card ?? null; } }, valuationService: { async getValuation() { throw new Error('Not used'); } }, tradingService: trading, paymentService: payments, getAuth: request => request.headers.authorization === `Bearer ${env.DEMO_BUYER_TOKEN}` ? buyer : null }));
   const url = await app.listen({ host: '127.0.0.1', port: 0 });
-  const purchase = createDemoPurchaseHandler({ env, trading, policies, getMcpUrl: () => `${url}/mcp` });
   const input = (offer: AgentPurchaseOffer) => ({ offer, listingId: offer.listingId, requestId: randomUUID(), sessionId: randomUUID(), auth: { userId: randomUUID() } });
   const payload = (prepared: AgentPurchaseProgress) => ({ x402Version: 2, accepted: prepared.requirements!, payload: { authorization: { from: wallet, to: recipient, value: prepared.amount, nonce: `0x${'b'.repeat(64)}`, validAfter: '0', validBefore: '9999999999' }, signature: `0x${'c'.repeat(130)}` } });
-  return { purchase, input, payload, offers, adapter, trading, policies, buyer, store, inventory };
+  const signer = vi.fn(async (value: { requirements: NonNullable<AgentPurchaseProgress['requirements']>; amount: string }) => payload(value as AgentPurchaseProgress));
+  const purchase = createDemoPurchaseHandler({ env: { ...env, AGENT_SIGNING_MODE: serverSigning ? 'server' : 'browser' }, trading, policies, signAgentPayment: serverSigning ? signer : undefined, getMcpUrl: () => `${url}/mcp` });
+  return { purchase, input, payload, offers, adapter, trading, policies, buyer, store, inventory, signer };
 }
 
 it('세 시나리오를 실제 MCP로 예약·지급·체결하고 재요청 시 중복 지급하지 않는다', async () => {
@@ -80,4 +81,48 @@ it('결제 미확정이면 조회·재제출로 새 정산을 만들지 않는�
   expect((await f.purchase({ ...input, action: 'status' })).status).toBe('PENDING');
   expect(f.adapter.settle).toHaveBeenCalledTimes(1);
   expect(await f.trading.listTrades(f.buyer)).toEqual([]);
+});
+
+it('서버 서명으로 MCP 결제·소유권 이전을 완료하고 재제출 시 서명과 정산을 반복하지 않는다', async () => {
+  const f = await fixture(false, true); const input = f.input(f.offers[0]!);
+  expect((await f.purchase({ ...input, action: 'prepare' })).signingMode).toBe('server');
+  const completed = await f.purchase({ ...input, action: 'submit' });
+  expect(completed.status).toBe('COMPLETED');
+  expect((await f.purchase({ ...input, action: 'submit' })).tradeId).toBe(completed.tradeId);
+  expect(f.signer).toHaveBeenCalledTimes(1);
+  expect(f.adapter.settle).toHaveBeenCalledTimes(1);
+  expect(await f.store.transaction(tx => tx.inventory.find({ ownerId: f.buyer.userId }))).toHaveLength(1);
+});
+
+it('서버 결제가 UNKNOWN이면 재제출과 조회에서도 새 서명을 만들지 않는다', async () => {
+  const f = await fixture(true, true); const input = f.input(f.offers[0]!);
+  await f.purchase({ ...input, action: 'prepare' });
+  expect((await f.purchase({ ...input, action: 'submit' })).status).toBe('PENDING');
+  expect((await f.purchase({ ...input, action: 'submit' })).status).toBe('PENDING');
+  expect((await f.purchase({ ...input, action: 'status' })).status).toBe('PENDING');
+  expect(f.signer).toHaveBeenCalledTimes(1);
+  expect(f.adapter.settle).toHaveBeenCalledTimes(1);
+});
+
+it('중단된 실행과 비활성 정책에는 서명하지 않고 브라우저 payload 주입을 거부한다', async () => {
+  const f = await fixture(false, true); const input = f.input(f.offers[0]!);
+  const prepared = await f.purchase({ ...input, action: 'prepare' });
+  await expect(f.purchase({ ...input, action: 'submit', paymentPayload: f.payload(prepared) })).rejects.toThrow();
+  const [run] = await f.policies.listRuns(f.buyer);
+  await f.policies.stopRun(f.buyer, run!.id);
+  await expect(f.purchase({ ...input, action: 'submit' })).rejects.toThrow();
+  expect(f.signer).not.toHaveBeenCalled();
+  expect(f.adapter.settle).not.toHaveBeenCalled();
+});
+
+it.each(['disabled', 'budget', 'expired'] as const)('예약 후 정책이 %s로 변경되면 서버가 서명하지 않는다', async change => {
+  const f = await fixture(false, true); const input = f.input(f.offers[0]!);
+  await f.purchase({ ...input, action: 'prepare' });
+  const [policy] = await f.policies.list(f.buyer);
+  await f.policies.update(f.buyer, policy!.id, { ...policy, expectedVersion: policy!.version,
+    ...(change === 'disabled' ? { enabled: false } : change === 'budget' ? { totalBudget: '1', maxPerTrade: '1' } : { validUntil: '2000-01-01T00:00:00.000Z' }),
+  }, { idempotencyKey: randomUUID() });
+  await expect(f.purchase({ ...input, action: 'submit' })).rejects.toThrow();
+  expect(f.signer).not.toHaveBeenCalled();
+  expect(f.adapter.settle).not.toHaveBeenCalled();
 });

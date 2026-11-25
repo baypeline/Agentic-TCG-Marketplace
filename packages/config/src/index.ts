@@ -12,6 +12,8 @@ export const apiEnvSchema = z.object({
   PAYMENT_ENABLED: z.enum(['true', 'false']).default('false').transform(value => value === 'true'),
   PAYMENT_RECIPIENT: z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional(),
   AGENT_WALLET_ADDRESS: z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional(),
+  AGENT_SIGNING_MODE: z.enum(['browser', 'server']).default('browser'),
+  AGENT_SERVER_WALLET_ADDRESS: z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional(),
   TRADING_DATA_SOURCE: z.enum(['mock', 'database']).default('mock'),
   TRADING_SWEEP_INTERVAL_MS: z.coerce.number().int().min(100).max(3_600_000).default(30_000),
   DEMO_SELLER_TOKEN: z.string().min(32).optional(),
@@ -19,8 +21,9 @@ export const apiEnvSchema = z.object({
   DATABASE_ENABLED: z.enum(['true', 'false']).default('false').transform(value => value === 'true'),
   DATABASE_URL: z.url().optional(),
 }).superRefine((env, ctx) => {
+  if (env.AGENT_SIGNING_MODE === 'server' && (!env.DEMO_SCENARIOS_ENABLED || !env.PAYMENT_ENABLED || !env.AGENT_SERVER_WALLET_ADDRESS)) ctx.addIssue({ code: 'custom', path: ['AGENT_SIGNING_MODE'], message: '서버 서명에는 로컬 시나리오 결제와 전용 지갑 주소가 필요합니다.' });
   if (env.DEMO_SCENARIOS_ENABLED && (env.NODE_ENV === 'production' || !['127.0.0.1', '::1', 'localhost'].includes(env.API_HOST) || !env.DATABASE_ENABLED || env.CARD_DATA_SOURCE !== 'database' || env.TRADING_DATA_SOURCE !== 'database' || !env.DEMO_BUYER_TOKEN || !env.DEMO_SELLER_TOKEN)) ctx.addIssue({ code: 'custom', path: ['DEMO_SCENARIOS_ENABLED'], message: '시나리오 데모에는 로컬 DB 카드·거래와 데모 인증 토큰이 필요합니다.' });
-  if (env.PAYMENT_ENABLED && (!env.DATABASE_ENABLED || env.TRADING_DATA_SOURCE !== 'database' || !env.PAYMENT_RECIPIENT || !env.AGENT_WALLET_ADDRESS)) ctx.addIssue({ code: 'custom', path: ['PAYMENT_ENABLED'], message: '실결제에는 DB 거래와 수납·Agent 지갑 주소가 필요합니다.' });
+  if (env.PAYMENT_ENABLED && (!env.DATABASE_ENABLED || env.TRADING_DATA_SOURCE !== 'database' || !env.PAYMENT_RECIPIENT || !(env.AGENT_SIGNING_MODE === 'server' ? env.AGENT_SERVER_WALLET_ADDRESS : env.AGENT_WALLET_ADDRESS))) ctx.addIssue({ code: 'custom', path: ['PAYMENT_ENABLED'], message: '실결제에는 DB 거래와 수납·Agent 지갑 주소가 필요합니다.' });
   if (env.TRADING_DATA_SOURCE === 'database' && (!env.DATABASE_ENABLED || env.CARD_DATA_SOURCE !== 'database')) {
     ctx.addIssue({ code: 'custom', path: ['TRADING_DATA_SOURCE'], message: 'DB 거래에는 DB 연결과 CARD_DATA_SOURCE=database가 필요합니다.' });
   }

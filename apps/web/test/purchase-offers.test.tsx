@@ -4,6 +4,13 @@ import { PurchaseOffers, PurchaseReceipt } from '../src/features/chat/purchase-o
 import { renderUI } from './render';
 
 const offer = { listingId: '00000000-0000-4000-8200-000000000001', card: demoCards[0]!, price: '10000', dataSource: 'SYNTHETIC_DEMO' as const, paymentMode: 'X402_BASE_SEPOLIA' as const, paymentReady: true };
+it('서버 서명 모드는 전용 지갑과 자동 지급 한도를 구매 전에 표시한다', () => {
+  const html = renderUI(<PurchaseOffers offers={[offer]} signingMode="server" payer={`0x${'3'.repeat(40)}`} disabled={false} completedIds={[]} submittedIds={[]} onBuy={() => undefined} />);
+  expect(html).toContain('에이전트 지갑으로 구매');
+  expect(html).toContain('0.025 USDC');
+  expect(html).toContain('0.1 USDC');
+  expect(html).toContain('지급 지갑:');
+});
 it('합성 매물과 실제 테스트넷 결제를 구분하고 서명 전 금액을 표시한다', () => {
   const html = renderUI(<PurchaseOffers offers={[offer]} disabled={false} completedIds={[]} submittedIds={[]} onBuy={() => undefined} />);
   expect(html).toContain('0.01 USDC'); expect(html).toContain('테스트 USDC가 실제 전송'); expect(html).toContain('지갑으로 구매');

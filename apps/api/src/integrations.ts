@@ -3,11 +3,12 @@ import { AppError } from '@tcg/contracts';
 import { createMcpPlugin } from '@tcg/mcp-server';
 import { createServerRunPlugin, type AgentSessionPluginOptions } from '@tcg/agent';
 import { createDemoPurchaseHandler } from './demo-purchase.js';
+import type { AgentPaymentSigner } from './agent-wallet.js';
 import { createCommercePlugin, createPaymentEvidenceReader, createPaymentService, createPolicyService, getPolicyExecutionContext } from '@tcg/payment-server';
 import { createMockTradingStore, createPrismaTradingStore, createTradingPlugin, createTradingService, type TradingService } from '@tcg/trading';
 import { requireAuth, type IntegrationDependencies } from './app.js';
 
-export async function createIntegrationPlugins({ env, prisma, aggregatorService, valuationService, tradingExecutionContext, paymentOptions, executeAgentRun }: IntegrationDependencies, options: { onDemoPurchaseReady?: (handler: NonNullable<AgentSessionPluginOptions['purchase']>) => void } = {}): Promise<FastifyPluginAsync[]> {
+export async function createIntegrationPlugins({ env, prisma, aggregatorService, valuationService, tradingExecutionContext, paymentOptions, executeAgentRun }: IntegrationDependencies, options: { signAgentPayment?: AgentPaymentSigner; onDemoPurchaseReady?: (handler: NonNullable<AgentSessionPluginOptions['purchase']>) => void } = {}): Promise<FastifyPluginAsync[]> {
   const store = env.TRADING_DATA_SOURCE === 'database' ? createPrismaTradingStore(prisma!) : createMockTradingStore();
   let trading: TradingService;
   const policies = createPolicyService({ store, onInactive: auth => trading.pauseAgentOrders(auth) });
@@ -18,7 +19,7 @@ export async function createIntegrationPlugins({ env, prisma, aggregatorService,
   });
   const payments = createPaymentService({ ...paymentOptions, store, tradingService: trading, valuationService });
   const plugin: FastifyPluginAsync = async app => {
-    if (env.DEMO_SCENARIOS_ENABLED) options.onDemoPurchaseReady?.(createDemoPurchaseHandler({ env, trading, policies, getMcpUrl: () => {
+    if (env.DEMO_SCENARIOS_ENABLED) options.onDemoPurchaseReady?.(createDemoPurchaseHandler({ env, trading, policies, signAgentPayment: options.signAgentPayment, getMcpUrl: () => {
       const address = app.server.address();
       if (!address || typeof address === 'string') throw new AppError('PAYMENT_UNAVAILABLE', 'MCP 서버가 수신 중이 아닙니다.', 503);
       return `http://${address.family === 'IPv6' ? `[${address.address}]` : address.address}:${address.port}/mcp`;

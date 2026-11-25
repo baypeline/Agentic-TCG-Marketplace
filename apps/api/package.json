@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",
+    "wallet:init": "node scripts/init-agent-wallet.mjs",
     "build": "tsc -p tsconfig.build.json",
     "start": "tsx dist/server.js",
     "typecheck": "tsc --noEmit",
@@ -15,18 +16,19 @@
   },
   "dependencies": {
     "@tcg/agent": "workspace:*",
-    "@tcg/contracts": "workspace:*",
-    "@tcg/config": "workspace:*",
     "@tcg/aggregator": "workspace:*",
-    "@tcg/valuation": "workspace:*",
+    "@tcg/config": "workspace:*",
+    "@tcg/contracts": "workspace:*",
     "@tcg/db": "workspace:*",
     "@tcg/mcp-server": "workspace:*",
-    "@tcg/trading": "workspace:*",
-    "fastify": "5.12.8",
-    "zod": "4.6.7",
-    "dotenv": "^17.2.3",
+    "@tcg/payment-client": "workspace:*",
     "@tcg/payment-server": "workspace:*",
-    "@tcg/agent": "workspace:*"
+    "@tcg/trading": "workspace:*",
+    "@tcg/valuation": "workspace:*",
+    "dotenv": "^17.2.3",
+    "fastify": "5.12.8",
+    "viem": "^2.58.4",
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "tsx": "^4.21.0"

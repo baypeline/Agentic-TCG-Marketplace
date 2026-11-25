@@ -40,12 +40,13 @@ export const agentPurchaseProgressSchema = z.object({
   requestId: idSchema, listingId: idSchema, card: cardVariantSchema, amount: amountSchema, matchQuoteId: idSchema,
   status: z.enum(['PAYMENT_REQUIRED', 'PENDING', 'COMPLETED', 'CANCELLED', 'FAILED']),
   paymentMode: z.literal('X402_BASE_SEPOLIA'), expiresAt: timestampSchema,
+  signingMode: z.enum(['browser', 'server']).optional(),
   payer: z.string().regex(/^0x[0-9a-fA-F]{40}$/), recipient: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
   requirements: agentPaymentRequirementsSchema.optional(), tradeId: idSchema.optional(),
   transactionHash: z.string().regex(/^0x[0-9a-fA-F]{64}$/).optional(),
 });
 export type AgentPurchaseProgress = z.infer<typeof agentPurchaseProgressSchema>;
-export const demoStatusSchema = z.object({ enabled: z.boolean(), paymentEnabled: z.boolean(), suggestions: z.array(z.string()), payer: z.string().nullable(), recipient: z.string().nullable() });
+export const demoStatusSchema = z.object({ enabled: z.boolean(), paymentEnabled: z.boolean(), signingMode: z.enum(['browser', 'server']).default('browser'), suggestions: z.array(z.string()), payer: z.string().nullable(), recipient: z.string().nullable() });
 
 export const agentChatReplySchema = z.object({
   content: z.string().min(1),

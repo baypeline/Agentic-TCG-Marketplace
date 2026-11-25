@@ -4,6 +4,14 @@ import { parseApiEnv } from '../src/index.js';
 it('문자열 false는 false로 파싱한다', () => {
   expect(parseApiEnv({ DATABASE_ENABLED: 'false' }).DATABASE_ENABLED).toBe(false);
 });
+it('서버 서명은 로컬 시나리오 결제에서만 허용하고 개인키는 환경 DTO에 포함하지 않는다', () => {
+  expect(parseApiEnv({}).AGENT_SIGNING_MODE).toBe('browser');
+  expect(() => parseApiEnv({ AGENT_SIGNING_MODE: 'server' })).toThrow();
+  const values = { NODE_ENV: 'test', AGENT_SIGNING_MODE: 'server', PAYMENT_ENABLED: 'true', DEMO_SCENARIOS_ENABLED: 'true', DATABASE_ENABLED: 'true', DATABASE_URL: 'postgresql://localhost/tcg', CARD_DATA_SOURCE: 'database', TRADING_DATA_SOURCE: 'database', PAYMENT_RECIPIENT: `0x${'1'.repeat(40)}`, AGENT_SERVER_WALLET_ADDRESS: `0x${'2'.repeat(40)}`, DEMO_BUYER_TOKEN: 'b'.repeat(32), DEMO_SELLER_TOKEN: 's'.repeat(32), AGENT_SERVER_PRIVATE_KEY: 'private-value' };
+  expect(parseApiEnv(values).AGENT_SIGNING_MODE).toBe('server');
+  expect(JSON.stringify(parseApiEnv(values))).not.toContain('private-value');
+  expect(() => parseApiEnv({ ...values, NODE_ENV: 'production' })).toThrow();
+});
 it('시장 가격의 기본 방식은 demo이며 strict를 명시할 수 있다', () => {
   expect(parseApiEnv({}).MARKET_VALUATION_MODE).toBe('demo');
   expect(parseApiEnv({ MARKET_VALUATION_MODE: 'strict' }).MARKET_VALUATION_MODE).toBe('strict');

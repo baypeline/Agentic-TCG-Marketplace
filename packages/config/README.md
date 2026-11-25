@@ -7,3 +7,5 @@
 `PRICE_DATA_SOURCE=mock|market`로 가격 출처를 별도로 선택합니다. 기본은 mock이며 market에는 DB 카드 조회와 DB 연결이 모두 필요합니다. 시장 모드는 DB에 저장되고 판본·환율 근거가 확인된 표본만 평가하며 Mock으로 대체하지 않습니다. `DATA_MODE=mock`은 기존 실행 환경 구분으로 유지하고 가격 출처를 판별하는 데 사용하지 않습니다.
 
 루트에서 `pnpm --filter @tcg/config test`와 `pnpm --filter @tcg/config typecheck`로 검증합니다.
+
+`AGENT_SIGNING_MODE=browser|server`의 기본은 browser입니다. server에는 로컬 시나리오 결제와 `AGENT_SERVER_WALLET_ADDRESS`가 필요합니다. 개인키 `AGENT_SERVER_PRIVATE_KEY`는 공통 환경 DTO에 포함하지 않고 API 진입점의 전용 서명기에서만 읽습니다. 생성·충전·복귀 절차는 [데모 가이드](../../docs/demo-scenarios.md)를 참고하세요.
