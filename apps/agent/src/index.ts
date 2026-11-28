@@ -8,7 +8,7 @@ import {
 import { createCardTools, type CardToolDependencies } from './tools.js';
 import { toAgentInput, type AgentTurnOptions } from './turn.js';
 import { purchaseConditionSchema } from '@tcg/contracts';
-import { createOpenAIBudgetConditionApi, type BudgetConditionApi } from './budget.js';
+import { createOpenAIBudgetConditionApi, normalizeBudgetCurrency, type BudgetConditionApi } from './budget.js';
 export { createOpenAIBudgetConditionApi, type BudgetConditionApi } from './budget.js';
 import { createOpenAIPurchaseConditionApi, createMockPurchasePreviewTool, type PurchaseConditionApi, type PurchasePreviewTool } from './purchase.js';
 
@@ -88,7 +88,9 @@ export function createAgentRuntime({
         if (!patch) return '설정할 총예산이나 건당 한도를 현재 결제 통화로 알려주세요. 예: 총예산을 100 tOKRW, 건당 한도를 10 tOKRW로 설정해줘.';
         try { await options.onBudgetChange(patch); }
         catch (error) { if (error instanceof Error && 'code' in error) return error.message; throw error; }
-        return '예산 변경안을 준비했어요. 아래에서 변경 전후 금액을 확인하고 저장해 주세요.';
+        const currency = dependencies.marketplaceService?.paymentChain === 'maroo' ? 'tOKRW' : 'USDC';
+        const correction = normalizeBudgetCurrency(message, currency) !== message ? '건당 예산의 tORKW는 같은 문장에 적힌 tOKRW로 해석했어요. ' : '';
+        return `${correction}예산 변경안을 준비했어요. 아래에서 변경 전후 금액을 확인하고 저장해 주세요.`;
       }
       if (route === 'prepare_purchase' && !dependencies.marketplaceService) {
         const condition = await purchaseConditionApi.extract(message, options);
