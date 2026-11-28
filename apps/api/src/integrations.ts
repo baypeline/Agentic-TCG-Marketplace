@@ -9,12 +9,13 @@ import { AppError } from '@tcg/contracts';
 import { createMcpPlugin } from '@tcg/mcp-server';
 import { createServerRunPlugin, type AgentSessionPluginOptions } from '@tcg/agent';
 import { createDemoPurchaseHandler } from './demo-purchase.js';
+import { createAgentBudgetHandler } from './agent-budget.js';
 import type { AgentPaymentSigner } from './agent-wallet.js';
 import { createCommercePlugin, createPaymentEvidenceReader, createPaymentService, createPolicyService, getPolicyExecutionContext } from '@tcg/payment-server';
 import { createMockTradingStore, createPrismaTradingStore, createTradingPlugin, createTradingService, demoSellerId, type TradingService } from '@tcg/trading';
 import { requireAuth, type IntegrationDependencies } from './app.js';
 
-export async function createIntegrationPlugins({ env, prisma, aggregatorService, valuationService, tradingExecutionContext, paymentOptions, executeAgentRun }: IntegrationDependencies, options: { signAgentPayment?: AgentPaymentSigner; rwaVariables?: NodeJS.ProcessEnv; onDemoPurchaseReady?: (handler: NonNullable<AgentSessionPluginOptions['purchase']>) => void } = {}): Promise<FastifyPluginAsync[]> {
+export async function createIntegrationPlugins({ env, prisma, aggregatorService, valuationService, tradingExecutionContext, paymentOptions, executeAgentRun }: IntegrationDependencies, options: { signAgentPayment?: AgentPaymentSigner; rwaVariables?: NodeJS.ProcessEnv; onDemoPurchaseReady?: (handler: NonNullable<AgentSessionPluginOptions['purchase']>) => void; onAgentBudgetReady?: (handler: NonNullable<AgentSessionPluginOptions['budget']>) => void } = {}): Promise<FastifyPluginAsync[]> {
   const store = env.TRADING_DATA_SOURCE === 'database' ? createPrismaTradingStore(prisma!) : createMockTradingStore();
   const profile = getPaymentProfile(env.PAYMENT_CHAIN);
   const deployment = env.RWA_ENABLED ? readRwaDeployment(env) : null;
@@ -36,6 +37,7 @@ export async function createIntegrationPlugins({ env, prisma, aggregatorService,
   const plugin: FastifyPluginAsync = async app => {
     if (rwa) { await rwa.sync(); await app.register(createRwaPlugin(rwa)); }
     if (env.DEMO_SCENARIOS_ENABLED) {
+      options.onAgentBudgetReady?.(createAgentBudgetHandler(env, policies));
       const handler=createDemoPurchaseHandler({ env, trading, policies, includeKorean:true,signAgentPayment: options.signAgentPayment, resolvePaymentRecipient: async listingId => prisma && await prisma.rwaListing.findUnique({where:{id:listingId}}) ? deployment?.market ?? '' : env.PAYMENT_RECIPIENT!, getMcpUrl: () => {
       const address = app.server.address();
       if (!address || typeof address === 'string') throw new AppError('PAYMENT_UNAVAILABLE', 'MCP 서버가 수신 중이 아닙니다.', 503);

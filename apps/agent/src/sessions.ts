@@ -4,6 +4,7 @@ import { AppError, idSchema, agentChatReplySchema, agentPurchaseInputSchema, age
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { AgentMessage, AgentTurnOptions } from './turn.js';
+import { agentBudgetActionSchema, agentBudgetProposalSchema, agentBudgetResultSchema, type AgentBudgetPatch, type AgentBudgetProposal, type AgentBudgetResult } from '@tcg/contracts';
 
 export interface AgentSessionPluginOptions {
   runtime: {
@@ -14,6 +15,7 @@ export interface AgentSessionPluginOptions {
   // 호스트는 먼저 online 상태를 해제한 뒤 Trading.pauseAgentOrders를 호출한다.
   onSessionStopped?: (auth: AuthContext, sessionId: string) => Promise<void>;
   purchase?: (input: AgentPurchaseInput & { offer: AgentPurchaseOffer; auth: AuthContext; sessionId: string }) => Promise<AgentPurchaseProgress>;
+  budget?: { propose(patch: AgentBudgetPatch): Promise<AgentBudgetProposal>; confirm(proposal: AgentBudgetProposal): Promise<AgentBudgetResult> };
 }
 
 interface AgentSession {
@@ -28,6 +30,8 @@ interface AgentSession {
   stopTask?: Promise<void>;
   controller?: AbortController;
   purchases: Map<string, { offer: AgentPurchaseOffer; tasks: Map<string, Promise<AgentPurchaseProgress>>; recorded: boolean }>;
+  budgetProposal?: AgentBudgetProposal;
+  budgetResult?: AgentBudgetResult;
 }
 
 const sessionParamsSchema = z.object({ sessionId: idSchema });
@@ -42,7 +46,7 @@ function sse(event: 'started' | 'delta' | 'completed' | 'error', data: object): 
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 }
 
-export function createAgentSessionPlugin({ runtime, requireAuth, onSessionStarted, onSessionStopped, purchase }: AgentSessionPluginOptions): FastifyPluginAsync {
+export function createAgentSessionPlugin({ runtime, requireAuth, onSessionStarted, onSessionStopped, purchase, budget }: AgentSessionPluginOptions): FastifyPluginAsync {
   return async app => {
     const sessions = new Map<string, AgentSession>();
 
@@ -156,6 +160,28 @@ export function createAgentSessionPlugin({ runtime, requireAuth, onSessionStarte
       return task;
     });
 
+    if (budget) app.post('/agent/sessions/:sessionId/budget', async request => {
+      const session = await getSession(request);
+      const input = agentBudgetActionSchema.parse(request.body);
+      const proposal = session.budgetProposal;
+      if (!proposal || proposal.id !== input.proposalId) throw new AppError('FORBIDDEN', '이 대화의 최신 예산 변경안만 처리할 수 있습니다.', 403);
+      if (session.budgetResult) {
+        if ((session.budgetResult.status === 'APPLIED') !== (input.action === 'confirm')) throw new AppError('IDEMPOTENCY_CONFLICT', '이미 처리한 변경안입니다.', 409);
+        return session.budgetResult;
+      }
+      if (session.stopped) throw new AppError('POLICY_VIOLATION', '중단된 대화에서는 예산을 변경할 수 없습니다.', 409);
+      if (session.busy) throw new AppError('SESSION_BUSY', '이전 요청을 처리 중입니다.', 409, true);
+      session.busy = true;
+      try {
+        const result = agentBudgetResultSchema.parse(input.action === 'confirm' ? await budget.confirm(proposal) : { proposalId: proposal.id, status: 'CANCELLED', currency: proposal.currency });
+        session.budgetResult = result;
+        session.updatedAt = Date.now();
+        session.messages.push({ role: 'assistant', content: result.status === 'APPLIED' ? '사용자가 확인한 예산 변경을 서버에 저장했습니다. 지출과 결제 예약 내역은 유지됩니다.' : '예산 변경을 취소했습니다.' });
+        session.messages = session.messages.slice(-maxHistoryMessages);
+        return result;
+      } finally { session.busy = false; }
+    });
+
     app.post('/agent/sessions/:sessionId/messages', async (request, reply) => {
       const session = await getSession(request);
       if (session.stopped) throw new AppError('POLICY_VIOLATION', '중단된 세션에서는 신규 실행을 할 수 없습니다.', 409);
@@ -192,13 +218,21 @@ export function createAgentSessionPlugin({ runtime, requireAuth, onSessionStarte
         try {
           let cardChoices: CardVariant[] = [];
           let purchaseOffers: AgentPurchaseOffer[] = [];
+          let budgetProposal: AgentBudgetProposal | undefined;
           const output = await runtime.runAgentTurn(message, { history: session.messages, signal,
             onCardChoices: cards => { cardChoices = cards; },
             onPurchaseOffers: offers => { purchaseOffers = offers.length ? [...purchaseOffers.filter(old => !offers.some(offer => offer.card.id === old.card.id)), ...offers].slice(0, 10) : []; },
+            ...(budget ? { onBudgetChange: async (patch: AgentBudgetPatch) => {
+              budgetProposal = agentBudgetProposalSchema.parse(await budget.propose(patch));
+              return budgetProposal;
+            } } : {}),
             onTextDelta: delta => emit('delta', { delta }),
           });
           signal.throwIfAborted();
-          const assistantMessage: AgentMessage = { role: 'assistant', ...agentChatReplySchema.parse({ content: output, ...(cardChoices.length ? { cardChoices } : {}), ...(purchaseOffers.length ? { purchaseOffers } : {}) }) };
+          // A completed new turn invalidates earlier confirmation buttons, including plain text follow-ups.
+          session.budgetProposal = budgetProposal;
+          session.budgetResult = undefined;
+          const assistantMessage: AgentMessage = { role: 'assistant', ...agentChatReplySchema.parse({ content: output, ...(cardChoices.length ? { cardChoices } : {}), ...(purchaseOffers.length ? { purchaseOffers } : {}), ...(budgetProposal ? { budgetProposal } : {}) }) };
           session.messages = [...session.messages, { role: 'user', content: message } satisfies AgentMessage, assistantMessage].slice(-maxHistoryMessages);
           session.updatedAt = Date.now();
           await emit('completed', { sessionId: session.id, message: assistantMessage });

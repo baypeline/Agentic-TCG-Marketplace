@@ -3,7 +3,7 @@ import type { ApiEnv } from '@tcg/config';
 import type { AgentSessionPluginOptions } from '@tcg/agent';
 import { requireAuth, type AppOptions } from './app.js';
 
-export function createLocalAgentOptions(env: ApiEnv, variables: NodeJS.ProcessEnv, options: { purchase?: AgentSessionPluginOptions['purchase'] } = {}): Pick<AppOptions, 'resolveAuth' | 'createIntegrationPlugins'> {
+export function createLocalAgentOptions(env: ApiEnv, variables: NodeJS.ProcessEnv, options: { purchase?: AgentSessionPluginOptions['purchase']; budget?: AgentSessionPluginOptions['budget'] } = {}): Pick<AppOptions, 'resolveAuth' | 'createIntegrationPlugins'> {
   const secret = getLocalAgentSecret(env.NODE_ENV, variables.AGENT_LOCAL_SECRET);
   if (!secret || !isLoopbackHost(env.API_HOST) || !variables.OPENAI_API_KEY?.trim()) return {};
 
@@ -46,7 +46,7 @@ export function createLocalAgentOptions(env: ApiEnv, variables: NodeJS.ProcessEn
             }
           },
         };
-        await host.register(createAgentSessionPlugin({ runtime, requireAuth, ...(env.DEMO_SCENARIOS_ENABLED && options.purchase ? { purchase: options.purchase } : {}) }), { prefix: '/api' });
+        await host.register(createAgentSessionPlugin({ runtime, requireAuth, ...(env.DEMO_SCENARIOS_ENABLED && options.purchase ? { purchase: options.purchase } : {}), ...(env.DEMO_SCENARIOS_ENABLED && options.budget ? { budget: options.budget } : {}) }), { prefix: '/api' });
       }];
     },
   };

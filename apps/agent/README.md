@@ -1,5 +1,7 @@
 # Agent Runtime
 
+예산 설정은 `update_budget` 의도와 `BudgetConditionApi`로 총예산·건당 한도만 해석합니다. 현재 결제 통화의 십진수 문자열을 호스트에 전달하고 정책 저장·송금 도구를 모델에 제공하지 않습니다. 세션의 `budget.propose/confirm` 의존성을 연결하면 응답의 `budgetProposal`을 확인 카드로 표시합니다. 사용자의 확인은 `POST /api/agent/sessions/:sessionId/budget`로 보내며 대화 소유자·최신 변경안·중단 상태·중복 요청을 검사합니다. 새 메시지는 이전 변경안을 무효화합니다. [예산 변경 흐름](../../docs/agent-budget.md)을 참고하세요.
+
 서버 실행 `/sessions`와 기존 메모리 대화 플러그인을 구분합니다. 두 경로 모두 조회 SSE 종료로 서버 작업을 중단하지 않습니다. 명시적 중단은 미제출 예약을 유지·보류하고 제출된 결제 복구는 계속합니다.
 
 담당: 최재민

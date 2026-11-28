@@ -1,5 +1,7 @@
 # Fastify Core API
 
+로컬 채팅 예산 설정은 `agent-budget.ts`가 기존 PolicyService에 연결합니다. 총예산·건당 한도만 수정하며 기존 소비·예약·허용 카드·유효기간·활성 상태를 보존합니다. 모델은 변경안만 제시하고 웹의 확인 버튼으로 저장합니다. [예산 설정과 검증](../../docs/agent-budget.md)을 참고하세요.
+
 `RWA_ENABLED=true`에서는 `packages/rwa` 서비스를 등록해 `/api/rwa`·고정 NFT 업무·기존 요청 상태 조회와 finalized 이벤트 수집을 제공합니다. 기존 MCP/Trading/Payment에 선택적 RWA 요구 생성·조회 장식·일반 DB 매물 변경 가드를 주입합니다. [실행·역할·x402 정산](../../docs/rwa.md)을 참고하세요.
 
 `PAYMENT_CHAIN=maroo`는 별도 tOKRW 거래 DB·서버 서명·자체 퍼실리테이터로 동작합니다. DB 초기화·보존·18자리 원장·구매자 가스비는 [마루 가이드](../../docs/maroo.md)를 따르세요. `pnpm maroo:init` 후 퍼실리테이터를 초기화·재생성하고 서버를 재시작합니다.

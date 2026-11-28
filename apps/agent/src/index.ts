@@ -8,6 +8,8 @@ import {
 import { createCardTools, type CardToolDependencies } from './tools.js';
 import { toAgentInput, type AgentTurnOptions } from './turn.js';
 import { purchaseConditionSchema } from '@tcg/contracts';
+import { createOpenAIBudgetConditionApi, type BudgetConditionApi } from './budget.js';
+export { createOpenAIBudgetConditionApi, type BudgetConditionApi } from './budget.js';
 import { createOpenAIPurchaseConditionApi, createMockPurchasePreviewTool, type PurchaseConditionApi, type PurchasePreviewTool } from './purchase.js';
 
 export { createOpenAIDecisionApi, type DecisionApi, type IntentDecision } from './decision.js';
@@ -22,6 +24,7 @@ export interface AgentRuntimeOptions extends CardToolDependencies {
   decisionApi?: DecisionApi;
   purchaseConditionApi?: PurchaseConditionApi;
   purchasePreviewTool?: PurchasePreviewTool;
+  budgetConditionApi?: BudgetConditionApi;
 }
 
 const instructions = `
@@ -63,6 +66,7 @@ export function createAgentRuntime({
   decisionApi = createOpenAIDecisionApi(),
   purchaseConditionApi = createOpenAIPurchaseConditionApi(),
   purchasePreviewTool = createMockPurchasePreviewTool(),
+  budgetConditionApi,
   ...dependencies
 }: AgentRuntimeOptions) {
   const runner = new Runner({ tracingDisabled: true });
@@ -76,6 +80,16 @@ export function createAgentRuntime({
       const decision = await decisionApi.classify(message, options);
       options?.signal?.throwIfAborted();
       const { route, language } = intentDecisionSchema.parse(decision);
+      if (route === 'update_budget') {
+        if (!options?.onBudgetChange) return '현재 대화에는 예산 설정이 연결되어 있지 않습니다. 에이전트 설정 화면을 이용해 주세요.';
+        const extractor = budgetConditionApi ?? createOpenAIBudgetConditionApi(model, dependencies.marketplaceService?.paymentChain === 'maroo' ? 'tOKRW' : 'USDC');
+        const patch = await extractor.extract(message, options);
+        options.signal?.throwIfAborted();
+        if (!patch) return '설정할 총예산이나 건당 한도를 현재 결제 통화로 알려주세요. 예: 총예산을 100 tOKRW, 건당 한도를 10 tOKRW로 설정해줘.';
+        try { await options.onBudgetChange(patch); }
+        catch (error) { if (error instanceof Error && 'code' in error) return error.message; throw error; }
+        return '예산 변경안을 준비했어요. 아래에서 변경 전후 금액을 확인하고 저장해 주세요.';
+      }
       if (route === 'prepare_purchase' && !dependencies.marketplaceService) {
         const condition = await purchaseConditionApi.extract(message, options);
         options?.signal?.throwIfAborted();

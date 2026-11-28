@@ -1,5 +1,7 @@
 # 공통 계약 결정 사항
 
+채팅 응답에는 선택적 `budgetProposal`을 추가했습니다. `agentBudgetPatchSchema`는 현재 통화와 사람이 입력한 십진수 금액을, `agentBudgetProposalSchema`는 변경 전후 최소 단위 금액·정책 버전·지출·예약·만료를 정의합니다. 확인 요청은 `agentBudgetActionSchema`의 `proposalId`·`confirm/cancel`만 받으며 클라이언트 금액이나 정책 ID를 쓰기 입력으로 받지 않습니다. `agentBudgetResultSchema`는 적용 결과와 실제 예산을 반환합니다. [상세 흐름](agent-budget.md)을 참고하세요.
+
 기준: 사용자 제공 API 계약서 v2.0·시스템 설계서 v2.1 및 2026년 11월 24일 합의. 개정본은 [API 계약서 v2.1](api-contract.md), [시스템 설계서 v2.2](system-design.md), 확정 규칙과 구현 차이는 [합의 사항](decisions.md)에 있습니다.
 
 이 문서는 현재 DTO·구현 확장도 함께 설명합니다. 정책 ID·버전, 서버 실행 수명, 예약 보류, TRANSFERRED 제거는 코드에 반영했습니다. Web 수동 거래 폼도 연결했으며 실제 LLM 구매 실행기·서명기 주입은 남아 있습니다.

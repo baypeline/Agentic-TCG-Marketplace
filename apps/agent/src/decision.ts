@@ -5,7 +5,7 @@ import { toAgentInput, type AgentTurnOptions } from './turn.js';
 export const defaultModel = 'gpt-5.6-luna';
 
 export const intentDecisionSchema = z.object({
-  route: z.enum(['search_cards', 'get_valuation', 'prepare_purchase', 'needs_clarification', 'unsupported']),
+  route: z.enum(['search_cards', 'get_valuation', 'prepare_purchase', 'update_budget', 'needs_clarification', 'unsupported']),
   language: z.enum(['ko', 'en']),
 });
 
@@ -26,6 +26,7 @@ export function createOpenAIDecisionApi(model: string | Model = defaultModel, { 
 카드명이 명시된 요청은 앞선 대화가 없어도 분류할 수 있습니다.
 "그 카드"처럼 이름을 생략한 요청에서만 이전 대화로 대상을 하나로 특정할 수 있는지 확인하세요.
 - search_cards: 포켓몬 TCG 카드 검색 또는 카드 variant 정보 요청.
+- update_budget: 총예산 또는 건당 구매 한도를 설정·변경해 달라는 요청. 카드 구매 상한만 지정하는 요청과 구분하세요. 금액이 불명확해도 예산 설정 의도면 이 경로입니다. 예산 변경과 구매가 함께 있으면 먼저 이 경로로 보냅니다.
 - get_valuation: 대상이 드러나는 포켓몬 TCG 카드의 적정가, 시세, 또는 참고 가격 요청.
   세트, 언어, 상태가 빠져 있어도 카드명이 있으면 이 경로를 선택하세요.
   카드명을 밝히고 조회와 가격을 함께 요청해도 이 경로입니다.

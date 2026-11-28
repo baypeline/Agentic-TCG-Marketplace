@@ -30,21 +30,7 @@ export function createDemoPurchaseHandler({ env, trading, policies, getMcpUrl, s
     if (!pack.scenarios.some(scene => scene.cardId === input.offer.card.id)) throw new AppError('FORBIDDEN', '시나리오 데모 카드만 구매할 수 있습니다.', 403);
     const expectedRecipient = await resolvePaymentRecipient?.(input.offer.listingId) ?? env.PAYMENT_RECIPIENT;
     const buyer = { userId: demoBuyerId, agentId: demoBuyerAgentId };
-    const original=await readDemoScenarios(env.PAYMENT_CHAIN);
-    let policy = await policies.create(buyer, { enabled: true, totalBudget: profile.totalBudget, maxPerTrade: profile.maxPerTrade, allowedCardVariantIds: original.scenarios.map(scene => scene.cardId), validUntil: '2099-01-01T00:00:00.000Z' }, { idempotencyKey: 'scenario-demo-policy-v1' });
-    if(includeKorean){
-      policy=await policies.get(buyer,policy.id);
-      const defaults=original.scenarios.map(s=>s.cardId);
-      const previousDefaults = [...defaults, ...pack.scenarios.slice(3, 15).map(scene => scene.cardId)];
-      const unchanged = (ids: string[]) => policy.allowedCardVariantIds?.length === ids.length && ids.every(id => policy.allowedCardVariantIds!.includes(id));
-      // Only expand the untouched default policy; custom restrictions and all spent/reserved balances remain intact.
-      const initialPolicy = policy.version === 1 && unchanged(defaults);
-      const previousKoreanPolicy = policy.version === 2 && unchanged(previousDefaults) && policy.enabled && policy.totalBudget === profile.totalBudget && policy.maxPerTrade === profile.maxPerTrade && policy.validUntil === '2099-01-01T00:00:00.000Z';
-      if(initialPolicy || previousKoreanPolicy){
-        const {id,version,agentId:_,...input}=policy;
-        policy=await policies.update(buyer,id,{...input,expectedVersion:version,allowedCardVariantIds:pack.scenarios.map(s=>s.cardId)},{idempotencyKey:'scenario-korean-cards-v2'});
-      }
-    }
+    const policy = await ensureDemoPurchasePolicy(env, policies, includeKorean);
     const key = `${input.sessionId}:${input.requestId}`;
     const run = await policies.startRun(buyer, { policyId: policy.id, instruction: `${input.offer.card.name} 구매 · 사용자 확인 ${input.requestId}` }, { idempotencyKey: `scenario-run:${key}` });
     const mcp = createServerMcpClient({ url: getMcpUrl(), headers: { authorization: `Bearer ${env.DEMO_BUYER_TOKEN}` }, keyFor: (action, args) => policies.actionKey(buyer, run.id, action, args) });
@@ -117,4 +103,26 @@ export function createDemoPurchaseHandler({ env, trading, policies, getMcpUrl, s
     submitQueue = task.catch(() => undefined);
     return task;
   };
+}
+
+export async function ensureDemoPurchasePolicy(env: ApiEnv, policies: PolicyService, includeKorean = true) {
+  const profile = getPaymentProfile(env.PAYMENT_CHAIN);
+  const pack = await readDemoScenarios(env.PAYMENT_CHAIN, includeKorean);
+  const buyer = { userId: demoBuyerId, agentId: demoBuyerAgentId };
+  const original=await readDemoScenarios(env.PAYMENT_CHAIN);
+  let policy = await policies.create(buyer, { enabled: true, totalBudget: profile.totalBudget, maxPerTrade: profile.maxPerTrade, allowedCardVariantIds: original.scenarios.map(scene => scene.cardId), validUntil: '2099-01-01T00:00:00.000Z' }, { idempotencyKey: 'scenario-demo-policy-v1' });
+  if(includeKorean){
+    policy=await policies.get(buyer,policy.id);
+    const defaults=original.scenarios.map(s=>s.cardId);
+    const previousDefaults = [...defaults, ...pack.scenarios.slice(3, 15).map(scene => scene.cardId)];
+    const unchanged = (ids: string[]) => policy.allowedCardVariantIds?.length === ids.length && ids.every(id => policy.allowedCardVariantIds!.includes(id));
+    // Only expand the untouched default policy; custom restrictions and all spent/reserved balances remain intact.
+    const initialPolicy = policy.version === 1 && unchanged(defaults);
+    const previousKoreanPolicy = policy.version === 2 && unchanged(previousDefaults) && policy.enabled && policy.totalBudget === profile.totalBudget && policy.maxPerTrade === profile.maxPerTrade && policy.validUntil === '2099-01-01T00:00:00.000Z';
+    if(initialPolicy || previousKoreanPolicy){
+      const {id,version,agentId:_,...input}=policy;
+      policy=await policies.update(buyer,id,{...input,expectedVersion:version,allowedCardVariantIds:pack.scenarios.map(s=>s.cardId)},{idempotencyKey:'scenario-korean-cards-v2'});
+    }
+  }
+  return policy;
 }

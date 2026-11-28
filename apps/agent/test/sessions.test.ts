@@ -14,7 +14,7 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-async function setup(runAgentTurn: AgentSessionPluginOptions['runtime']['runAgentTurn'], lifecycle: Pick<AgentSessionPluginOptions, 'onSessionStarted' | 'onSessionStopped' | 'purchase'> = {}) {
+async function setup(runAgentTurn: AgentSessionPluginOptions['runtime']['runAgentTurn'], lifecycle: Pick<AgentSessionPluginOptions, 'onSessionStarted' | 'onSessionStopped' | 'purchase' | 'budget'> = {}) {
   const app = Fastify();
   apps.push(app);
 
@@ -34,6 +34,23 @@ async function setup(runAgentTurn: AgentSessionPluginOptions['runtime']['runAgen
 
 const baseUrl = '/api/agent/sessions';
 const owner = { authorization: 'Bearer owner' };
+
+it('예산 변경안은 대화 소유자의 확인으로 한 번만 저장하고 취소·새 대화 요청·중단을 구분한다', async () => {
+  const proposal = { id: '00000000-0000-4000-8000-000000000001', policyId: '00000000-0000-4000-8000-000000000002', expectedVersion: 1, currency: 'tOKRW' as const, previousTotalBudget: '100', previousMaxPerTrade: '25', totalBudget: '120', maxPerTrade: '10', spentAmount: '30', reservedAmount: '0', availableAmount: '90', signerMaxPerTrade: '25', expiresAt: '2099-01-01T00:00:00.000Z' };
+  const confirm = vi.fn(async () => ({ proposalId: proposal.id, status: 'APPLIED' as const, currency: 'tOKRW' as const }));
+  const app = await setup(async (message, options) => { if (message === '예산 설정') await options?.onBudgetChange?.({ currency: 'tOKRW', totalBudget: '120', maxPerTrade: '10' }); return '확인해 주세요.'; }, { budget: { propose: async () => proposal, confirm } });
+  const session = await createSession(app);
+  const message = (text = '예산 설정') => app.inject({ method: 'POST', url: `${session}/messages`, headers: owner, payload: { message: text } });
+  const send = (action = 'confirm', headers = owner) => app.inject({ method: 'POST', url: `${session}/budget`, headers, payload: { proposalId: proposal.id, action } });
+  expect((await send()).statusCode).toBe(403);
+  expect((await message()).body).toContain('budgetProposal');
+  expect((await send('confirm', { authorization: 'Bearer other-user' })).statusCode).toBe(404);
+  expect((await send()).json().status).toBe('APPLIED');
+  expect((await send()).json().status).toBe('APPLIED'); expect(confirm).toHaveBeenCalledTimes(1);
+  await message(); expect((await send('cancel')).json().status).toBe('CANCELLED'); expect(confirm).toHaveBeenCalledTimes(1);
+  await message(); await message('카드 검색'); expect((await send()).statusCode).toBe(403);
+  await message(); await app.inject({ method: 'POST', url: `${session}/stop`, headers: owner }); expect((await send()).statusCode).toBe(409);
+});
 
 it('구매 매물은 성공한 대화에 보존하며 소유자와 안내한 매물만 구매할 수 있다', async () => {
   const offer = { listingId: '00000000-0000-4000-8200-000000000001', card: demoCards[0]!, price: '10000', dataSource: 'SYNTHETIC_DEMO' as const, paymentMode: 'X402_BASE_SEPOLIA' as const, paymentReady: true };

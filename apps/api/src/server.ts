@@ -22,9 +22,13 @@ const previousWallet = agentWallet ? browserWallet : env.AGENT_SERVER_WALLET_ADD
 const facilitatorOptions = { paymentChain: env.PAYMENT_CHAIN, facilitatorUrl: env.PAYMENT_FACILITATOR_URL, facilitatorToken: env.PAYMENT_FACILITATOR_TOKEN, rwa: env.RWA_ENABLED ? readRwaDeployment(env) : null };
 const paymentOptions = env.PAYMENT_ENABLED ? { recipient: env.PAYMENT_RECIPIENT, getWalletAddress, adapter: withPreviousWalletRecovery(createX402SettlementAdapter({ getWalletAddress, ...facilitatorOptions }), previousWallet && previousWallet.toLowerCase() !== env.AGENT_WALLET_ADDRESS?.toLowerCase() ? createX402SettlementAdapter({ getWalletAddress: async auth => auth.userId === demoBuyerId && auth.agentId === demoBuyerAgentId ? previousWallet : null, ...facilitatorOptions }) : undefined) } : undefined;
 let demoPurchase: AgentSessionPluginOptions['purchase'];
+let agentBudget: AgentSessionPluginOptions['budget'];
 const localAgent = createLocalAgentOptions(env, process.env, { purchase: async input => {
   if (!demoPurchase) throw new AppError('PAYMENT_UNAVAILABLE', '거래 데모가 연결되지 않았습니다.', 503);
   return demoPurchase(input);
+}, budget: {
+  async propose(patch) { if (!agentBudget) throw new AppError('POLICY_VIOLATION', '예산 설정이 연결되지 않았습니다.', 503); return agentBudget.propose(patch); },
+  async confirm(proposal) { if (!agentBudget) throw new AppError('POLICY_VIOLATION', '예산 설정이 연결되지 않았습니다.', 503); return agentBudget.confirm(proposal); },
 } });
 const demoAuth = createDemoAuthResolver(env);
 const app = await buildApp({
@@ -35,7 +39,7 @@ const app = await buildApp({
     return await localAgent.resolveAuth?.(request) ?? await demoAuth(request);
   },
   async createIntegrationPlugins(deps) {
-    const plugins = await createIntegrationPlugins(deps, { rwaVariables: process.env, signAgentPayment: agentWallet?.sign, onDemoPurchaseReady: handler => { demoPurchase = handler; } });
+    const plugins = await createIntegrationPlugins(deps, { rwaVariables: process.env, signAgentPayment: agentWallet?.sign, onDemoPurchaseReady: handler => { demoPurchase = handler; }, onAgentBudgetReady: handler => { agentBudget = handler; } });
     const agentPlugins = await localAgent.createIntegrationPlugins?.(deps) ?? [];
     return [...plugins, ...agentPlugins];
   },

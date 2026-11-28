@@ -63,6 +63,7 @@ export type AgentPurchaseProgress = z.infer<typeof agentPurchaseProgressSchema>;
 export const demoStatusSchema = z.object({ rwaEnabled: z.boolean().default(false), enabled: z.boolean(), paymentEnabled: z.boolean(), signingMode: z.enum(['browser', 'server']).default('browser'), paymentChain: z.enum(['base-sepolia', 'maroo']).default('base-sepolia'), currency: currencySchema.default('USDC'), decimals: z.number().int().default(6), suggestions: z.array(z.string()), payer: z.string().nullable(), recipient: z.string().nullable() });
 
 export const agentChatReplySchema = z.object({
+  budgetProposal: z.lazy(() => agentBudgetProposalSchema).optional(),
   content: z.string().min(1),
   cardChoices: z.array(cardVariantSchema).min(1).max(10)
     .refine(cards => new Set(cards.map(card => card.id)).size === cards.length, '중복 카드 후보는 사용할 수 없습니다.').optional(),
@@ -200,6 +201,13 @@ export type PurchaseCondition = z.infer<typeof purchaseConditionSchema>;
 export const policyInputSchema = spendingPolicySchema.omit({ id: true, version: true, agentId: true });
 export const policyUpdateSchema = policyInputSchema.extend({ expectedVersion: z.number().int().positive() });
 export const budgetSchema = z.object({ policyId: idSchema, totalBudget: amountSchema, spentAmount: amountSchema, reservedAmount: amountSchema, availableAmount: amountSchema });
+export const agentBudgetPatchSchema = z.object({ currency: currencySchema, totalBudget: z.string().regex(/^\d+(\.\d+)?$/).max(60).nullable(), maxPerTrade: z.string().regex(/^\d+(\.\d+)?$/).max(60).nullable() }).strict().refine(value => value.totalBudget !== null || value.maxPerTrade !== null);
+export type AgentBudgetPatch = z.infer<typeof agentBudgetPatchSchema>;
+export const agentBudgetProposalSchema = z.object({ id: idSchema, policyId: idSchema, expectedVersion: z.number().int().positive(), currency: currencySchema, previousTotalBudget: amountSchema, previousMaxPerTrade: amountSchema, totalBudget: amountSchema, maxPerTrade: amountSchema, spentAmount: amountSchema, reservedAmount: amountSchema, availableAmount: amountSchema, signerMaxPerTrade: amountSchema, expiresAt: timestampSchema });
+export type AgentBudgetProposal = z.infer<typeof agentBudgetProposalSchema>;
+export const agentBudgetActionSchema = z.object({ proposalId: idSchema, action: z.enum(['confirm', 'cancel']) }).strict();
+export const agentBudgetResultSchema = z.object({ proposalId: idSchema, status: z.enum(['APPLIED', 'CANCELLED']), policy: spendingPolicySchema.optional(), budget: budgetSchema.optional(), currency: currencySchema });
+export type AgentBudgetResult = z.infer<typeof agentBudgetResultSchema>;
 export const paymentStatusSchema = z.enum(['REQUIRED', 'PENDING', 'UNKNOWN', 'FAILED', 'SETTLED']);
 export const tradeProgressSchema = z.enum(['NOT_STARTED', 'FINALIZING', 'COMPLETED']);
 export const purchaseStatusSchema = z.object({
