@@ -42,3 +42,9 @@ pnpm dev
 `GET /api/demo`의 `paymentChain=maroo`, `currency=tOKRW`, `decimals=18`과 퍼실리테이터 `/supported`의 `network=eip155:450815`, `scheme=maroo-native`를 확인하세요. 테스트는 실제 서명·로컬 RPC 대역·정산 중복 방지·MCP 구매·18자리 예산 반영을 검증하며 실제 체인 송금은 수행하지 않습니다.
 
 Base로 복귀하려면 서버를 중지하고 `.env.base-sepolia`의 설정으로 복원한 뒤 `pnpm facilitator:init`, `pnpm facilitator:up`을 실행하고 서버를 재시작하세요. 마루 DB를 그대로 USDC DB로 지정하면 통화 검사에서 거부됩니다. 별도 DB와 퍼실리테이터 SQLite 볼륨은 삭제하지 마세요.
+
+## 실제 구매 검증 기록
+
+2026-11-28 사용자 승인 후 Web BFF → Agent → MCP → 자체 퍼실리테이터 경로로 이브이 한 장을 5 tOKRW에 구매했습니다. 서버 전용 지갑이 자동 서명했으며 구매자가 가스비 0.21231 tOKRW를 부담했습니다. 구매 지갑 잔액은 총 5.21231 tOKRW 감소했고 수납 지갑은 5 tOKRW 증가했습니다. [마루 거래 영수증](https://explorer-testnet.maroo.io/tx/0x93bf0cdf49bd1459833dac4ad526ce8331feb6e6222a4c2c5ddff98dc92c2faa)에서 확인할 수 있습니다.
+
+거래 `3f08753b-55b5-4067-90dd-030a78913ce8`의 COMPLETED 저장·구매자 소유권 이전·보유 카드 한 장 증가를 확인했습니다. 정책의 사용 예산은 5, 예약 예산은 0, 남은 예산은 95 tOKRW입니다. 동일 구매 요청 재제출은 동일 거래를 반환했으며 추가 지급은 발생하지 않았습니다. 이 기록은 수동 테스트넷 검증이며 자동 테스트가 실제 송금한다는 의미는 아닙니다.
