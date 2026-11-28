@@ -1,5 +1,7 @@
 # Maroo Testnet tOKRW 데모
 
+카드를 NFT로 발행하고 결제와 소유권 이전을 묶는 후속 확장은 [RWA 설계안](./rwa-design.md)에 정리했습니다. 해당 컨트랙트와 결제 경로는 아직 구현·배포되지 않았습니다.
+
 마루 모드는 네이티브 tOKRW를 사용합니다. 체인 ID는 `450815`, RPC는 `https://rpc-testnet.maroo.io`, 금액 정밀도는 18자리입니다. [마루 테스트넷 접속 정보](https://docs.maroo.io/resources/network/testnet-access/)를 참고하세요.
 
 ## 초기화
