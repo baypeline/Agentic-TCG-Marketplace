@@ -21,6 +21,11 @@ services:
       FACILITATOR_PAYERS: ${FACILITATOR_PAYERS:?Run pnpm facilitator:init}
       FACILITATOR_MAX_AMOUNT: ${FACILITATOR_MAX_AMOUNT:-25000}
       FACILITATOR_DATA_DIR: /data
+      RWA_MARKET_ADDRESS: ${RWA_MARKET_ADDRESS:-}
+      RWA_NFT_ADDRESS: ${RWA_NFT_ADDRESS:-}
+      RWA_QUOTE_SIGNER: ${RWA_QUOTE_SIGNER:-}
+      RWA_MARKET_CODE_HASH: ${RWA_MARKET_CODE_HASH:-}
+      RWA_NFT_CODE_HASH: ${RWA_NFT_CODE_HASH:-}
     volumes:
       - settlement_data:/data
     read_only: true

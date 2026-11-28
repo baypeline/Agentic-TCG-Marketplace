@@ -28,6 +28,7 @@ try {
   }
   if (!/^\d+$/.test(port) || Number(port) < 1 || Number(port) > 65535 || token.length < 32) throw new Error();
   const values = { FACILITATOR_CHAIN: profile.chain, FACILITATOR_PORT: port, FACILITATOR_RPC_URL: old.FACILITATOR_CHAIN === profile.chain ? old.FACILITATOR_RPC_URL || profile.rpcUrl : profile.rpcUrl, FACILITATOR_API_TOKEN: token, FACILITATOR_PRIVATE_KEY: key, FACILITATOR_RECIPIENT: settings.PAYMENT_RECIPIENT, FACILITATOR_PAYERS: payers.join(','), FACILITATOR_MAX_AMOUNT: old.FACILITATOR_CHAIN === profile.chain ? old.FACILITATOR_MAX_AMOUNT || profile.maxPerTrade : profile.maxPerTrade };
+  for (const name of ['RWA_MARKET_ADDRESS', 'RWA_NFT_ADDRESS', 'RWA_QUOTE_SIGNER', 'RWA_MARKET_CODE_HASH', 'RWA_NFT_CODE_HASH']) if (settings.RWA_ENABLED === 'true' && settings[name]) values[name] = settings[name];
   await writeFile(secretPath, Object.entries(values).map(([name, value]) => `${name}=${value}`).join('\n') + '\n', { mode: 0o600 });
   for (const [name, value] of Object.entries({ PAYMENT_FACILITATOR_URL: `http://127.0.0.1:${port}`, PAYMENT_FACILITATOR_TOKEN: token })) {
     if ([...root.matchAll(new RegExp(`^${name}=`, 'gm'))].length > 1) throw new Error();

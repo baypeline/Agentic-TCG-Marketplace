@@ -1,5 +1,7 @@
 # 공통 DB
 
+`rwa.prisma`는 실물 개체/NFT, 온체인 매물 매핑, 인출, 이벤트/커서, 요청 키와 사전 방송 해시를 저장합니다. 기존 카드·재고·매물에는 Restrict FK로 연결하며 카탈로그 판본과 NFT 한 장을 구분합니다. 기존 거래를 일괄 NFT화하지 않습니다. [RWA 실행과 복구](../../docs/rwa.md)를 참고하세요.
+
 `monetary-context.prisma`의 `market.MonetaryContext`는 거래 DB의 체인·통화·정밀도를 고정합니다. `ensureMonetaryContext`를 API 시작 및 시드에서 호출하며 기존 금액을 다른 통화로 재해석하지 않습니다. 마루는 별도 DB에 18자리 tOKRW 합성 시드를 구성하고 기존 USDC DB는 보존합니다. [초기화와 복귀](../../docs/maroo.md)를 참고하세요.
 
 `TradingRequest`는 사용자·Agent·작업·요청 키에 결합한 입력 해시와 성공 응답을 보존합니다. Trading의 업무 변경과 같은 트랜잭션에 저장하므로 재시작·동시 재시도에도 같은 요청 결과를 반환합니다. 임의로 삭제하면 과거 요청의 중복 방지 보장이 사라집니다.

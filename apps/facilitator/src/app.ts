@@ -1,5 +1,6 @@
 import { getPaymentProfile } from '@tcg/contracts/payment-profile';
 import { inspectNativePayment } from '@tcg/payment-client/native';
+import { inspectRwaPayment, readRwaDeployment } from '@tcg/payment-client/rwa';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import Fastify from 'fastify';
 import { z } from 'zod';
@@ -17,6 +18,7 @@ const hash = (text: string) => createHash('sha256').update(text).digest('hex');
 export function buildApp({ env, engine, journal }: { env: FacilitatorEnv; engine: Engine; journal: Journal }) {
   const profile = getPaymentProfile(env.FACILITATOR_CHAIN);
   const { network, asset } = profile;
+  const rwa = readRwaDeployment(env);
   const app = Fastify({ bodyLimit: 16_384, logger: false });
   const credential = Buffer.from(`Bearer ${env.FACILITATOR_API_TOKEN}`);
   app.addHook('onRequest', async (request, reply) => {
@@ -37,8 +39,10 @@ export function buildApp({ env, engine, journal }: { env: FacilitatorEnv; engine
     const requirements = parsed.data.paymentRequirements as PaymentRequirements;
     if (profile.chain === 'maroo') {
       try {
-        const info = await inspectNativePayment(payload as PaymentPayload, requirements);
-        if (requirements.payTo.toLowerCase() !== env.FACILITATOR_RECIPIENT.toLowerCase() || !env.FACILITATOR_PAYERS.includes(info.payer.toLowerCase()) || BigInt(requirements.amount) > BigInt(env.FACILITATOR_MAX_AMOUNT)) return null;
+        const isRwa = requirements.scheme === 'maroo-rwa';
+        if (isRwa && !rwa) return null;
+        const info = isRwa ? await inspectRwaPayment(payload as PaymentPayload, requirements, rwa!) : await inspectNativePayment(payload as PaymentPayload, requirements);
+        if ((!isRwa && requirements.payTo.toLowerCase() !== env.FACILITATOR_RECIPIENT.toLowerCase()) || !env.FACILITATOR_PAYERS.includes(info.payer.toLowerCase()) || BigInt(requirements.amount) > BigInt(env.FACILITATOR_MAX_AMOUNT)) return null;
         return { payload: payload as PaymentPayload, requirements, payer: info.payer, id: hash([network, asset, info.payer.toLowerCase(), String(info.tx.nonce)].join(':')), fingerprint: hash(info.hash + ':' + String(requirements.extra?.tcgQuoteId)) };
       } catch { return null; }
     }

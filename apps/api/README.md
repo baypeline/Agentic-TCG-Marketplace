@@ -1,5 +1,7 @@
 # Fastify Core API
 
+`RWA_ENABLED=true`에서는 `packages/rwa` 서비스를 등록해 `/api/rwa`·고정 NFT 업무·기존 요청 상태 조회와 finalized 이벤트 수집을 제공합니다. 기존 MCP/Trading/Payment에 선택적 RWA 요구 생성·조회 장식·일반 DB 매물 변경 가드를 주입합니다. [실행·역할·x402 정산](../../docs/rwa.md)을 참고하세요.
+
 `PAYMENT_CHAIN=maroo`는 별도 tOKRW 거래 DB·서버 서명·자체 퍼실리테이터로 동작합니다. DB 초기화·보존·18자리 원장·구매자 가스비는 [마루 가이드](../../docs/maroo.md)를 따르세요. `pnpm maroo:init` 후 퍼실리테이터를 초기화·재생성하고 서버를 재시작합니다.
 
 `PAYMENT_FACILITATOR_URL`·`PAYMENT_FACILITATOR_TOKEN`으로 별도 자체 퍼실리테이터를 연결할 수 있습니다. 가스 지갑은 API 구매 지갑과 분리하며, 생성·별도 Docker 프로젝트 실행·정산 원장 복구는 [퍼실리테이터 가이드](../facilitator/README.md)를 참고하세요. 미설정 시 기존 공개 x402 퍼실리테이터를 사용합니다.

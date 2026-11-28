@@ -1,5 +1,6 @@
 import { getPaymentProfile } from '@tcg/contracts/payment-profile';
 import { marooTestnet, signNativePayment, nativePaymentData } from '@tcg/payment-client/native';
+import { readRwaDeployment, validateRwaRequirements, signRwaPayment } from '@tcg/payment-client/rwa';
 import { createPublicClient, http, parseAbi } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia } from 'viem/chains';
@@ -37,6 +38,16 @@ export function createAgentWallet(env: ApiEnv, variables: NodeJS.ProcessEnv, opt
     const parsed = agentPaymentRequirementsSchema.safeParse(input.requirements);
     if (!parsed.success || !idSchema.safeParse(input.matchQuoteId).success) throw new AppError('PAYMENT_FAILED', '서버 결제 요구 형식을 확인하세요.', 409);
     const requirements = parsed.data;
+    if (requirements.scheme === 'maroo-rwa') {
+      const deployment = env.RWA_ENABLED ? readRwaDeployment(env) : null;
+      if (!deployment || requirements.amount !== input.amount || requirements.extra.tcgQuoteId !== input.matchQuoteId) throw new AppError('POLICY_VIOLATION', '허용된 RWA 주문이 아닙니다.',409);
+      try {
+        const { data } = await validateRwaRequirements(requirements, deployment);
+        const [nonce, gas, gasPrice, balance] = await Promise.all([chain.getTransactionCount({address:account.address,blockTag:'pending'}),chain.estimateGas({account:account.address,to:deployment.market,value:BigInt(requirements.amount),data}),chain.getGasPrice(),readBalance(account.address)]);
+        if (balance<BigInt(requirements.amount)+gas*gasPrice) throw new Error('Balance');
+        return await signRwaPayment(requirements,account,deployment,{nonce,gas,gasPrice});
+      } catch { throw new AppError('PAYMENT_UNAVAILABLE','RWA 구매 서명과 가스비를 확인해 주세요.',409); }
+    }
     if (env.PAYMENT_CHAIN === 'maroo') {
       if (requirements.scheme !== profile.scheme || requirements.network !== profile.network || requirements.asset !== profile.asset || requirements.amount !== input.amount || requirements.payTo.toLowerCase() !== env.PAYMENT_RECIPIENT!.toLowerCase() || requirements.extra.tcgQuoteId !== input.matchQuoteId || BigInt(requirements.amount) <= 0n || BigInt(requirements.amount) > BigInt(profile.maxPerTrade)) throw new AppError('POLICY_VIOLATION', '마루 네트워크·수납처·주문과 건당 25 tOKRW 한도를 확인하세요.', 409);
       try {

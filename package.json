@@ -2,13 +2,17 @@
   "name": "agentic-tcg-marketplace",
   "private": true,
   "packageManager": "pnpm@12.9.1",
-  "engines": { "node": ">=24 <25" },
+  "engines": {
+    "node": ">=24 <25"
+  },
   "scripts": {
     "postinstall": "pnpm db:generate",
     "env:init": "node scripts/init-env.mjs",
     "agent:wallet:init": "pnpm --filter @tcg/api wallet:init",
     "facilitator:init": "pnpm --filter @tcg/facilitator wallet:init",
     "maroo:init": "pnpm --filter @tcg/api maroo:init",
+    "rwa:build": "pnpm --filter @tcg/solidity build && pnpm --filter @tcg/solidity abi",
+    "rwa:deploy": "pnpm --filter @tcg/rwa run deploy",
     "facilitator:up": "docker compose --env-file infra/.env.facilitator -f infra/facilitator.compose.yaml up -d --build --wait",
     "facilitator:down": "docker compose --env-file infra/.env.facilitator -f infra/facilitator.compose.yaml down",
     "facilitator:logs": "docker compose --env-file infra/.env.facilitator -f infra/facilitator.compose.yaml logs --tail=50 facilitator",
@@ -34,7 +38,8 @@
     "prices:assess": "pnpm --filter @tcg/valuation prices:assess",
     "prices:check": "pnpm --filter @tcg/valuation prices:check",
     "infra:up": "docker compose --env-file .env -f infra/compose.yaml up -d --wait",
-    "infra:down": "docker compose --env-file .env -f infra/compose.yaml down"
+    "infra:down": "docker compose --env-file .env -f infra/compose.yaml down",
+    "rwa:sync": "pnpm --filter @tcg/rwa run sync"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

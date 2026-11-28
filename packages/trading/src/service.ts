@@ -32,6 +32,8 @@ export interface PaymentEvidenceReader {
 }
 
 export interface TradingOptions {
+  assertInventoryMutation?: (inventoryItemId: string) => Promise<void>;
+  decorateListing?: (listing: import('@tcg/contracts').Listing) => Promise<import('@tcg/contracts').Listing>;
   currency?: Currency;
   store: TradingStore;
   payment?: PaymentEvidenceReader;
@@ -97,7 +99,7 @@ async function release(tx: TradingTransaction, quote: QuoteRow, now: Date, curre
   return storedQuoteDto(released, currency);
 }
 
-export function createTradingService({ store, payment, currency = 'USDC', quoteTtlMs = 120_000, now = () => new Date(), executionContext, valuationService, executionInTransaction }: TradingOptions) {
+export function createTradingService({ store, payment, currency = 'USDC', assertInventoryMutation, decorateListing, quoteTtlMs = 120_000, now = () => new Date(), executionContext, valuationService, executionInTransaction }: TradingOptions) {
   z.number().int().positive().max(86_400_000).parse(quoteTtlMs);
   const run = <T>(work: (tx: TradingTransaction, time: Date) => Promise<T>) =>
     store.transaction(tx => work(tx, now()));
@@ -269,6 +271,7 @@ export function createTradingService({ store, payment, currency = 'USDC', quoteT
     async createListing(auth: { userId: string }, input: z.input<typeof listingInputSchema>, context: MutationContext) {
       const { userId } = userSchema.parse(auth);
       const { inventoryItemId, price } = listingInputSchema.parse(input);
+      await assertInventoryMutation?.(inventoryItemId);
       return mutate({ userId }, 'createListing', { inventoryItemId, price }, context, async (tx, time) => {
         const item = await tx.inventory.get(inventoryItemId);
         if (!item) throw new AppError('INVENTORY_CONFLICT', '카드를 찾을 수 없습니다.', 404);
@@ -283,9 +286,10 @@ export function createTradingService({ store, payment, currency = 'USDC', quoteT
     async listListings(input: z.input<typeof listingQuerySchema> = {}) {
       const query = listingQuerySchema.parse(input);
       await expireReservations();
-      return run(async tx => (await tx.listings.find({
+      const rows = await run(async tx => (await tx.listings.find({
         status: 'ACTIVE', ...(query.cardVariantId ? { cardVariantId: query.cardVariantId } : {}),
       })).filter(row => query.maxPrice === undefined || BigInt(row.price) <= BigInt(query.maxPrice)).sort(compareListings).map(listingDto));
+      return decorateListing ? Promise.all(rows.map(decorateListing)) : rows;
     },
     async cancelListing(auth: { userId: string }, rawId: string) {
       const { userId } = userSchema.parse(auth);
@@ -295,6 +299,7 @@ export function createTradingService({ store, payment, currency = 'USDC', quoteT
         const listing = await tx.listings.get(id);
         if (!listing) throw new AppError('LISTING_UNAVAILABLE', '매물을 찾을 수 없습니다.', 404);
         authorize(listing.sellerId === userId);
+        await assertInventoryMutation?.(listing.inventoryItemId);
         if (listing.status === 'CANCELLED') return listingDto(listing);
         if (listing.status !== 'ACTIVE') conflict('LISTING_UNAVAILABLE', '취소 가능한 매물이 아닙니다.');
         const item = await tx.inventory.get(listing.inventoryItemId);

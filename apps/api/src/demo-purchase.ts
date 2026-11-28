@@ -19,8 +19,8 @@ function data<T>(result: ToolResult, schema: z.ZodType<T>): T {
 }
 
 /** 정책·예산·소유권·정산은 각 모듈에 맡기고 승인된 구매의 MCP 호출만 조립한다. */
-export function createDemoPurchaseHandler({ env, trading, policies, getMcpUrl, signAgentPayment }: {
-  env: ApiEnv; trading: TradingService; policies: PolicyService; getMcpUrl(): string; signAgentPayment?: AgentPaymentSigner;
+export function createDemoPurchaseHandler({ env, trading, policies, getMcpUrl, signAgentPayment, resolvePaymentRecipient }: {
+  env: ApiEnv; trading: TradingService; policies: PolicyService; getMcpUrl(): string; signAgentPayment?: AgentPaymentSigner; resolvePaymentRecipient?: (listingId: string) => Promise<string>;
 }): NonNullable<AgentSessionPluginOptions['purchase']> {
   const profile = getPaymentProfile(env.PAYMENT_CHAIN);
   let submitQueue: Promise<unknown> = Promise.resolve();
@@ -28,6 +28,7 @@ export function createDemoPurchaseHandler({ env, trading, policies, getMcpUrl, s
     if (!env.DEMO_SCENARIOS_ENABLED || !env.PAYMENT_ENABLED || !env.DEMO_BUYER_TOKEN || !env.PAYMENT_RECIPIENT || !env.AGENT_WALLET_ADDRESS) throw new AppError('PAYMENT_UNAVAILABLE', '결제 지갑과 테스트넷 연결 설정이 필요합니다.', 503);
     const pack = await readDemoScenarios(env.PAYMENT_CHAIN);
     if (!pack.scenarios.some(scene => scene.cardId === input.offer.card.id)) throw new AppError('FORBIDDEN', '시나리오 데모 카드만 구매할 수 있습니다.', 403);
+    const expectedRecipient = await resolvePaymentRecipient?.(input.offer.listingId) ?? env.PAYMENT_RECIPIENT;
     const buyer = { userId: demoBuyerId, agentId: demoBuyerAgentId };
     const policy = await policies.create(buyer, { enabled: true, totalBudget: profile.totalBudget, maxPerTrade: profile.maxPerTrade, allowedCardVariantIds: pack.scenarios.map(scene => scene.cardId), validUntil: '2099-01-01T00:00:00.000Z' }, { idempotencyKey: 'scenario-demo-policy-v1' });
     const key = `${input.sessionId}:${input.requestId}`;
@@ -36,7 +37,7 @@ export function createDemoPurchaseHandler({ env, trading, policies, getMcpUrl, s
     let quote;
     try { quote = data(await mcp.call('quote_fixed_purchase', { listingId: input.offer.listingId, maxPrice: input.offer.price }, 'quote'), matchQuoteSchema); }
     catch (error) { await policies.stopRun(buyer, run.id).catch(() => undefined); throw error; }
-    const base = { requestId: input.requestId, listingId: input.offer.listingId, card: input.offer.card, amount: quote.amount, matchQuoteId: quote.id, expiresAt: quote.expiresAt, paymentMode: profile.paymentMode, currency: profile.currency, signingMode: env.AGENT_SIGNING_MODE, payer: env.AGENT_WALLET_ADDRESS, recipient: env.PAYMENT_RECIPIENT };
+    const base = { requestId: input.requestId, listingId: input.offer.listingId, card: input.offer.card, amount: quote.amount, matchQuoteId: quote.id, expiresAt: quote.expiresAt, paymentMode: input.offer.rwa ? 'X402_MAROO_RWA' : profile.paymentMode, currency: profile.currency, signingMode: env.AGENT_SIGNING_MODE, payer: env.AGENT_WALLET_ADDRESS, recipient: expectedRecipient };
     if (input.action === 'cancel') {
       await trading.releaseQuote(buyer, quote.id);
       await policies.stopRun(buyer, run.id);
@@ -49,7 +50,7 @@ export function createDemoPurchaseHandler({ env, trading, policies, getMcpUrl, s
         const challenge = z.object({ x402Version: z.literal(2), accepts: z.array(agentPaymentRequirementsSchema).min(1) }).safeParse(result.structuredContent);
         if (result.isError && challenge.success) {
           const requirements = challenge.data.accepts[0]!;
-          if (requirements.amount !== input.offer.price || requirements.payTo.toLowerCase() !== env.PAYMENT_RECIPIENT.toLowerCase()) throw new AppError('PAYMENT_FAILED', '결제 금액이나 수납 주소가 매물과 일치하지 않습니다.', 409);
+          if (requirements.amount !== input.offer.price || requirements.payTo.toLowerCase() !== expectedRecipient.toLowerCase()) throw new AppError('PAYMENT_FAILED', '결제 금액이나 수납 주소가 매물과 일치하지 않습니다.', 409);
           return agentPurchaseProgressSchema.parse({ ...base, status: 'PAYMENT_REQUIRED', requirements });
         }
         status = data(result, purchaseStatusSchema);
@@ -72,7 +73,7 @@ export function createDemoPurchaseHandler({ env, trading, policies, getMcpUrl, s
           const challenge = z.object({ x402Version: z.literal(2), accepts: z.array(agentPaymentRequirementsSchema).length(1) }).safeParse(result.structuredContent);
           if (result.isError && challenge.success) {
             const requirements = challenge.data.accepts[0]!;
-            if (requirements.amount !== quote.amount || requirements.amount !== input.offer.price || requirements.payTo.toLowerCase() !== env.PAYMENT_RECIPIENT.toLowerCase()) throw new AppError('PAYMENT_FAILED', '결제 금액이나 수납 주소가 매물과 일치하지 않습니다.', 409);
+            if (requirements.amount !== quote.amount || requirements.amount !== input.offer.price || requirements.payTo.toLowerCase() !== expectedRecipient.toLowerCase()) throw new AppError('PAYMENT_FAILED', '결제 금액이나 수납 주소가 매물과 일치하지 않습니다.', 409);
             payload = await signAgentPayment({ requirements, amount: quote.amount, matchQuoteId: quote.id });
           } else status = data(result, purchaseStatusSchema);
         }

@@ -5,6 +5,7 @@ export const network = 'eip155:84532';
 export const asset = '0x036CbD53842c5426634e7929541eC2318f3dCF7e';
 const address = z.string().regex(/^0x[0-9a-fA-F]{40}$/);
 const schema = z.object({
+  RWA_MARKET_ADDRESS: z.string().optional(), RWA_NFT_ADDRESS: z.string().optional(), RWA_QUOTE_SIGNER: z.string().optional(), RWA_MARKET_CODE_HASH: z.string().optional(), RWA_NFT_CODE_HASH: z.string().optional(),
   FACILITATOR_CHAIN: z.enum(['base-sepolia', 'maroo']).default('base-sepolia'),
   FACILITATOR_HOST: z.string().default('127.0.0.1'),
   FACILITATOR_PORT: z.coerce.number().int().min(1).max(65535).default(4022),

@@ -1,0 +1,29 @@
+{
+  "name": "@tcg/rwa",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json",
+    "deploy": "tsx scripts/deploy.ts",
+    "sync": "tsx scripts/sync.ts"
+  },
+  "dependencies": {
+    "@tcg/contracts": "workspace:*",
+    "@tcg/db": "workspace:*",
+    "@tcg/payment-client": "workspace:*",
+    "@x402/core": "^2.32.0",
+    "viem": "^2.58.4",
+    "zod": "4.6.7",
+    "dotenv": "^17.2.3",
+    "@tcg/trading": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0"
+  }
+}

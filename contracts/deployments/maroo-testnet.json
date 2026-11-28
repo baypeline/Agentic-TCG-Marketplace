@@ -1,0 +1,50 @@
+{
+  "chainId": 450815,
+  "steps": {
+    "fund": {
+      "hash": "0xc2e1ad2534544f06b9d8672be11d8df6568b64680428312c8107786bba8275fb"
+    },
+    "deploy-nft": {
+      "hash": "0x1ea811e6e5ba292c854370bdd21a7fa3532eb451b64a57c112941a4ae232e89e"
+    },
+    "deploy-market": {
+      "hash": "0xdbec9ff49f01d5f5ac466281fa284d74b5b33d1409c1a157a77c90afc1ccb03c"
+    },
+    "mint-pikachu": {
+      "hash": "0x39463d5adb505f9878dd23e486714454cb6e1cd84097dc8c3d48c81d62b7cd37"
+    },
+    "approve-pikachu": {
+      "hash": "0x55cfcd798d1ff7351fafc7907303c8372f969d8815334172afb7ea47ed21e39c"
+    },
+    "list-pikachu": {
+      "hash": "0x1aa72e417c7381fd925befc311e6edff01ebb2a43f1ba99fe677bbaad001e85e"
+    },
+    "mint-charizard": {
+      "hash": "0xd0c241f77891c88a3cb65e70d9d6b14141dcb983484d483f1e98445cc1767cba"
+    },
+    "approve-charizard": {
+      "hash": "0xa8aab2512f0c41cd4b20153ed9c916e320d5303f76382211e8de233784bc619d"
+    },
+    "list-charizard": {
+      "hash": "0xb83416bcd375a83d3d24c014865172aa6ab8b98268f3aab903035b9d258bf099"
+    },
+    "mint-eevee": {
+      "hash": "0x53b45c8b9a9756990f680e1c84752839dbdc80c5be8d0f2a21a76b2c052b6e23"
+    },
+    "approve-eevee": {
+      "hash": "0xde1584170ca6cd3a66c95ef00639602e2c47b659c78a4edca043d29e50e057de"
+    },
+    "list-eevee": {
+      "hash": "0xb30dca8a7808064b176a01ae08d5b3685aa3fa6e5caa8ca89a6e93bc29e6a042"
+    }
+  },
+  "operator": "0xc895b431A49f187a6774287aD83C9fC53F0aC215",
+  "nft": "0x58514726d8ec976bb89cb789c9fa13135d16177a",
+  "deployBlock": "24459380",
+  "market": "0x0f6f1898b6f18bbf2d2406328a623e5d32270b06",
+  "nftCodeHash": "0xb7074a7feb28d264e26db1343f1f42ada76c0c9474ce820d9ea47d888d0188f3",
+  "marketCodeHash": "0x91de2c9124bb6e817ec0306f0b073fd6c0bc5fc3a9f28c93ef29b661d413da81",
+  "token-pikachu": "1",
+  "token-charizard": "2",
+  "token-eevee": "3"
+}

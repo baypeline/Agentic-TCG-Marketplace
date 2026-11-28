@@ -1,0 +1,73 @@
+model RwaAsset {
+  id              String @id @db.Uuid
+  cardVariantId   String @db.Uuid
+  inventoryItemId String @unique @db.Uuid
+  chainId         Int
+  nftAddress      String
+  tokenId         String
+  physicalHash    String @unique
+  metadataDigest  String
+  metadataUri     String
+  mintTxHash      String
+  ownerWallet     String
+  state           String @default("ACTIVE")
+  custodyMode     String @default("DEMO")
+  cardVariant     CardVariant @relation(fields: [cardVariantId], references: [id], onDelete: Restrict)
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+  listings        RwaListing[]
+  redemptions     RwaRedemption[]
+  @@unique([chainId, nftAddress, tokenId])
+  @@schema("market")
+}
+
+model RwaListing {
+  id             String @id @db.Uuid
+  assetId        String @db.Uuid
+  chainListingId String
+  marketAddress  String
+  sellerWallet   String
+  price          String
+  txHash         String
+  asset          RwaAsset @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  listing        Listing @relation(fields: [id], references: [id], onDelete: Restrict)
+  @@unique([marketAddress, chainListingId])
+  @@schema("market")
+}
+
+model RwaRedemption {
+  id          String @id
+  assetId     String @db.Uuid
+  claimant    String
+  status      String
+  txHash      String
+  asset       RwaAsset @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  @@schema("market")
+}
+
+model RwaChainEvent {
+  id          String @id
+  blockNumber BigInt
+  blockHash   String
+  txHash      String
+  logIndex    Int
+  name        String
+  payloadJson String
+  @@schema("market")
+}
+
+model RwaChainCursor {
+  id          String @id
+  blockNumber BigInt
+  blockHash   String
+  @@schema("market")
+}
+
+model RwaAction {
+  id          String @id @db.Uuid
+  userId      String @db.Uuid
+  inputHash   String
+  status      String
+  txHash      String?
+  resultJson  String?
+  @@schema("market")
+}

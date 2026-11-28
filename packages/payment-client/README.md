@@ -1,5 +1,7 @@
 # Payment Client
 
+`@tcg/payment-client/rwa`는 서명 견적·고정 배포 검증·buyListing 원문 서명·NFT와 대금의 영수증 검증을 공개합니다. `rwa-abi`는 핀 고정한 Solidity 소스의 공개 ABI입니다. 서버/퍼실리테이터에서 사용하는 인터페이스이며 브라우저에 개인키를 전달하지 않습니다.
+
 마루 서버 서명은 `@tcg/payment-client/native`의 `signNativePayment`·`inspectNativePayment`·`marooTestnet`을 사용합니다. 18자리 네이티브 tOKRW, 주문이 결합된 서명 원문과 구매자 가스비를 검사합니다. 아래는 기존 USDC EIP-3009 인터페이스 설명이며 [마루 가이드](../../docs/maroo.md)에 차이를 정리했습니다.
 
 에이전트 지갑이 지급 요청을 검토하고, 승인된 조건을 충족하면 x402 지급 승인에 서명한다.

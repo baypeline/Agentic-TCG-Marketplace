@@ -9,6 +9,7 @@ import { AppError } from '@tcg/contracts';
 import type { AgentSessionPluginOptions } from '@tcg/agent';
 import { createAgentWallet } from './agent-wallet.js';
 import { withPreviousWalletRecovery } from './wallet-recovery.js';
+import { readRwaDeployment } from '@tcg/payment-client/rwa';
 
 config({ path: '../../.env', quiet: true });
 const env = parseApiEnv(process.env);
@@ -18,7 +19,7 @@ const agentWallet = createAgentWallet(env, process.env);
 if (agentWallet) env.AGENT_WALLET_ADDRESS = agentWallet.address;
 const getWalletAddress = async (auth: { userId: string; agentId: string }) => auth.userId === demoBuyerId && auth.agentId === demoBuyerAgentId ? env.AGENT_WALLET_ADDRESS ?? null : null;
 const previousWallet = agentWallet ? browserWallet : env.AGENT_SERVER_WALLET_ADDRESS;
-const facilitatorOptions = { paymentChain: env.PAYMENT_CHAIN, facilitatorUrl: env.PAYMENT_FACILITATOR_URL, facilitatorToken: env.PAYMENT_FACILITATOR_TOKEN };
+const facilitatorOptions = { paymentChain: env.PAYMENT_CHAIN, facilitatorUrl: env.PAYMENT_FACILITATOR_URL, facilitatorToken: env.PAYMENT_FACILITATOR_TOKEN, rwa: env.RWA_ENABLED ? readRwaDeployment(env) : null };
 const paymentOptions = env.PAYMENT_ENABLED ? { recipient: env.PAYMENT_RECIPIENT, getWalletAddress, adapter: withPreviousWalletRecovery(createX402SettlementAdapter({ getWalletAddress, ...facilitatorOptions }), previousWallet && previousWallet.toLowerCase() !== env.AGENT_WALLET_ADDRESS?.toLowerCase() ? createX402SettlementAdapter({ getWalletAddress: async auth => auth.userId === demoBuyerId && auth.agentId === demoBuyerAgentId ? previousWallet : null, ...facilitatorOptions }) : undefined) } : undefined;
 let demoPurchase: AgentSessionPluginOptions['purchase'];
 const localAgent = createLocalAgentOptions(env, process.env, { purchase: async input => {
@@ -34,7 +35,7 @@ const app = await buildApp({
     return await localAgent.resolveAuth?.(request) ?? await demoAuth(request);
   },
   async createIntegrationPlugins(deps) {
-    const plugins = await createIntegrationPlugins(deps, { signAgentPayment: agentWallet?.sign, onDemoPurchaseReady: handler => { demoPurchase = handler; } });
+    const plugins = await createIntegrationPlugins(deps, { rwaVariables: process.env, signAgentPayment: agentWallet?.sign, onDemoPurchaseReady: handler => { demoPurchase = handler; } });
     const agentPlugins = await localAgent.createIntegrationPlugins?.(deps) ?? [];
     return [...plugins, ...agentPlugins];
   },

@@ -14,6 +14,7 @@ export interface SettlementAdapter {
   reconcile(attempt: Readonly<PaymentRow>): Promise<SettlementOutcome>;
 }
 export interface PaymentServiceOptions {
+  createRequirements?: (quote: { id: string; inventoryItemId: string; listingId: string; amount: string; expiresAt: Date }, auth: TradingBuyer, policy: { id: string; version: number }) => Promise<PaymentRequirements | null>;
   paymentChain?: PaymentChain;
   store: TradingStore;
   tradingService: TradingService;
@@ -31,7 +32,7 @@ export function createPaymentEvidenceReader(store: TradingStore, currency: Curre
     return store.transaction(async tx => { const row = await tx.payments.get(id); return row ? { paymentAttemptId: row.id, matchQuoteId: row.matchQuoteId, amount: row.amount, currency, status: row.status as 'REQUIRED' | 'PENDING' | 'UNKNOWN' | 'FAILED' | 'SETTLED' } : null; });
   } };
 }
-export function createPaymentService({ store, tradingService, paymentChain = 'base-sepolia', valuationService, adapter, recipient, getWalletAddress, now = () => new Date(), reviewAfterMs = 300_000 }: PaymentServiceOptions) {
+export function createPaymentService({ store, tradingService, paymentChain = 'base-sepolia', createRequirements, valuationService, adapter, recipient, getWalletAddress, now = () => new Date(), reviewAfterMs = 300_000 }: PaymentServiceOptions) {
   const profile = getPaymentProfile(paymentChain);
   async function quoteFor(tx: TradingTransaction, auth: TradingBuyer, id: string) {
     const quote = await tx.quotes.get(idSchema.parse(id));
@@ -90,7 +91,7 @@ export function createPaymentService({ store, tradingService, paymentChain = 'ba
         const existing = (await tx.payments.find({ matchQuoteId: quote.id }))[0];
         if (existing && existing.status !== 'REQUIRED') throw new AppError('PAYMENT_UNKNOWN', '기존 결제 상태를 확인하세요. 새 지급을 만들 수 없습니다.', 409);
         if (existing) return { id: existing.id, matchQuoteId: quote.id, requirements: JSON.parse(existing.requirementsJson) as PaymentRequirements };
-        const requirements: PaymentRequirements = { scheme: profile.scheme, network: profile.network, asset: profile.asset, amount: quote.amount, payTo: recipient, maxTimeoutSeconds: Math.max(1,Math.min(60,Math.floor((quote.expiresAt.getTime()-now().getTime())/1000))), extra: { name: profile.currency, version: paymentChain === 'maroo' ? '1' : '2', tcgQuoteId: quote.id, ...(paymentChain === 'maroo' ? { expiresAt: quote.expiresAt.toISOString() } : {}) } };
+        const requirements: PaymentRequirements = await createRequirements?.(quote, auth, policy) ?? { scheme: profile.scheme, network: profile.network, asset: profile.asset, amount: quote.amount, payTo: recipient, maxTimeoutSeconds: Math.max(1,Math.min(60,Math.floor((quote.expiresAt.getTime()-now().getTime())/1000))), extra: { name: profile.currency, version: paymentChain === 'maroo' ? '1' : '2', tcgQuoteId: quote.id, ...(paymentChain === 'maroo' ? { expiresAt: quote.expiresAt.toISOString() } : {}) } };
         const row: PaymentRow = { id: randomUUID(), matchQuoteId: quote.id, userId: auth.userId, agentId: auth.agentId, policyId: policy.id, policyVersion: policy.version, amount: quote.amount, status: 'REQUIRED', requirementsJson: JSON.stringify(requirements), payloadHash: null, transactionHash: null, submittedAt: null, updatedAt: now(), needsReview: false };
         await tx.payments.insert(row);
         return { id: row.id, matchQuoteId: quote.id, requirements };

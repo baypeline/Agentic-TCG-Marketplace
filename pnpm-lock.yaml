@@ -233,6 +233,9 @@ importers:
       '@tcg/payment-server':
         specifier: workspace:*
         version: link:../../packages/payment-server
+      '@tcg/rwa':
+        specifier: workspace:*
+        version: link:../../packages/rwa
       '@tcg/trading':
         specifier: workspace:*
         version: link:../../packages/trading
@@ -347,6 +350,12 @@ importers:
       '@types/react-dom':
         specifier: ^19.0.0
         version: 19.3.0(@types/react@19.3.0)
+
+  contracts:
+    dependencies:
+      '@openzeppelin/contracts':
+        specifier: 5.0.2
+        version: 5.0.2
 
   packages/aggregator:
     dependencies:
@@ -483,6 +492,9 @@ importers:
       viem:
         specifier: ^2.58.2
         version: 2.58.4(typescript@5.9.3)(zod@4.6.7)
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
 
   packages/payment-server:
     dependencies:
@@ -514,6 +526,37 @@ importers:
       '@tcg/db':
         specifier: workspace:*
         version: link:../db
+
+  packages/rwa:
+    dependencies:
+      '@tcg/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@tcg/db':
+        specifier: workspace:*
+        version: link:../db
+      '@tcg/payment-client':
+        specifier: workspace:*
+        version: link:../payment-client
+      '@tcg/trading':
+        specifier: workspace:*
+        version: link:../trading
+      '@x402/core':
+        specifier: ^2.32.0
+        version: 2.32.0
+      dotenv:
+        specifier: ^17.2.3
+        version: 17.4.2
+      viem:
+        specifier: ^2.58.4
+        version: 2.58.4(typescript@5.9.3)(zod@4.6.7)
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      tsx:
+        specifier: ^4.21.0
+        version: 4.23.15
 
   packages/trading:
     dependencies:
@@ -1162,6 +1205,9 @@ packages:
     resolution: {integrity: sha512-ytI0Bebtd3at00nq+vTzkafdCqxbdD/xHEsIPCFdTQfjrXpGfeYQM8pPfdOnp0K4fnLshovHXEeQ/xXfg+SCPQ==}
     peerDependencies:
       zod: ^4.0.0
+
+  '@openzeppelin/contracts@5.0.2':
+    resolution: {integrity: sha512-ytPc6eLGcHHnapAZ9S+5qsdomhjo6QBHTDRRBFfTxXIpsicMhVPouPgmUPebZZZGX7vt9USA+Z+0M0dSVtSUEA==}
 
   '@oxc-project/types@0.156.0':
     resolution: {integrity: sha512-1Duyg48TdJNdyhEB8Xn1L36bT9Pv6GUtlKjHxOys8xkaF/rQq3XJE+bAurSK/AgIz5mGFsb77cn9Pb20+WCScw==}
@@ -3547,6 +3593,8 @@ snapshots:
       - undici
       - utf-8-validate
       - ws
+
+  '@openzeppelin/contracts@5.0.2': {}
 
   '@oxc-project/types@0.156.0': {}
 

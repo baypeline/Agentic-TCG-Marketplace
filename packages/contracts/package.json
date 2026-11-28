@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./fixtures": "./src/fixtures.ts",
-    "./payment-profile": "./src/payment-profile.js"
+    "./payment-profile": "./src/payment-profile.js",
+    "./rwa": "./src/rwa.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",

@@ -11,3 +11,6 @@ packages/db/src/generated/
 next-env.d.ts
 *.log
 apps/facilitator/data/
+contracts/out/
+contracts/cache/
+contracts/broadcast/

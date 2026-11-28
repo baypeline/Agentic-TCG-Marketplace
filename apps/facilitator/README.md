@@ -1,5 +1,7 @@
 # 자체 x402 퍼실리테이터
 
+선택적 `maroo-rwa`는 허용된 NFT 마켓 호출과 코드 해시·견적·calldata·PurchaseExecuted/NFT Transfer 증빙을 검증합니다. 기존 EOA 전용 `maroo-native`와 분리하며, 활성 배포 정보는 `facilitator:init`이 공개 필드만 전달합니다. [RWA 실행 가이드](../../docs/rwa.md)를 참고하세요.
+
 Base Sepolia USDC는 공식 `@x402/core`·`@x402/evm` 2.32.0 EVM exact / EIP-3009를 사용합니다. Maroo Testnet 네이티브 tOKRW는 x402 v2의 자체 확장 `maroo-native`를 사용하며 공식 ERC20 exact 방식과 다릅니다. [마루 실행 가이드](../../docs/maroo.md)에서 별도 DB·18자리 원장·서명·가스비·복귀 방법을 확인하세요. 아래 가스 지갑과 USDC 설명은 Base 프로필에 해당합니다. 마루는 구매 지갑이 결제와 가스비를 부담하고 퍼실리테이터는 동일 서명 원문을 방송합니다.
 
 ## 실행

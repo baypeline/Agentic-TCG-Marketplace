@@ -51,6 +51,10 @@ export function AgentChat({ onClose }: { onClose: () => void }) {
   useEffect(() => { if (history.current && followOutput.current) history.current.scrollTop = history.current.scrollHeight; }, [messages, streamingText, receipts, purchaseStatus]);
 
   useEffect(() => () => { activeRequest.current?.abort(); }, []);
+  useEffect(() => {
+    const prepare=(event:Event)=>{const text=(event as CustomEvent<unknown>).detail;if(typeof text==='string'&&text.length<=2000&&!activeRequest.current){setDraft(text);requestAnimationFrame(()=>input.current?.focus());}};
+    window.addEventListener('tcg:agent-prompt',prepare);return()=>window.removeEventListener('tcg:agent-prompt',prepare);
+  },[]);
 
   async function sendMessage(message: string, displayedMessage = message, preserveDraft = false): Promise<boolean> {
     if (!message || message.length > 2000 || activeRequest.current) return false;

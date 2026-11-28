@@ -16,6 +16,7 @@ model CardVariant {
   localizedNames CardLocalizedName[]
   marketPrices MarketPriceSnapshot[]
   inventoryItems InventoryItem[]
+  rwaAssets RwaAsset[]
   buyOrders BuyOrder[]
 
   @@unique([game, setCode, cardNumber, language, edition, condition])

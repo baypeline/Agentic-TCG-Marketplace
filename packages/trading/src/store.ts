@@ -3,7 +3,7 @@ import { AppError, type BuyOrder, type InventoryItem, type Listing, type MatchQu
 import type { PrismaClient } from '@tcg/db';
 import { demoCards } from '@tcg/contracts/fixtures';
 
-type ListingRow = Omit<Listing, 'createdAt'> & { createdAt: Date };
+type ListingRow = Omit<Listing, 'createdAt' | 'rwa'> & { createdAt: Date };
 type OrderRow = Omit<BuyOrder, 'createdAt' | 'expiresAt'> & { buyerId: string; createdAt: Date; expiresAt: Date };
 type QuoteRow = Omit<MatchQuote, 'buyOrderId' | 'currency' | 'expiresAt' | 'policyId'> & {
   buyerId: string;
@@ -113,7 +113,8 @@ export function createPrismaTradingStore(prisma: PrismaClient): TradingStore {
           }), { isolationLevel: 'Serializable' });
         } catch (error) {
           const code = error instanceof Error && 'code' in error ? error.code : null;
-          if (!(error instanceof TradingConflict) && code !== 'P2034' && code !== 'P2002') throw error;
+          const adapterConflict = error instanceof Error && error.name === 'DriverAdapterError' && error.cause !== null && typeof error.cause === 'object' && 'kind' in error.cause && error.cause.kind === 'TransactionWriteConflict';
+          if (!(error instanceof TradingConflict) && !adapterConflict && code !== 'P2034' && code !== 'P2002') throw error;
           if (attempt < 4) await new Promise(resolve => setTimeout(resolve, 5 * (attempt + 1)));
         }
       }

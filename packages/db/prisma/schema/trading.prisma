@@ -38,6 +38,7 @@ enum MatchQuoteStatus {
 }
 
 model InventoryItem {
+  rwaAsset      RwaAsset?
   id            String          @id @default(uuid()) @db.Uuid
   cardVariantId String          @db.Uuid
   ownerId       String          @db.Uuid
@@ -52,6 +53,7 @@ model InventoryItem {
 }
 
 model Listing {
+  rwa             RwaListing?
   id              String        @id @default(uuid()) @db.Uuid
   inventoryItemId String        @db.Uuid
   cardVariantId   String        @db.Uuid

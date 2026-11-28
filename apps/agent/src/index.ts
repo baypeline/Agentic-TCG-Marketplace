@@ -98,6 +98,7 @@ export function createAgentRuntime({
         instructions: instructions + (dependencies.marketplaceService ? `
 이 세션은 합성 카드·가격·매물을 사용하는 거래 데모입니다. 카드 정보와 가격은 내부 DB에 고정되어 있습니다.
 대상이 특정되면 get_valuation과 list_listings를 반드시 호출해 가격과 지금 거래 가능한 매물을 함께 안내하세요.
+매물에 rwa가 있으면 카드 NFT이며 결제와 NFT 이전을 함께 처리합니다. 보관 기록은 합성 데모라고 안내하세요. 일반 매물과 구분하고, 사용자가 NFT를 요청하면 NFT 매물을 우선 설명하세요.
 사용자의 상한이 있으면 그 금액 이내의 매물인지 설명하세요. 매물이 없으면 거래할 수 없다고 안내하세요.
 사용자가 구매를 요청해도 채팅만으로 결제하지 않습니다. 버튼으로 구매를 승인하며, 서버 서명 모드에서는 에이전트 전용 지갑이 자동 서명합니다.
 버튼의 결제는 ${dependencies.marketplaceService.paymentChain === 'maroo' ? 'Maroo Testnet tOKRW (18 decimals, 구매자 가스비 부담)' : 'Base Sepolia 테스트 USDC'} 실제 전송입니다. 합성 가격과 실제 테스트넷 결제를 혼동하지 마세요.

@@ -1,0 +1,5 @@
+{
+  "name": "@tcg/solidity", "version": "0.0.0", "private": true,
+  "scripts": { "build": "forge build", "test": "forge test", "abi": "node scripts/export-abi.mjs" },
+  "dependencies": { "@openzeppelin/contracts": "5.0.2" }
+}

@@ -2,7 +2,8 @@ import { z } from 'zod';
 import { profileForNetwork } from './payment-profile.js';
 export * from './payment-profile.js';
 export const currencySchema = z.enum(['USDC', 'tOKRW']);
-export const paymentModeSchema = z.enum(['X402_BASE_SEPOLIA', 'X402_MAROO_NATIVE']);
+export * from '@tcg/contracts/rwa';
+export const paymentModeSchema = z.enum(['X402_BASE_SEPOLIA', 'X402_MAROO_NATIVE', 'X402_MAROO_RWA']);
 
 export const idSchema = z.uuid();
 export const amountSchema = z.string().regex(/^(0|[1-9]\d*)$/, '통화 최소 단위의 정수 문자열이어야 합니다.');
@@ -27,7 +28,9 @@ export const cardVariantSchema = z.object({
 });
 export type CardVariant = z.infer<typeof cardVariantSchema>;
 
+export const rwaTokenSchema = z.object({ assetId: idSchema, nft: z.string(), tokenId: amountSchema, custodyMode: z.literal('DEMO') });
 export const agentPurchaseOfferSchema = z.object({
+  rwa: rwaTokenSchema.optional(),
   listingId: idSchema, card: cardVariantSchema, price: amountSchema,
   dataSource: z.literal('SYNTHETIC_DEMO'), paymentMode: paymentModeSchema, paymentReady: z.boolean(), currency: currencySchema.optional(),
 });
@@ -37,11 +40,11 @@ export const agentPurchaseInputSchema = z.object({
 });
 export type AgentPurchaseInput = z.infer<typeof agentPurchaseInputSchema>;
 export const agentPaymentRequirementsSchema = z.object({
-  scheme: z.enum(['exact', 'maroo-native']), network: z.enum(['eip155:84532', 'eip155:450815']), asset: z.enum(['0x036CbD53842c5426634e7929541eC2318f3dCF7e', 'native:tOKRW']),
+  scheme: z.enum(['exact', 'maroo-native', 'maroo-rwa']), network: z.enum(['eip155:84532', 'eip155:450815']), asset: z.enum(['0x036CbD53842c5426634e7929541eC2318f3dCF7e', 'native:tOKRW']),
   amount: amountSchema, payTo: z.string().regex(/^0x[0-9a-fA-F]{40}$/), maxTimeoutSeconds: z.number().int().positive(), extra: z.record(z.string(), z.unknown()).default({}),
 }).superRefine((value, ctx) => {
   const profile = profileForNetwork(value.network);
-  if (value.scheme !== profile.scheme || value.asset !== profile.asset) ctx.addIssue({ code: 'custom', message: '결제 체인·자산·방식이 일치하지 않습니다.' });
+  if ((value.scheme !== profile.scheme && !(value.scheme === 'maroo-rwa' && value.network === 'eip155:450815')) || value.asset !== profile.asset) ctx.addIssue({ code: 'custom', message: '결제 체인·자산·방식이 일치하지 않습니다.' });
   if (value.network === 'eip155:450815' && (!z.uuid().safeParse(value.extra.tcgQuoteId).success || !z.iso.datetime().safeParse(value.extra.expiresAt).success)) ctx.addIssue({ code: 'custom', message: '마루 지급에는 주문 ID와 만료 시각이 필요합니다.' });
 });
 export const agentPurchaseProgressSchema = z.object({
@@ -54,7 +57,7 @@ export const agentPurchaseProgressSchema = z.object({
   transactionHash: z.string().regex(/^0x[0-9a-fA-F]{64}$/).optional(),
 });
 export type AgentPurchaseProgress = z.infer<typeof agentPurchaseProgressSchema>;
-export const demoStatusSchema = z.object({ enabled: z.boolean(), paymentEnabled: z.boolean(), signingMode: z.enum(['browser', 'server']).default('browser'), paymentChain: z.enum(['base-sepolia', 'maroo']).default('base-sepolia'), currency: currencySchema.default('USDC'), decimals: z.number().int().default(6), suggestions: z.array(z.string()), payer: z.string().nullable(), recipient: z.string().nullable() });
+export const demoStatusSchema = z.object({ rwaEnabled: z.boolean().default(false), enabled: z.boolean(), paymentEnabled: z.boolean(), signingMode: z.enum(['browser', 'server']).default('browser'), paymentChain: z.enum(['base-sepolia', 'maroo']).default('base-sepolia'), currency: currencySchema.default('USDC'), decimals: z.number().int().default(6), suggestions: z.array(z.string()), payer: z.string().nullable(), recipient: z.string().nullable() });
 
 export const agentChatReplySchema = z.object({
   content: z.string().min(1),
@@ -152,7 +155,7 @@ export interface AggregatorService {
 export interface ValuationService { getValuation(cardVariantId: string): Promise<Valuation> }
 
 export const inventoryItemSchema = z.object({ id: idSchema, cardVariantId: idSchema, ownerId: idSchema, status: z.enum(['AVAILABLE', 'LISTED', 'RESERVED']) });
-export const listingSchema = z.object({ id: idSchema, inventoryItemId: idSchema, cardVariantId: idSchema, sellerId: idSchema, price: amountSchema, status: z.enum(['ACTIVE', 'RESERVED', 'SOLD', 'CANCELLED']), createdAt: timestampSchema });
+export const listingSchema = z.object({ id: idSchema, inventoryItemId: idSchema, cardVariantId: idSchema, sellerId: idSchema, price: amountSchema, status: z.enum(['ACTIVE', 'RESERVED', 'SOLD', 'CANCELLED']), createdAt: timestampSchema, rwa: rwaTokenSchema.optional() });
 export const buyOrderSchema = z.object({ id: idSchema, agentId: idSchema, cardVariantId: idSchema, maxPrice: amountSchema, status: z.enum(['ACTIVE', 'PAUSED', 'MATCH_PENDING', 'FILLED', 'CANCELLED', 'EXPIRED']), expiresAt: timestampSchema, createdAt: timestampSchema });
 export const matchQuoteSchema = z.object({ id: idSchema, listingId: idSchema, inventoryItemId: idSchema, buyerAgentId: idSchema, buyOrderId: idSchema.optional(), amount: amountSchema, currency: currencySchema, status: z.enum(['RESERVED', 'PAYMENT_PENDING', 'SETTLED', 'COMPLETED', 'RELEASED', 'RECONCILING']), expiresAt: timestampSchema });
 export const tradeSchema = z.object({ id: idSchema, matchQuoteId: idSchema, buyerId: idSchema, sellerId: idSchema, inventoryItemId: idSchema, price: amountSchema, paymentAttemptId: idSchema, status: z.literal('COMPLETED'), completedAt: timestampSchema });

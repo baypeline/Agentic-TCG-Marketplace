@@ -11,6 +11,13 @@ export const apiEnvSchema = z.object({
   DEMO_SCENARIOS_ENABLED: z.enum(['true', 'false']).default('false').transform(value => value === 'true'),
   PAYMENT_ENABLED: z.enum(['true', 'false']).default('false').transform(value => value === 'true'),
   PAYMENT_CHAIN: z.enum(['base-sepolia', 'maroo']).default('base-sepolia'),
+  RWA_ENABLED: z.enum(['true', 'false']).default('false').transform(v => v === 'true'),
+  RWA_MARKET_ADDRESS: z.string().regex(/^0x[\da-fA-F]{40}$/).optional(),
+  RWA_NFT_ADDRESS: z.string().regex(/^0x[\da-fA-F]{40}$/).optional(),
+  RWA_QUOTE_SIGNER: z.string().regex(/^0x[\da-fA-F]{40}$/).optional(),
+  RWA_MARKET_CODE_HASH: z.string().regex(/^0x[\da-fA-F]{64}$/).optional(),
+  RWA_NFT_CODE_HASH: z.string().regex(/^0x[\da-fA-F]{64}$/).optional(),
+  RWA_DEPLOY_BLOCK: z.coerce.bigint().nonnegative().optional(),
   PAYMENT_FACILITATOR_URL: z.url().refine(value => ['http:', 'https:'].includes(new URL(value).protocol)).default('https://x402.org/facilitator'),
   PAYMENT_FACILITATOR_TOKEN: z.string().min(32).optional(),
   PAYMENT_RECIPIENT: z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional(),
@@ -24,6 +31,7 @@ export const apiEnvSchema = z.object({
   DATABASE_ENABLED: z.enum(['true', 'false']).default('false').transform(value => value === 'true'),
   DATABASE_URL: z.url().optional(),
 }).superRefine((env, ctx) => {
+  if (env.RWA_ENABLED && (env.PAYMENT_CHAIN !== 'maroo' || !env.PAYMENT_ENABLED || !env.DEMO_SCENARIOS_ENABLED || !env.RWA_MARKET_ADDRESS || !env.RWA_NFT_ADDRESS || !env.RWA_QUOTE_SIGNER || !env.RWA_MARKET_CODE_HASH || !env.RWA_NFT_CODE_HASH || env.RWA_DEPLOY_BLOCK === undefined)) ctx.addIssue({ code: 'custom', path: ['RWA_ENABLED'], message: 'RWA에는 검증된 마루 배포 정보와 로컬 결제 데모가 필요합니다.' });
   if (env.PAYMENT_CHAIN === 'maroo' && (!env.DEMO_SCENARIOS_ENABLED || env.AGENT_SIGNING_MODE !== 'server' || env.PAYMENT_FACILITATOR_URL === 'https://x402.org/facilitator')) ctx.addIssue({ code: 'custom', path: ['PAYMENT_CHAIN'], message: '마루 결제는 별도 DB의 로컬 시나리오·서버 서명·자체 퍼실리테이터가 필요합니다.' });
   if (env.AGENT_SIGNING_MODE === 'server' && (!env.DEMO_SCENARIOS_ENABLED || !env.PAYMENT_ENABLED || !env.AGENT_SERVER_WALLET_ADDRESS)) ctx.addIssue({ code: 'custom', path: ['AGENT_SIGNING_MODE'], message: '서버 서명에는 로컬 시나리오 결제와 전용 지갑 주소가 필요합니다.' });
   if (env.DEMO_SCENARIOS_ENABLED && (env.NODE_ENV === 'production' || !['127.0.0.1', '::1', 'localhost'].includes(env.API_HOST) || !env.DATABASE_ENABLED || env.CARD_DATA_SOURCE !== 'database' || env.TRADING_DATA_SOURCE !== 'database' || !env.DEMO_BUYER_TOKEN || !env.DEMO_SELLER_TOKEN)) ctx.addIssue({ code: 'custom', path: ['DEMO_SCENARIOS_ENABLED'], message: '시나리오 데모에는 로컬 DB 카드·거래와 데모 인증 토큰이 필요합니다.' });

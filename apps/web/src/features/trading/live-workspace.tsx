@@ -4,7 +4,7 @@ import type { Currency } from '@tcg/contracts/payment-profile';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import styled from '@emotion/styled';
-import { demoStatusSchema, agentRunSchema, buyOrderSchema, cardVariantSchema, inventoryItemSchema, listingSchema, spendingPolicySchema, tradeSchema, type AgentRun, type BuyOrder, type CardVariant, type InventoryItem, type Listing, type SpendingPolicy, type Trade } from '@tcg/contracts';
+import { rwaViewSchema, demoStatusSchema, agentRunSchema, buyOrderSchema, cardVariantSchema, inventoryItemSchema, listingSchema, spendingPolicySchema, tradeSchema, type AgentRun, type BuyOrder, type CardVariant, type InventoryItem, type Listing, type SpendingPolicy, type Trade } from '@tcg/contracts';
 import { Button } from '../../components/ui';
 import { formatUsdc, getCardDisplayName } from '../../lib/formatters';
 import { createTradingClient } from '../../lib/trading-client';
@@ -15,7 +15,7 @@ import { Actions, EmptyRows, ErrorText, Field, FormGrid, QuietButton, RecordTabl
 
 type Mode = 'agent' | 'marketplace' | 'collection' | 'activity';
 type Identity = { userId: string; agentId?: string; currency?: Currency };
-type Data = { me: Identity; policies: SpendingPolicy[]; runs: AgentRun[]; orders: BuyOrder[]; items: InventoryItem[]; listings: Listing[]; trades: Trade[]; cards: CardVariant[]; matches: { id: string; status: string }[] };
+type Data = { rwaIds: string[]; me: Identity; policies: SpendingPolicy[]; runs: AgentRun[]; orders: BuyOrder[]; items: InventoryItem[]; listings: Listing[]; trades: Trade[]; cards: CardVariant[]; matches: { id: string; status: string }[] };
 type Mutate = (method: string, path: string, input?: unknown) => Promise<void>;
 const titles: Record<Mode, string> = { agent: '거래 정책과 실행 허용', marketplace: '고정가 매물', collection: '내 카드', activity: '거래 관리' };
 const descriptions: Record<Mode, string> = { agent: '에이전트가 거래할 수 있는 조건과 예산을 설정하세요.', marketplace: '판매 중인 카드를 둘러보고 구매 조건을 정하세요.', collection: '구매한 카드를 모아 보고, 판매할 카드를 관리하세요.', activity: '주문부터 결제, 거래 완료까지 진행 상황을 확인하세요.' };
@@ -33,7 +33,9 @@ export function LiveTradingWorkspace({ mode, mine = false }: { mode: Mode; mine?
     const me = await read('me') as Identity;
     const demoResponse = await fetch('/api/demo', { cache: 'no-store' });
     if (!demoResponse.ok) throw new Error('Cannot determine settlement currency');
-    me.currency = demoStatusSchema.parse(await demoResponse.json()).currency;
+    const demo = demoStatusSchema.parse(await demoResponse.json());
+    me.currency = demo.currency;
+    const rwaIds = demo.rwaEnabled ? rwaViewSchema.parse(await read('rwa')).assets.map(a=>a.inventoryItemId) : [];
     if (!client.current) client.current = createTradingClient(sessionStorage, `${me.userId}.${me.agentId ?? 'seller'}`);
     const [items, listings, policies, runs, orders, trades, matches] = await Promise.all([
       read('inventory'), read('listings'), me.agentId ? read('policies') : [], me.agentId ? read('sessions') : [], me.agentId ? read('buy-orders') : [], read('trades'), me.agentId ? read('matches') : [],
@@ -41,7 +43,7 @@ export function LiveTradingWorkspace({ mode, mine = false }: { mode: Mode; mine?
     const inventory = inventoryItemSchema.array().parse(items), offers = listingSchema.array().parse(listings);
     const cardIds = [...new Set([...inventory, ...offers].map(item => item.cardVariantId))];
     const cards = await Promise.all(cardIds.map(async id => cardVariantSchema.parse(await read(`cards/${id}`))));
-    if (mounted.current) setData({ me, items: inventory, listings: offers, policies: spendingPolicySchema.array().parse(policies), runs: agentRunSchema.array().parse(runs), orders: buyOrderSchema.array().parse(orders), trades: tradeSchema.array().parse(trades), cards, matches: matches as Data['matches'] });
+    if (mounted.current) setData({ rwaIds, me, items: inventory, listings: offers, policies: spendingPolicySchema.array().parse(policies), runs: agentRunSchema.array().parse(runs), orders: buyOrderSchema.array().parse(orders), trades: tradeSchema.array().parse(trades), cards, matches: matches as Data['matches'] });
   }, []);
   useEffect(() => {
     mounted.current = true;
@@ -72,7 +74,7 @@ export function LiveTradingWorkspace({ mode, mine = false }: { mode: Mode; mine?
     {!data && !error && <ResultNote role="status">거래 정보를 불러오고 있어요.</ResultNote>}
     {data && <fieldset disabled={busy || unresolved} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
       {mode === 'agent' && (data.me.agentId ? <PolicyAndRuns currency={currency} data={data} mutate={mutate} /> : <ResultNote>구매자 계정에서 거래 정책을 관리할 수 있어요.</ResultNote>)}
-      {mode === 'collection' && <LiveCollection items={data.items} cards={data.cards} renderSale={item => <AmountForm currency={currency} id={item.id} label={`판매 가격 (${currency})`} button="고정가 매물 등록" submit={amount => mutate('POST', 'listings', { inventoryItemId: item.id, price: amount })} />} />}
+      {mode === 'collection' && <LiveCollection items={data.items} cards={data.cards} renderSale={item => data.rwaIds.includes(item.id) ? <Link href="/rwa">NFT 관리에서 판매·인출하기</Link> : <AmountForm currency={currency} id={item.id} label={`판매 가격 (${currency})`} button="고정가 매물 등록" submit={amount => mutate('POST', 'listings', { inventoryItemId: item.id, price: amount })} />} />}
       {mode === 'marketplace' && <Section><h2>{mine ? '내 판매 매물' : '판매 중인 매물'}</h2>{!data.listings.filter(row => !mine || row.sellerId === data.me.userId).length && <EmptyRows text="현재 판매 중인 매물이 없어요." />}{data.listings.filter(row => !mine || row.sellerId === data.me.userId).map(listing => <Section key={listing.id}><h3><Link href={`/cards/${listing.cardVariantId}`}>{cardName(listing.cardVariantId)}</Link> · {formatUsdc(listing.price, currency)}</h3>{listing.sellerId === data.me.userId ? <QuietButton onClick={() => void mutate('DELETE',`listings/${listing.id}`)}>매물 등록 취소</QuietButton> : data.me.agentId ? <><AmountForm currency={currency} id={listing.id} label={`최대 구매 가격 (${currency})`} initial={usdcDecimal(listing.price, currency)} button="이 매물 예약" submit={maxPrice => mutate('POST','purchases/fixed/quote',{ listingId: listing.id, maxPrice })} /><AmountForm currency={currency} id={`order-${listing.id}`} label={`지정가 주문 상한 (${currency})`} button="지정가 주문 등록" expires submit={(maxPrice, expiresAt) => mutate('POST','buy-orders',{ cardVariantId: listing.cardVariantId, maxPrice, expiresAt })} /></> : <ResultNote>구매자 계정에서 주문·예약할 수 있어요.</ResultNote>}</Section>)}{data.me.agentId && <MarketQuote currency={currency} key={data.cards.map(card => card.id).join(',')} cards={data.cards} mutate={mutate} />}</Section>}
       {mode === 'activity' && <>
         {data.me.agentId && <Section><h2>구매 주문</h2>{!data.orders.length && <EmptyRows text="등록한 구매 주문이 없어요." />}{data.orders.map(order => <Section key={order.id}><h3><Link href={`/cards/${order.cardVariantId}`}>{cardName(order.cardVariantId)}</Link> · {formatUsdc(order.maxPrice, currency)} · <StateBadge status={order.status} /></h3><Actions>{order.status === 'ACTIVE' && <><QuietButton onClick={() => void mutate('POST',`buy-orders/${order.id}/match`)}>새 매칭 탐색</QuietButton><QuietButton onClick={() => void mutate('POST',`buy-orders/${order.id}/pause`)}>주문 일시중지</QuietButton></>}{order.status === 'MATCH_PENDING' && <QuietButton onClick={() => void mutate('POST',`buy-orders/${order.id}/pause`)}>결제 보류</QuietButton>}{order.status === 'PAUSED' && <QuietButton onClick={() => void mutate('POST',`buy-orders/${order.id}/resume`)}>주문 재개</QuietButton>}{['ACTIVE','PAUSED','MATCH_PENDING'].includes(order.status) && <QuietButton onClick={() => void mutate('POST',`buy-orders/${order.id}/cancel`)}>주문 취소</QuietButton>}</Actions></Section>)}</Section>}

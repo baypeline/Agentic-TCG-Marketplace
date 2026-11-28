@@ -3,6 +3,12 @@ import { idSchema, mutationContextSchema } from '@tcg/contracts';
 // 고정 업무 경로만 중계한다. 지급 실행과 임의 URL/헤더 전달은 허용하지 않는다.
 export function coreTradingPath(method: string, parts: string[]): string | null {
   const [resource, id, action] = parts;
+  if (resource === 'rwa') {
+    if (parts.length === 1 && method === 'GET') return '/api/rwa';
+    if (parts.length === 2 && id === 'actions' && method === 'POST') return '/api/rwa/actions';
+    if (parts.length === 3 && id === 'actions' && idSchema.safeParse(action).success && method === 'GET') return `/api/rwa/actions/${action}`;
+    return null;
+  }
   if (parts.length === 1) {
     if (method === 'GET' && ['me','inventory','listings','buy-orders','policies','trades','matches'].includes(resource!)) return `/api/${resource}`;
     if (resource === 'sessions' && ['GET','POST'].includes(method)) return '/sessions';
@@ -47,7 +53,7 @@ export async function proxyTrading(request: Request, parts: string[], authorizat
     if (body) { try { JSON.parse(body); } catch { return respond('입력 형식을 확인해 주세요.', 400); } }
   }
   try {
-    const result = await fetch(new URL(path, base), { method: request.method, cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(10_000), headers: { authorization, ...(body ? { 'content-type': 'application/json' } : {}), ...(request.method === 'GET' ? {} : { 'idempotency-key': request.headers.get('idempotency-key')! }) }, body: body || undefined });
+    const result = await fetch(new URL(path, base), { method: request.method, cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(parts[0] === 'rwa' ? 65_000 : 10_000), headers: { authorization, ...(body ? { 'content-type': 'application/json' } : {}), ...(request.method === 'GET' ? {} : { 'idempotency-key': request.headers.get('idempotency-key')! }) }, body: body || undefined });
     const value = await result.json();
     return Response.json(value, { status: result.status, headers: { 'Cache-Control': 'private, no-store' } });
   } catch { return respond('서버 응답을 확인하지 못했습니다. 같은 요청으로 다시 확인해 주세요.', 502); }

@@ -62,8 +62,8 @@ export function createCardTools(
       const card = foundVariants.get(cardVariantId);
       if (!card) return '이번 턴에 검색한 카드만 매물을 조회할 수 있습니다. 먼저 카드를 검색하세요.';
       const listings = z.array(listingSchema).parse(await marketplaceService.listListings(cardVariantId)).filter(listing => listing.cardVariantId === card.id && listing.status === 'ACTIVE');
-      listings.sort((a, b) => BigInt(a.price) < BigInt(b.price) ? -1 : BigInt(a.price) > BigInt(b.price) ? 1 : a.id.localeCompare(b.id));
-      const offers = listings.slice(0, 3).map(listing => agentPurchaseOfferSchema.parse({ listingId: listing.id, card, price: listing.price, dataSource: 'SYNTHETIC_DEMO', paymentMode: profile.paymentMode, currency: profile.currency, paymentReady: marketplaceService.paymentReady }));
+      listings.sort((a, b) => (a.rwa ? 0 : 1) - (b.rwa ? 0 : 1) || (BigInt(a.price) < BigInt(b.price) ? -1 : BigInt(a.price) > BigInt(b.price) ? 1 : a.id.localeCompare(b.id)));
+      const offers = listings.slice(0, 3).map(listing => agentPurchaseOfferSchema.parse({ listingId: listing.id, card, price: listing.price, dataSource: 'SYNTHETIC_DEMO', paymentMode: listing.rwa ? 'X402_MAROO_RWA' : profile.paymentMode, rwa: listing.rwa, currency: profile.currency, paymentReady: marketplaceService.paymentReady }));
       onPurchaseOffers?.(offers);
       return { listings, availableCount: listings.length, dataSource: 'SYNTHETIC_DEMO', paymentMode: profile.paymentMode, currency: profile.currency, paymentReady: marketplaceService.paymentReady, purchaseRequiresWalletSignature: marketplaceService.signingMode !== 'server' };
     },
