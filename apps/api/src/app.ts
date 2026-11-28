@@ -55,7 +55,7 @@ export async function buildApp(options: AppOptions = {}) {
     if (prisma) { await prisma.$connect(); await ensureMonetaryContext(prisma, env.PAYMENT_CHAIN); }
     const useDatabase = env.CARD_DATA_SOURCE === 'database';
     const demoScenarios = env.DEMO_SCENARIOS_ENABLED ? await readDemoScenarios(env.PAYMENT_CHAIN) : null;
-    const aggregatorService = createAggregatorService({ adapter: useDatabase ? createPrismaCardAdapter(prisma!, { cardIds: demoScenarios?.scenarios.map(card => card.cardId) }) : createMockCardAdapter() });
+    const aggregatorService = createAggregatorService({ adapter: useDatabase ? createPrismaCardAdapter(prisma!, { cardIds: demoScenarios?.scenarios.map(card => card.cardId), ...(env.CATALOG_MODE === 'curated' ? {curation:{priceSource:demoScenarios ? 'mock' : env.PRICE_DATA_SOURCE,maxCards:env.CATALOG_MAX_CARDS}} : {}) }) : createMockCardAdapter() });
     const market = useDatabase ? createMarketPriceServices({ prisma: prisma! }) : null;
     const marketAdapter = env.MARKET_VALUATION_MODE === 'demo' ? market?.demoAdapter : market?.adapter;
     const priceDataSource = demoScenarios ? 'mock' : env.PRICE_DATA_SOURCE;

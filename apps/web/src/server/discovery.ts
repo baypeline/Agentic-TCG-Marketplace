@@ -4,7 +4,8 @@ import { sameNameCards, type DiscoveryData } from '../lib/discovery';
 
 export async function getDiscovery(): Promise<DiscoveryData> {
   const names = ['Pikachu', 'Eevee', 'Vaporeon', 'Jolteon', 'Flareon'];
-  const results = await Promise.allSettled(names.map(searchCards));
+  const queries = ['피카츄','이브이','샤미드','쥬피썬더','부스터'];
+  const results = await Promise.allSettled(queries.map(searchCards));
   const lead = results[0]!;
   const cards = lead.status === 'fulfilled' ? sameNameCards(lead.value.items, 'Pikachu').slice(0, 2) : [];
   const spotlight = await Promise.all(cards.map(async card => {

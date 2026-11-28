@@ -15,7 +15,7 @@ it.skipIf(!process.env.DATABASE_TEST_URL)('한국어와 영어 검색이 같은 
     expect(await prisma.pokemonNameTranslation.findUnique({ where: { speciesId } })).toBeNull();
     await prisma.cardVariant.create({ data: { id, game: 'POKEMON', name, setCode: token, cardNumber: '1', language: 'EN', edition: 'UNSPECIFIED', condition: 'UNSPECIFIED' } });
     await createPokemonLocalizationService({ prisma, provider: { async loadNames() { return [{ speciesId, englishName: name, koreanName, sourceUrl: `https://example.test/ko-test/${token}` }]; } } }).importNames();
-    app = await buildApp({ env: parseApiEnv({ NODE_ENV: 'test', DATABASE_ENABLED: 'true', DATABASE_URL: process.env.DATABASE_TEST_URL, CARD_DATA_SOURCE: 'database' }) });
+    app = await buildApp({ env: parseApiEnv({ NODE_ENV: 'test', DATABASE_ENABLED: 'true', DATABASE_URL: process.env.DATABASE_TEST_URL, CATALOG_MODE: 'all', CARD_DATA_SOURCE: 'database' }) });
     for (const query of [koreanName, name]) {
       const response = await app.inject(`/api/cards?${new URLSearchParams({ q: query, limit: '1' })}`);
       expect(response.statusCode).toBe(200);

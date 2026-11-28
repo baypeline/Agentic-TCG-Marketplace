@@ -19,8 +19,8 @@ it('주제 검색 일부와 참고 시세가 실패해도 성공한 카드와 �
   vi.stubGlobal('fetch', vi.fn(async (url: URL) => {
     if (url.pathname.endsWith('/prices')) return new Response('', { status: 503 });
     const query = url.searchParams.get('q');
-    if (query === 'Flareon') return new Response('', { status: 503 });
-    return Response.json({ items: query === 'Pikachu' ? [pikachu] : query === 'Eevee' ? [demoCards[2]] : [], nextCursor: null });
+    if (query === '부스터') return new Response('', { status: 503 });
+    return Response.json({ items: query === '피카츄' ? [pikachu] : query === '이브이' ? [demoCards[2]] : [], nextCursor: null });
   }));
   const data = await getDiscovery();
   expect(data.spotlight[0]).toMatchObject({ card: { id: pikachu.id }, prices: null, pricesFailed: true });
@@ -44,4 +44,9 @@ it('주제 검색 실패를 카드가 없는 성공 응답과 구분한다', asy
   expect(html).toContain('일부 카드 정보를 불러오지 못했어요.');
   expect(html).not.toContain('아직 보여드릴 카드가 없어요.');
   expect(html).toContain('구매 조건 정하기');
+});
+
+it('랜딩의 같은 이름 카드에서도 실제 한국어판을 먼저 보여준다',()=>{
+  const ko={...pikachu,id:'00000000-0000-4000-8000-000000000098',name:'피카츄',language:'KO',setCode:'SV5K'};
+  expect(sameNameCards([pikachu,ko],'Pikachu').map(card=>card.id)).toEqual([ko.id,pikachu.id]);
 });

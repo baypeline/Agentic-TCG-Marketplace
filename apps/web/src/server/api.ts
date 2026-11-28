@@ -27,7 +27,7 @@ export async function getCatalog(query: string): Promise<CatalogItem[]> {
     }
   }));
   // 조회된 범위 안에서 실제 이미지가 있는 카드를 우선 진열한다. 전체 정렬 API는 아니다.
-  return results.sort((a, b) => Number(Boolean(b.card.imageUrl)) - Number(Boolean(a.card.imageUrl)));
+  return results.sort((a, b) => Number(b.card.language === 'KO')-Number(a.card.language === 'KO') || Number(Boolean(b.card.imageUrl)) - Number(Boolean(a.card.imageUrl)));
 }
 
 export async function getDemoStatus() { return demoStatusSchema.parse(await get('/api/demo')); }

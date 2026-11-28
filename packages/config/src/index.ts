@@ -6,6 +6,8 @@ export const apiEnvSchema = z.object({
   API_PORT: z.coerce.number().int().min(1).max(65535).default(4000),
   DATA_MODE: z.literal('mock').default('mock'),
   CARD_DATA_SOURCE: z.enum(['mock', 'database']).default('mock'),
+  CATALOG_MODE: z.enum(['curated','all']).default('curated'),
+  CATALOG_MAX_CARDS: z.coerce.number().int().min(1).max(50).default(12),
   PRICE_DATA_SOURCE: z.enum(['mock', 'market']).default('mock'),
   MARKET_VALUATION_MODE: z.enum(['demo', 'strict']).default('demo'),
   DEMO_SCENARIOS_ENABLED: z.enum(['true', 'false']).default('false').transform(value => value === 'true'),

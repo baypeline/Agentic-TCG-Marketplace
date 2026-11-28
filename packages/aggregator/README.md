@@ -1,5 +1,7 @@
 # TCG Aggregator
 
+호스트의 기본 검색은 `CATALOG_MODE=curated`입니다. `createPrismaCardAdapter`의 `curation` 옵션으로 HTTPS 이미지·필수 식별 정보·판본/상태·양수 가격이 있는 카드만 최대 12종 선별하고 실제 한국어판을 우선합니다. 선별과 정렬은 검색어·limit 적용 전에 수행합니다. 원본 검증은 `CATALOG_MODE=all`로 실행하며 직접 ID 조회·기존 거래 연결은 선별 여부와 별개로 유지합니다. [선별 기준과 현재 데이터](../../docs/catalog-selection.md)를 참고하세요.
+
 `createAggregatorService({ adapter })`, `createMockCardAdapter()`, `createPrismaCardAdapter(prisma)`, `createTcgdexCardAdapter(options)`, `createAggregatorPlugin({ aggregatorService })`를 제공합니다. 모두 공통 `CardDataAdapter` 인터페이스로 교체합니다.
 
 Plugin은 호스트에서 `/api` prefix로 등록합니다.

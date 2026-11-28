@@ -26,7 +26,7 @@ it.skipIf(!process.env.DATABASE_TEST_URL)('외부 카드 수집 후 DB 기반 RE
     expect(storedCount).toBe(1);
     const card = items[0]!;
     expect(fetcher).toHaveBeenCalledTimes(3);
-    app = await buildApp({ env: parseApiEnv({ NODE_ENV: 'test', DATABASE_ENABLED: 'true', DATABASE_URL: process.env.DATABASE_TEST_URL, CARD_DATA_SOURCE: 'database' }) });
+    app = await buildApp({ env: parseApiEnv({ NODE_ENV: 'test', DATABASE_ENABLED: 'true', DATABASE_URL: process.env.DATABASE_TEST_URL, CATALOG_MODE: 'all', CARD_DATA_SOURCE: 'database' }) });
     const search = await app.inject(`/api/cards?${new URLSearchParams({ q: name, limit: '5' })}`);
     expect(search.statusCode).toBe(200);
     expect(cardSearchResponseSchema.parse(search.json()).items).toEqual([card]);

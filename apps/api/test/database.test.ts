@@ -29,7 +29,7 @@ describe.skipIf(!process.env.DATABASE_TEST_URL)('PostgreSQL 카탈로그 통합'
           { amount: '999000000', dataSource: 'MARKET', source: '분리 검증용 표본', observedAt: new Date('2026-11-19T00:00:00Z') },
         ] },
       } });
-      app = await buildApp({ env: parseApiEnv({ NODE_ENV: 'test', DATABASE_ENABLED: 'true', DATABASE_URL: process.env.DATABASE_TEST_URL, CARD_DATA_SOURCE: 'database' }) });
+      app = await buildApp({ env: parseApiEnv({ NODE_ENV: 'test', DATABASE_ENABLED: 'true', DATABASE_URL: process.env.DATABASE_TEST_URL, CATALOG_MODE: 'all', CARD_DATA_SOURCE: 'database' }) });
       expect((await app.inject('/health')).json()).toMatchObject({ database: 'connected', cardDataSource: 'database', dataMode: 'mock' });
       const search = await app.inject(`/api/cards?q=db-${id}&limit=1`);
       expect(search.statusCode).toBe(200);

@@ -2,6 +2,9 @@ import type { FastifyPluginAsync } from 'fastify';
 import type { PrismaClient } from '@tcg/db';
 import { demoCards } from '@tcg/contracts/fixtures';
 import { toCardVariant } from './card-dto.js';
+import { selectCuratedCards, type CatalogCuration } from './curation.js';
+export { selectCuratedCards } from './curation.js';
+export type { CatalogCuration, CatalogCandidate } from './curation.js';
 import { AppError, cardParamsSchema, cardSearchQuerySchema, cardSearchResponseSchema, cardVariantSchema, type AggregatorService, type CardVariant } from '@tcg/contracts';
 
 export type { AggregatorService } from '@tcg/contracts';
@@ -41,9 +44,21 @@ export function createMockCardAdapter(cards: readonly CardVariant[] = mockCards)
     async getCardVariant(id) { const card = cards.find(card => card.id === id); return card ? structuredClone(card) : null; },
   };
 }
-export function createPrismaCardAdapter(prisma: PrismaClient, options: { cardIds?: readonly string[] } = {}): CardDataAdapter {
+export function createPrismaCardAdapter(prisma: PrismaClient, options: { cardIds?: readonly string[]; curation?: CatalogCuration } = {}): CardDataAdapter {
   return {
     async searchCards({ query, limit }) {
+      if (options.curation) {
+        const rows = await prisma.cardVariant.findMany({
+          where: { ...(options.cardIds ? { id: { in: [...options.cardIds] } } : {}), imageUrl: { not: null } },
+          include: { localizedNames: true, inventoryItems: { select: { id: true } }, priceObservations: { where: { dataSource: 'MOCK' }, select: { amount:true,observedAt:true } }, marketPrices: { where: { originalCurrency:'USD',provider:'TCGPLAYER',priceType:'PROVIDER_MARKET' }, select: { originalAmount:true,observedAt:true } } },
+        });
+        const candidates = rows.flatMap(row => {
+          try { return [{ card: toCardVariant(row), hasInventory: row.inventoryItems.length > 0, prices: options.curation!.priceSource === 'mock' ? row.priceObservations : row.marketPrices.map(p => ({amount:p.originalAmount,observedAt:p.observedAt})) }]; }
+          catch { return []; }
+        });
+        const search = query.normalize('NFKC').trim().toLowerCase();
+        return selectCuratedCards(candidates, options.curation).filter(card => card.name.normalize('NFKC').toLowerCase().includes(search) || card.localizedNames?.some(name=>name.name.normalize('NFKC').toLowerCase().includes(search))).slice(0,limit);
+      }
       const search = query.normalize('NFKC').trim().replace(/[\\%_]/g, character => `\\${character}`);
       const rows = await prisma.cardVariant.findMany({
         where: { ...(options.cardIds ? { id: { in: [...options.cardIds] } } : {}), OR: [{ name: { contains: search, mode: 'insensitive' } }, { localizedNames: { some: { locale: 'ko', name: { contains: search, mode: 'insensitive' } } } }] },
