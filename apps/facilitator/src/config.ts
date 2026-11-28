@@ -16,6 +16,7 @@ const schema = z.object({
   FACILITATOR_PAYERS: z.string().transform(s => s.split(',').map(s => address.parse(s.trim()).toLowerCase())).refine(s => s.length > 0 && s.length <= 10),
   FACILITATOR_MAX_AMOUNT: z.string().regex(/^[1-9]\d*$/).default('25000'),
   FACILITATOR_DATA_DIR: z.string().default('./data'),
+  FACILITATOR_PAYER_REGISTRY_URL: z.preprocess(value => value === '' ? undefined : value, z.url().refine(value => { const url = new URL(value); return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password && !url.search && !url.hash; }).optional()),
 });
 export type FacilitatorEnv = z.infer<typeof schema>;
 export function parseEnv(input: NodeJS.ProcessEnv): FacilitatorEnv {

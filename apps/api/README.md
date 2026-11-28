@@ -1,5 +1,7 @@
 # Fastify Core API
 
+`POST /internal/facilitator/payers/check`는 퍼실리테이터 서비스 토큰을 검사하고 DB에 연결된 에이전트 지갑의 허용 여부만 반환합니다. 일반 로그인 세션으로는 접근할 수 없으며 지갑 키나 사용자 정보는 반환하지 않습니다. [자체 퍼실리테이터](../facilitator/README.md)를 참고하세요.
+
 `managed-agent-wallet.ts`는 로그인 시 전용 지갑을 자동 발급하고 개인키를 암호화해 저장합니다. `/api/agent/wallet`은 본인 주소와 잔액만 반환하며 결제·NFT는 인증된 사용자 지갑을 선택합니다. [설정과 키 보관](../../docs/managed-agent-wallet.md)을 참고하세요.
 
 `wallet-auth.ts`는 DB에 보존한 SIWE 메시지와 EOA 서명을 검증해 사용자·Agent 세션을 발급합니다. 세션의 SHA-256 해시만 DB에 저장하며 요청마다 만료·폐기를 검사합니다. `AUTH_WEB_ORIGIN` 또는 `http://127.0.0.1:PORT`에 웹 주소를 맞춰 주세요. 기존 구매자 지갑 매핑과 새 사용자 분리는 [지갑 로그인](../../docs/wallet-login.md)을 참고하세요.

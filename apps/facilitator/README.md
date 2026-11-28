@@ -1,5 +1,9 @@
 # 자체 x402 퍼실리테이터
 
+사용자별 자동 발급 지갑은 `FACILITATOR_PAYER_REGISTRY_URL`의 Core API에서 실시간으로 등록 여부를 확인합니다. 기존 `FACILITATOR_PAYERS` 주소는 유지하며, 나머지는 DB에 현재 연결된 지갑만 허용합니다. 등록 조회는 서비스 토큰으로 인증하고 공개 주소와 허용 여부만 교환합니다. 조회 실패 시 503으로 거부하며 `/settle`에서도 다시 검사합니다.
+
+`pnpm facilitator:init`은 Docker Desktop에서 호스트 Core API로 접근할 `http://host.docker.internal:API_PORT/internal/facilitator/payers/check`를 별도 환경 파일에 설정합니다. API와 퍼실리테이터를 재시작하세요. Core를 다른 호스트나 컨테이너에서 실행하면 이 URL을 접근 가능한 Core 주소로 바꿉니다. 토큰은 기존 `FACILITATOR_API_TOKEN`과 API의 `PAYMENT_FACILITATOR_TOKEN`을 사용하며 브라우저에는 전달하지 않습니다. URL을 생략하면 기존 고정 목록 방식으로 동작합니다.
+
 선택적 `maroo-rwa`는 허용된 NFT 마켓 호출과 코드 해시·견적·calldata·PurchaseExecuted/NFT Transfer 증빙을 검증합니다. 기존 EOA 전용 `maroo-native`와 분리하며, 활성 배포 정보는 `facilitator:init`이 공개 필드만 전달합니다. [RWA 실행 가이드](../../docs/rwa.md)를 참고하세요.
 
 Base Sepolia USDC는 공식 `@x402/core`·`@x402/evm` 2.32.0 EVM exact / EIP-3009를 사용합니다. Maroo Testnet 네이티브 tOKRW는 x402 v2의 자체 확장 `maroo-native`를 사용하며 공식 ERC20 exact 방식과 다릅니다. [마루 실행 가이드](../../docs/maroo.md)에서 별도 DB·18자리 원장·서명·가스비·복귀 방법을 확인하세요. 아래 가스 지갑과 USDC 설명은 Base 프로필에 해당합니다. 마루는 구매 지갑이 결제와 가스비를 부담하고 퍼실리테이터는 동일 서명 원문을 방송합니다.

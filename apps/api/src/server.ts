@@ -13,6 +13,7 @@ import { readRwaDeployment } from '@tcg/payment-client/rwa';
 import { createWalletAuth } from './wallet-auth.js';
 import { createManagedAgentWallets, createManagedAgentWalletPlugin, type ManagedAgentWallets } from './managed-agent-wallet.js';
 import { requireAuth } from './app.js';
+import { createFacilitatorPayersPlugin } from './facilitator-payers.js';
 
 config({ path: '../../.env', quiet: true });
 const env = parseApiEnv(process.env);
@@ -55,7 +56,7 @@ const app = await buildApp({
     }
     const plugins = await createIntegrationPlugins(deps, { rwaVariables: process.env, signAgentPayment: managedWallets?.sign ?? agentWallet?.sign, resolveAgentWallet: getWalletAddress, resolveRwaWallet: userId => managedWallets?.account(userId) ?? Promise.resolve(null), resolveWalletUserId: address => managedWallets?.userForAddress(address) ?? Promise.resolve(null), onDemoPurchaseReady: handler => { demoPurchase = handler; }, onAgentBudgetReady: handler => { agentBudget = handler; } });
     const agentPlugins = await localAgent.createIntegrationPlugins?.(deps) ?? [];
-    return [...(walletAuth ? [walletAuth.plugin] : []), ...(managedWallets ? [createManagedAgentWalletPlugin(managedWallets, requireAuth)] : []), ...plugins, ...agentPlugins];
+    return [...(walletAuth ? [walletAuth.plugin] : []), ...(managedWallets ? [createManagedAgentWalletPlugin(managedWallets, requireAuth)] : []), ...(deps.prisma && env.PAYMENT_FACILITATOR_TOKEN ? [createFacilitatorPayersPlugin(deps.prisma, env.PAYMENT_FACILITATOR_TOKEN)] : []), ...plugins, ...agentPlugins];
   },
 });
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {

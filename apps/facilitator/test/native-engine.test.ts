@@ -76,6 +76,25 @@ it('주문 내용을 변조하거나 과거 지급을 다른 주문으로 감싸
   await expect(inspectNativePayment(f.payload, { ...f.requirements, extra: { ...f.requirements.extra, tcgQuoteId: '00000000-0000-4000-8000-000000000002' } })).rejects.toThrow();
   expect(f.broadcast).not.toHaveBeenCalled();
 });
+
+it('고정 목록 밖의 자동 발급 지갑은 등록 여부에 따라 허용하고 조회 장애에는 정산하지 않는다', async () => {
+  const f = await fixture();
+  const directory = mkdtempSync(join(tmpdir(), 'tcg-managed-payer-'));
+  const settle = f.engine.settle.bind(f.engine);
+  f.engine.settle = (payload, requirements, record) => settle(payload, requirements, hash => { record(hash); f.broadcast(hash); });
+  const allowed = vi.fn(async () => true);
+  const app = buildApp({ env: { ...f.env, FACILITATOR_PAYERS: [`0x${'9'.repeat(40)}`] }, engine: f.engine, journal: createJournal(directory), isPayerAllowed: allowed });
+  closers.push(async () => { await app.close(); rmSync(directory, { recursive: true, force: true }); });
+  const request = (url: string) => app.inject({ method: 'POST', url, headers: { authorization: `Bearer ${f.env.FACILITATOR_API_TOKEN}` }, payload: { paymentPayload: f.payload, paymentRequirements: f.requirements } });
+  expect((await request('/verify')).json().isValid).toBe(true);
+  expect(allowed).toHaveBeenCalledWith(payer.address);
+  allowed.mockResolvedValueOnce(false);
+  expect((await request('/settle')).statusCode).toBe(400);
+  allowed.mockRejectedValueOnce(new Error('registry unavailable'));
+  expect((await request('/settle')).statusCode).toBe(503);
+  expect(f.broadcast).not.toHaveBeenCalled();
+  expect((await request('/settle')).json().success).toBe(true);
+});
 it('가스비 잔액 부족·nonce 변경·가스 부족·컨트랙트 수납처는 방송 전에 거부한다', async () => {
   const f = await fixture();
   const initial = { ...f.state };

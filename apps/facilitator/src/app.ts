@@ -9,13 +9,14 @@ import type { PaymentPayload, PaymentRequirements, SettleResponse } from '@x402/
 import { type FacilitatorEnv } from './config.js';
 import type { Engine } from './engine.js';
 import type { Journal } from './journal.js';
+import { createPayerRegistry } from './payers.js';
 
 const bodySchema = z.object({ x402Version: z.literal(2).optional(), paymentPayload: PaymentPayloadV2Schema, paymentRequirements: PaymentRequirementsV2Schema });
 const authorizationSchema = z.object({ from: z.string().regex(/^0x[\da-fA-F]{40}$/), to: z.string().regex(/^0x[\da-fA-F]{40}$/), value: z.string().regex(/^[1-9]\d*$/), validAfter: z.string().regex(/^\d+$/), validBefore: z.string().regex(/^\d+$/), nonce: z.string().regex(/^0x[\da-fA-F]{64}$/) }).strict();
 const signedSchema = z.object({ authorization: authorizationSchema, signature: z.string().regex(/^0x[\da-fA-F]{130}$/) }).strict();
 const hash = (text: string) => createHash('sha256').update(text).digest('hex');
 
-export function buildApp({ env, engine, journal }: { env: FacilitatorEnv; engine: Engine; journal: Journal }) {
+export function buildApp({ env, engine, journal, isPayerAllowed = createPayerRegistry(env) }: { env: FacilitatorEnv; engine: Engine; journal: Journal; isPayerAllowed?: (address: string) => Promise<boolean> }) {
   const profile = getPaymentProfile(env.FACILITATOR_CHAIN);
   const { network, asset } = profile;
   const rwa = readRwaDeployment(env);
@@ -38,20 +39,21 @@ export function buildApp({ env, engine, journal }: { env: FacilitatorEnv; engine
     const { paymentPayload: payload } = parsed.data;
     const requirements = parsed.data.paymentRequirements as PaymentRequirements;
     if (profile.chain === 'maroo') {
+      let info;
+      const isRwa = requirements.scheme === 'maroo-rwa';
       try {
-        const isRwa = requirements.scheme === 'maroo-rwa';
         if (isRwa && !rwa) return null;
-        const info = isRwa ? await inspectRwaPayment(payload as PaymentPayload, requirements, rwa!) : await inspectNativePayment(payload as PaymentPayload, requirements);
-        if ((!isRwa && requirements.payTo.toLowerCase() !== env.FACILITATOR_RECIPIENT.toLowerCase()) || !env.FACILITATOR_PAYERS.includes(info.payer.toLowerCase()) || BigInt(requirements.amount) > BigInt(env.FACILITATOR_MAX_AMOUNT)) return null;
-        return { payload: payload as PaymentPayload, requirements, payer: info.payer, id: hash([network, asset, info.payer.toLowerCase(), String(info.tx.nonce)].join(':')), fingerprint: hash(info.hash + ':' + String(requirements.extra?.tcgQuoteId)) };
+        info = isRwa ? await inspectRwaPayment(payload as PaymentPayload, requirements, rwa!) : await inspectNativePayment(payload as PaymentPayload, requirements);
       } catch { return null; }
+      if ((!isRwa && requirements.payTo.toLowerCase() !== env.FACILITATOR_RECIPIENT.toLowerCase()) || BigInt(requirements.amount) > BigInt(env.FACILITATOR_MAX_AMOUNT) || !await isPayerAllowed(info.payer)) return null;
+      return { payload: payload as PaymentPayload, requirements, payer: info.payer, id: hash([network, asset, info.payer.toLowerCase(), String(info.tx.nonce)].join(':')), fingerprint: hash(info.hash + ':' + String(requirements.extra?.tcgQuoteId)) };
     }
     const signed = signedSchema.safeParse(payload.payload);
     if (!signed.success) return null;
     const auth = signed.data.authorization;
     const accepted = payload.accepted as PaymentRequirements;
     const matches = (r: PaymentRequirements) => r.scheme === 'exact' && r.network === network && r.asset.toLowerCase() === asset.toLowerCase() && r.payTo.toLowerCase() === env.FACILITATOR_RECIPIENT.toLowerCase() && r.amount === auth.value && BigInt(r.amount) <= BigInt(env.FACILITATOR_MAX_AMOUNT) && r.extra?.name === 'USDC' && r.extra?.version === '2' && (!r.extra.assetTransferMethod || r.extra.assetTransferMethod === 'eip3009');
-    if (!matches(requirements) || !matches(accepted) || requirements.extra?.tcgQuoteId !== accepted.extra?.tcgQuoteId || (requirements.extra?.tcgQuoteId !== undefined && !z.uuid().safeParse(requirements.extra.tcgQuoteId).success) || auth.to.toLowerCase() !== requirements.payTo.toLowerCase() || !env.FACILITATOR_PAYERS.includes(auth.from.toLowerCase())) return null;
+    if (!matches(requirements) || !matches(accepted) || requirements.extra?.tcgQuoteId !== accepted.extra?.tcgQuoteId || (requirements.extra?.tcgQuoteId !== undefined && !z.uuid().safeParse(requirements.extra.tcgQuoteId).success) || auth.to.toLowerCase() !== requirements.payTo.toLowerCase() || !await isPayerAllowed(auth.from)) return null;
     const id = hash([network, asset.toLowerCase(), auth.from.toLowerCase(), auth.nonce.toLowerCase()].join(':'));
     const fingerprint = hash(JSON.stringify([auth.from.toLowerCase(), auth.to.toLowerCase(), auth.value, auth.validAfter, auth.validBefore, auth.nonce.toLowerCase(), network, asset.toLowerCase(), requirements.extra?.tcgQuoteId ?? null, payload.resource?.url ?? null, hash(signed.data.signature.toLowerCase())]));
     return { payload: payload as PaymentPayload, requirements, id, fingerprint, payer: auth.from };
