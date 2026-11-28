@@ -6,12 +6,13 @@ import type { MarketPricesResponse } from '@tcg/contracts';
 import { demoCards } from '@tcg/contracts/fixtures';
 
 const base = { cardVariantId: '00000000-0000-4000-8000-000000000001', currency: 'USDC', dataSource: 'MOCK', confidence: 'LOW', evaluatedAt: '2026-11-22T00:00:00.000Z', sourceSummary: ['시연용 합성 표본'] } as const;
-it('상세 가격에 Mock 경고와 출처·표본·평가 시각을 표시한다', () => {
+it('상세 가격은 경고를 반복하지 않고 참고 가격과 접힌 출처·평가 정보를 제공한다', () => {
   const valuation: Valuation = { ...base, sourceSummary: [...base.sourceSummary], status: 'AVAILABLE', estimatedPrice: '12500000', sampleSize: 3 };
   const html = renderUI(<ValuationDetails valuation={valuation} />);
   expect(html).toContain('12.5 USDC');
-  expect(html).toContain('Mock / 합성 데이터');
-  expect(html).toContain('실제 시장가격이나 구매 판단에 사용할 수 없습니다.');
+  expect(html).toContain('참고 가격');
+  expect(html).not.toContain('Mock / 합성 데이터');
+  expect(html).not.toContain('실제 시장가격이나 구매 판단에 사용할 수 없습니다.');
   expect(html).toContain('시연용 합성 표본');
   expect(html).toContain('3개');
   expect(html).toContain('dateTime="2026-11-22T00:00:00.000Z"');
@@ -57,7 +58,7 @@ it('정상 평가에서 제공자 표본의 의미와 관측 범위를 표시한
 it('실제 USD 데모 환산을 합성 데이터나 검증 적정가로 표시하지 않는다', () => {
   const html = renderUI(<ValuationDetails valuation={{ ...market, status: 'AVAILABLE', estimatedPrice: '12500000', sampleSize: 1, sourceSummary: ['TCGPLAYER:normal'], methodology: 'DEMO_USD_REFERENCE', assumptions: ['1 USD ≈ 1 USDC 데모 환산', '판본·보존 상태 미보정'] }} />);
   expect(html).toContain('12.5 USDC');
-  expect(html).toContain('데모 참고 추정가');
+  expect(html).toContain('참고 추정가');
   expect(html).toContain('판본·보존 상태 미보정');
   expect(html).not.toContain('Mock / 합성 데이터');
   expect(html).not.toContain('검증된 제공자 집계가의 중앙값');

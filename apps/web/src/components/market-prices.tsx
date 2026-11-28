@@ -10,7 +10,7 @@ export function MarketPrices({ prices, demoValuation = false }: { prices: Market
   const usableProviders = new Set(prices.items.filter(price => price.eligibility === 'ELIGIBLE').map(price => price.provider)).size;
   return <Section aria-labelledby="market-prices-heading"><Heading><h2 id="market-prices-heading">해외 참고 시세</h2><Badge>원본 통화 유지</Badge></Heading>
     <Description>해외 제공자의 집계·판매 희망 가격이며, 한국어판 실거래가가 아닙니다. 원본 통화로 표시합니다.</Description>
-    {!!prices.items.length && <Summary>수집 가격 {prices.items.length}건 · 제공자 {providers}곳 · {demoValuation ? '엄격 평가에 사용 가능한 제공자' : '적정가에 사용 가능한 제공자'} {usableProviders}곳<Small>수집 가격 건수는 실제 거래 건수가 아니에요. 아래에서 가격 유형과 검증 상태를 확인해 주세요.{demoValuation && ' 데모 추정가는 아래의 엄격 검증과 별도로 USD 가격을 1:1 환산해요.'}</Small></Summary>}
+    {!!prices.items.length && <Summary>수집 가격 {prices.items.length}건 · 제공자 {providers}곳 · {demoValuation ? '엄격 평가에 사용 가능한 제공자' : '적정가에 사용 가능한 제공자'} {usableProviders}곳<Small>아래에서 제공자의 가격 유형과 검증 상태를 확인할 수 있어요.</Small></Summary>}
     {prices.items.length === 0 ? <Notice title="수집된 외부 가격 자료가 없습니다.">원본 자료가 생기면 이곳에서 확인할 수 있습니다.</Notice> : <TableWrap><Table>
       <thead><tr><th scope="col">제공자·변형</th><th scope="col">가격 유형</th><th scope="col">원본 금액</th><th scope="col">갱신 시각 (UTC)</th><th scope="col">검증 상태</th></tr></thead>
       <tbody>{prices.items.map(price => <tr key={price.id}>

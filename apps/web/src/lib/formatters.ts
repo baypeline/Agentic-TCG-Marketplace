@@ -3,10 +3,10 @@ import type { CardVariant, MarketPrice, MarketPricesResponse, Valuation } from '
 
 export function getCardDisplayName(card: CardVariant): string { return card.localizedNames?.find(name => name.locale === 'ko')?.name ?? card.name; }
 export function getValuationLabel(valuation: Valuation): string {
-  return valuation.dataSource === 'MOCK' ? '데모 가격' : valuation.methodology === 'DEMO_USD_REFERENCE' ? '데모 참고 추정가' : '추정 적정가';
+  return valuation.dataSource === 'MOCK' ? '참고 가격' : valuation.methodology === 'DEMO_USD_REFERENCE' ? '참고 추정가' : '추정 적정가';
 }
 export function formatUsdc(amount: string, currency: Currency = 'USDC'): string { return formatMoney(amount, currency); }
-export function formatSet(code: string): string { return ({ base1: 'Base Set', base2: 'Jungle', SV: '데모 세트' } as Record<string, string>)[code] ?? code; }
+export function formatSet(code: string): string { return ({ base1: 'Base Set', base2: 'Jungle' } as Record<string, string>)[code] ?? code; }
 export function formatAttribute(value: string): string { return value === 'UNSPECIFIED' ? '미확정' : value; }
 export function formatProvider(value: string): string { return value === 'CARDMARKET' ? 'Cardmarket' : value === 'TCGPLAYER' ? 'TCGplayer' : value; }
 export function formatVariant(value: string): string { return ({ normal: '일반판', holo: '홀로', holofoil: '홀로포일', 'reverse-holofoil': '리버스 홀로', '1st-edition': '초판', unlimited: '언리미티드', '1st-edition-holofoil': '초판 홀로', 'unlimited-holofoil': '언리미티드 홀로' } as Record<string, string>)[value] ?? value; }

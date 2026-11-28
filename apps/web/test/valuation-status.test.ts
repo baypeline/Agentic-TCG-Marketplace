@@ -19,5 +19,5 @@ it.each([
 
 it('다른 카드의 가격이나 Mock 표본을 현재 카드의 시장 검증 근거로 사용하지 않는다', () => {
   expect(getValuationStatus(valuation, { ...prices, cardVariantId: row.id })?.reasons[0]).toContain('확인하지 못했어요');
-  expect(getValuationStatus({ ...valuation, dataSource: 'MOCK' }, prices)?.title).toBe('데모 표본이 없어요');
+  expect(getValuationStatus({ ...valuation, dataSource: 'MOCK' }, prices)?.title).toBe('가격 표본이 없어요');
 });

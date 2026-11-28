@@ -36,9 +36,10 @@ export function AppShell({ children }: { children: ReactNode }) {
     <Workspace data-chat-open={chatOpen}><BrowsePane ref={browse} id="browse-pane">
     {!isLanding && <ServiceNav aria-label="서비스 메뉴"><ServiceNavInner>{[['/rwa', 'NFT'], ['/cards', '카드 검색'], ['/marketplace', '매물'], ['/collection', '내 카드'], ['/activity', '거래 관리'], ['/agent', '에이전트 설정'], ['/agent/logs', 'Agent 로그']].map(([href, label]) => <Link key={href} href={href!} aria-current={(pathname === href || href === '/cards' && pathname.startsWith('/cards/')) ? 'page' : undefined}>{label}</Link>)}</ServiceNavInner></ServiceNav>}
     <PageFrame id="main-content" tabIndex={-1}>{children}</PageFrame>
-    <Footer id="data-guide"><FooterBrand>Agentic TCG</FooterBrand><details><summary>데이터 안내</summary>
+    <Footer id="data-guide"><FooterBrand>Agentic TCG</FooterBrand><details><summary>서비스 안내</summary>
       <p>영어판의 한국어 이름은 포켓몬 종명 표기이며, 한국어판은 원문 이름을 표시합니다. 해외 참고 시세는 제공자의 집계·판매 희망 가격으로, 한국어판 실거래가와 다를 수 있습니다.</p>
-      <p>데모 매물과 가격은 합성 데이터입니다. 구매 시 {demo.data?.paymentChain === 'maroo' ? 'Maroo Testnet tOKRW' : 'Base Sepolia 테스트 USDC'}가 실제 전송되며, 결제가 완료되면 보유 카드와 거래 내역에 반영됩니다. ‘화면 미리보기’로 표시된 화면의 데이터는 예시입니다.</p>
+      <p>이 서비스는 테스트넷에서 실행되며, 매물·가격·보관 기록에는 시연용 데이터가 포함돼요. 구매하면 {demo.data?.paymentChain === 'maroo' ? 'Maroo Testnet tOKRW' : 'Base Sepolia 테스트 USDC'}와 NFT가 실제로 이동합니다. NFT 이전은 NFT 매물에만 해당해요.</p>
+      <p>실물 카드의 보관·감정·배송은 제공하지 않으며, 인출 기능은 절차를 체험하는 용도예요. 참고 가격은 실제 시세나 체결가를 보장하지 않아요. USD 기준 추정가는 1 USD ≈ 1 USDC로 표시하며 판본·보존 상태를 보정하지 않습니다. ‘화면 미리보기’의 기록은 예시입니다.</p>
     </details></Footer></BrowsePane><ChatPane inert={!chatOpen} aria-hidden={!chatOpen}><AgentChat onClose={closeChat} /></ChatPane></Workspace>
   </>;
 }

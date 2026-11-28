@@ -7,7 +7,6 @@ import { CardImage } from '../../components/card-image';
 import { ValuationDetails } from '../../components/valuation-details';
 import { MarketPrices } from '../../components/market-prices';
 import { RequestState } from '../../components/request-state';
-import { Badge } from '../../components/ui';
 import { RelatedCards } from '../../components/related-cards';
 import { getValuationStatus } from '../../lib/valuation-status';
 import { getValuationLabel } from '../../lib/formatters';
@@ -25,10 +24,8 @@ export function DetailView({ card, valuation, prices, query, related = [], relat
       <Info><Title>{getCardDisplayName(card)}</Title>{getCardDisplayName(card) !== card.name && <Original>{card.name}</Original>}
         <PriceOverview aria-label="대표 가격 정보"><PriceLabel>{available ? getValuationLabel(valuation) : reference ? '해외 참고 시세' : '평가 정보'}</PriceLabel>
           <MainPrice>{available ? formatUsdc(valuation.estimatedPrice, valuation.currency) : reference ? `${reference.originalAmount} ${reference.originalCurrency}` : valuation ? '평가 자료 부족' : '가격 조회 실패'}</MainPrice>
-          {available ? <PriceStatus>{valuation.dataSource === 'MOCK' ? <Badge tone="demo">시연용 합성 데이터</Badge> : isDemo ? <Badge tone="demo">시장 데이터 · USD 데모 환산</Badge> : `검증 표본 ${valuation.sampleSize}개 · 신뢰 수준 낮음`}</PriceStatus> : reference ? <><PriceStatus>{formatProvider(reference.provider)} / {formatVariant(reference.providerVariant)} · {eligibilityLabels[reference.eligibility]}</PriceStatus><Updated>갱신 {formatUtc(reference.observedAt)} UTC</Updated></> : <PriceStatus>사용 가능한 가격을 확인한 뒤 표시합니다.</PriceStatus>}
+          {available ? valuation.dataSource === 'MARKET' && !isDemo ? <PriceStatus>검증 표본 {valuation.sampleSize}개 · 신뢰 수준 낮음</PriceStatus> : null : reference ? <><PriceStatus>{formatProvider(reference.provider)} / {formatVariant(reference.providerVariant)} · {eligibilityLabels[reference.eligibility]}</PriceStatus><Updated>갱신 {formatUtc(reference.observedAt)} UTC</Updated></> : <PriceStatus>사용 가능한 가격을 확인한 뒤 표시합니다.</PriceStatus>}
           {reference && !available && <Caveat>위 금액은 제공자의 원본 참고 가격입니다. 개별 체결가나 USDC 적정가가 아닙니다.</Caveat>}
-          {available && valuation.dataSource === 'MOCK' && <Caveat>실제 시장가격이나 구매 판단에 사용할 수 없습니다.</Caveat>}
-          {available && isDemo && <Caveat>1 USD ≈ 1 USDC 데모 환산 · 판본·보존 상태 미보정</Caveat>}
           {valuationStatus && <Caveat><strong>{valuationStatus.title}</strong><br />{valuationStatus.reasons[0]} <a href="#valuation-details">평가 근거 확인</a></Caveat>}
         </PriceOverview>
         <Facts><div><dt>인쇄 언어</dt><dd>{card.language}</dd></div><div><dt>카드 번호</dt><dd>{card.cardNumber}</dd></div><div><dt>에디션</dt><dd>{formatAttribute(card.edition)}</dd></div><div><dt>보존 상태</dt><dd>{formatAttribute(card.condition)}</dd></div></Facts>

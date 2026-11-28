@@ -10,8 +10,8 @@ const reasons = {
 
 export function getValuationStatus(valuation: Valuation, prices?: MarketPricesResponse | null, card?: Pick<CardVariant, 'edition' | 'condition'>) {
   if (valuation.status === 'AVAILABLE') return null;
-  if (valuation.dataSource === 'MOCK') return { title: '데모 표본이 없어요', reasons: ['이 카드에 연결된 합성 가격 표본이 없어 데모 가격을 표시하지 않아요.'] };
-  if (valuation.methodology === 'DEMO_USD_REFERENCE') return { title: '데모 환산에 쓸 USD 가격이 없어요', reasons: ['최근 TCGplayer 시장 집계가가 필요해요. EUR 가격·판매 희망가나 오래된 가격은 이 데모 환산에 사용하지 않아요.'] };
+  if (valuation.dataSource === 'MOCK') return { title: '가격 표본이 없어요', reasons: ['이 카드에 연결된 가격 표본이 없어 참고 가격을 표시하지 않아요.'] };
+  if (valuation.methodology === 'DEMO_USD_REFERENCE') return { title: '참고할 USD 가격이 없어요', reasons: ['최근 TCGplayer 시장 집계가가 필요해요. EUR 가격·판매 희망가나 오래된 가격은 이 평가에 사용하지 않아요.'] };
   if (!prices || prices.cardVariantId !== valuation.cardVariantId) return { title: '평가에 쓸 자료가 부족해요', reasons: ['참고 시세의 수집·검증 상태를 확인하지 못했어요. 잠시 후 다시 확인해 주세요.'] };
   if (!prices.items.length) return { title: '수집된 가격이 없어요', reasons: ['이 카드에 수집된 외부 가격이 없어요. 가격이 0이라는 뜻은 아니에요.'] };
   const details: string[] = [];

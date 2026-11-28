@@ -8,7 +8,16 @@ import { formatUsdc, getCardDisplayName, formatSet } from '../../lib/formatters'
 
 export function PurchaseOffers({ offers, disabled, completedIds, submittedIds, onBuy, signingMode = 'browser', payer }: { signingMode?: 'browser' | 'server'; payer?: string | null; offers: AgentPurchaseOffer[]; disabled: boolean; completedIds: string[]; submittedIds: string[]; onBuy: (offer: AgentPurchaseOffer) => void }) {
   const profile = getPaymentProfile(offers.some(offer => offer.paymentMode !== 'X402_BASE_SEPOLIA') ? 'maroo' : 'base-sepolia');
-  return <Offers aria-label="구매 가능한 데모 매물"><Hint>카드·가격은 합성 데모 데이터예요. {profile.chain === 'maroo' ? '구매하면 Maroo Testnet tOKRW가 실제 전송되며 구매 지갑이 가스비도 부담해요.' : '구매하면 Base Sepolia 테스트 USDC가 실제 전송돼요.'}</Hint>{signingMode === 'server' && <Hint>에이전트 전용 지갑이 건당 {formatUsdc(profile.maxPerTrade, profile.currency)}, 기본 총예산 {formatUsdc(profile.totalBudget, profile.currency)} 정책 범위에서 자동 서명해요. 구매 버튼을 누르면 전송합니다.{payer && <> 지급 지갑: {payer.slice(0, 6)}…{payer.slice(-4)}</>}</Hint>}{offers.map(offer => <Offer key={offer.listingId}><div><strong>{getCardDisplayName(offer.card)}</strong><small>{formatSet(offer.card.setCode)} · {offer.card.cardNumber} · {offer.card.language}</small></div>{offer.rwa && <Hint>NFT #{offer.rwa.tokenId} ? 데모 보관 ? 결제와 NFT 이전을 함께 처리</Hint>}<Price>{formatUsdc(offer.price, offer.currency ?? profile.currency)}</Price><Buy type="button" disabled={disabled || !offer.paymentReady || completedIds.includes(offer.listingId)} onClick={() => onBuy(offer)}>{completedIds.includes(offer.listingId) ? '구매 완료' : !offer.paymentReady ? '결제 설정 필요' : submittedIds.includes(offer.listingId) ? '기존 결제 확인' : signingMode === 'server' ? '에이전트 지갑으로 구매' : '지갑으로 구매'}</Buy></Offer>)}</Offers>;
+  return <Offers aria-label="구매 가능한 매물">
+    <Hint>구매 금액 외에 가스비가 발생해요.{profile.chain === 'maroo' && ' 가스비는 구매 지갑에서 함께 지불합니다.'}</Hint>
+    {signingMode === 'server' && <Hint>에이전트가 건당 {formatUsdc(profile.maxPerTrade, profile.currency)}, 기본 총예산 {formatUsdc(profile.totalBudget, profile.currency)} 범위에서 자동 서명해요.{payer && <> 지급 지갑: {payer.slice(0, 6)}…{payer.slice(-4)}</>}</Hint>}
+    {offers.map(offer => <Offer key={offer.listingId}>
+      <div><strong>{getCardDisplayName(offer.card)}</strong><small>{formatSet(offer.card.setCode)} · {offer.card.cardNumber} · {offer.card.language}</small></div>
+      {offer.rwa && <Hint>받을 NFT #{offer.rwa.tokenId} · 결제와 소유권 이전을 함께 처리해요.</Hint>}
+      <Price>{formatUsdc(offer.price, offer.currency ?? profile.currency)}</Price>
+      <Buy type="button" disabled={disabled || !offer.paymentReady || completedIds.includes(offer.listingId)} onClick={() => onBuy(offer)}>{completedIds.includes(offer.listingId) ? '구매 완료' : !offer.paymentReady ? '결제 설정 필요' : submittedIds.includes(offer.listingId) ? '기존 결제 확인' : signingMode === 'server' ? '에이전트 지갑으로 구매' : '지갑으로 구매'}</Buy>
+    </Offer>)}
+  </Offers>;
 }
 
 export function PurchaseReceipt({ progress, disabled, onCheck }: { progress: AgentPurchaseProgress; disabled: boolean; onCheck: () => void }) {

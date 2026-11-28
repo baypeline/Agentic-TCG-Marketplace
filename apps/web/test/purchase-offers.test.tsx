@@ -11,9 +11,9 @@ it('서버 서명 모드는 전용 지갑과 자동 지급 한도를 구매 전�
   expect(html).toContain('0.1 USDC');
   expect(html).toContain('지급 지갑:');
 });
-it('합성 매물과 실제 테스트넷 결제를 구분하고 서명 전 금액을 표시한다', () => {
+it('구매 전 금액과 가스비를 표시하고 반복 데이터 안내를 표시하지 않는다', () => {
   const html = renderUI(<PurchaseOffers offers={[offer]} disabled={false} completedIds={[]} submittedIds={[]} onBuy={() => undefined} />);
-  expect(html).toContain('0.01 USDC'); expect(html).toContain('테스트 USDC가 실제 전송'); expect(html).toContain('지갑으로 구매');
+  expect(html).toContain('0.01 USDC'); expect(html).toContain('가스비'); expect(html).not.toContain('합성 데모'); expect(html).toContain('지갑으로 구매');
   const retry = renderUI(<PurchaseOffers offers={[offer]} disabled={false} completedIds={[]} submittedIds={[offer.listingId]} onBuy={() => undefined} />);
   expect(retry).toContain('기존 결제 확인'); expect(retry).not.toContain('지갑으로 구매');
 });
