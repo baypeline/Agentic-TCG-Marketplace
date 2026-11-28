@@ -16,6 +16,7 @@
     "db:check": "tsx scripts/check.ts",
     "db:seed": "prisma db seed",
     "db:seed:collected": "tsx scripts/seed-collected.ts",
+    "db:seed:images": "tsx scripts/seed-official-images.ts",
     "demo:seed": "tsx scripts/seed-demo-scenarios.ts",
     "fixtures:export": "tsx scripts/export-fixtures.ts"
   },

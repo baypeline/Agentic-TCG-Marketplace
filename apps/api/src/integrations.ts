@@ -36,7 +36,7 @@ export async function createIntegrationPlugins({ env, prisma, aggregatorService,
   const plugin: FastifyPluginAsync = async app => {
     if (rwa) { await rwa.sync(); await app.register(createRwaPlugin(rwa)); }
     if (env.DEMO_SCENARIOS_ENABLED) {
-      const handler=createDemoPurchaseHandler({ env, trading, policies, signAgentPayment: options.signAgentPayment, resolvePaymentRecipient: async listingId => prisma && await prisma.rwaListing.findUnique({where:{id:listingId}}) ? deployment?.market ?? '' : env.PAYMENT_RECIPIENT!, getMcpUrl: () => {
+      const handler=createDemoPurchaseHandler({ env, trading, policies, includeKorean:true,signAgentPayment: options.signAgentPayment, resolvePaymentRecipient: async listingId => prisma && await prisma.rwaListing.findUnique({where:{id:listingId}}) ? deployment?.market ?? '' : env.PAYMENT_RECIPIENT!, getMcpUrl: () => {
       const address = app.server.address();
       if (!address || typeof address === 'string') throw new AppError('PAYMENT_UNAVAILABLE', 'MCP 서버가 수신 중이 아닙니다.', 503);
       return `http://${address.family === 'IPv6' ? `[${address.address}]` : address.address}:${address.port}/mcp`;

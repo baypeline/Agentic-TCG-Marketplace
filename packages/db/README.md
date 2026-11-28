@@ -1,5 +1,7 @@
 # 공통 DB
 
+`card-images.prisma`의 `catalog.CardImageReference`는 공식 한국어판 이미지 출처·세트/번호·해시·검증 시각을 보존합니다. `pnpm db:seed:images`로 Git JSON을 복원하며 `db:seed:collected`에도 포함됩니다. `pnpm demo:seed`는 원본과 다른 UUID의 한국어판 12종·MOCK 가격·판매 재고 24개를 추가합니다. 기존 거래·소유권은 유지합니다. [한국어판 데이터 구성](../../docs/korean-card-images.md)을 참고하세요.
+
 `rwa.prisma`는 실물 개체/NFT, 온체인 매물 매핑, 인출, 이벤트/커서, 요청 키와 사전 방송 해시를 저장합니다. 기존 카드·재고·매물에는 Restrict FK로 연결하며 카탈로그 판본과 NFT 한 장을 구분합니다. 기존 거래를 일괄 NFT화하지 않습니다. [RWA 실행과 복구](../../docs/rwa.md)를 참고하세요.
 
 `monetary-context.prisma`의 `market.MonetaryContext`는 거래 DB의 체인·통화·정밀도를 고정합니다. `ensureMonetaryContext`를 API 시작 및 시드에서 호출하며 기존 금액을 다른 통화로 재해석하지 않습니다. 마루는 별도 DB에 18자리 tOKRW 합성 시드를 구성하고 기존 USDC DB는 보존합니다. [초기화와 복귀](../../docs/maroo.md)를 참고하세요.

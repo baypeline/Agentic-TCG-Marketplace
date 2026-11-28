@@ -17,3 +17,11 @@ it('미래 가격과 오래된 시장 가격을 제외하되 고정 Mock 가격�
  expect(selectCuratedCards([old],options)).toEqual([base.card]);expect(selectCuratedCards([old],{...options,priceSource:'market'})).toEqual([]);
  expect(selectCuratedCards([{...base,prices:[{amount:'12',observedAt:new Date(time.getTime()+1)}]}],options)).toEqual([]);
 });
+it('공식 이미지만 있는 원본과 거래용 카드가 함께 있으면 거래용 카드를 우선하고 기존 카드 검색을 보존한다',()=>{
+ const imageSource={provider:'POKEMON_KOREA' as const,officialCardId:'BS2024004001',sourceUrl:'https://pokemoncard.co.kr/cards/detail/BS2024004001',productName:'와일드포스',printedNumber:'001/071',verifiedAt:time.toISOString()};
+ const reference={...base,card:{...base.card,id:'00000000-0000-4000-8000-000000000097',name:'로젤리아',setCode:'SV5K',cardNumber:'001',language:'KO',catalogRole:'REFERENCE' as const,imageSource,edition:'UNSPECIFIED',condition:'UNSPECIFIED'},prices:[],hasInventory:false};
+ const trading={...reference,card:{...reference.card,id:'00000000-0000-4000-8000-000000000098',catalogRole:undefined,edition:'NORMAL',condition:'NM'},prices:base.prices,hasInventory:true};
+ expect(selectCuratedCards([reference],options)).toEqual([reference.card]);
+ expect(selectCuratedCards([reference,trading],options)).toEqual([trading.card]);
+ expect(selectCuratedCards([reference,trading,base],{...options,maxCards:1,query:'Pikachu'})).toEqual([base.card]);
+});

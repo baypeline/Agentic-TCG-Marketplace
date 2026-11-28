@@ -13,10 +13,12 @@
     "collect": "tsx scripts/collect-cards.ts",
     "collect:set": "tsx scripts/collect-set.ts",
     "localize": "tsx scripts/localize-cards.ts",
+    "images:ko": "tsx scripts/collect-official-images.ts",
     "check:external": "tsx scripts/check-tcgdex.ts",
     "check:external:db": "tsx scripts/check-tcgdex.ts --database"
   },
   "dependencies": {
+    "cheerio": "1.2.0",
     "@tcg/db": "workspace:*",
     "@tcg/contracts": "workspace:*",
     "fastify": "5.12.8",

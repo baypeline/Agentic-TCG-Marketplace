@@ -8,7 +8,7 @@ const uuid = idSchema.transform(value => value.toLowerCase());
 const text = z.string().trim().min(1);
 const https = z.url({ protocol: /^https$/ }).refine(value => { const url = new URL(value); return !url.username && !url.password; });
 const decimal = z.string().regex(/^(0|[1-9]\d{0,14})(\.\d{1,6})?$/).refine(value => Number(value) > 0);
-const cardSchema = cardVariantSchema.omit({ localizedNames: true, imageUrl: true }).extend({ id: uuid, imageUrl: https.nullable(), externalIdentityId: uuid, lastCollectedAt: timestampSchema }).strict();
+const cardSchema = cardVariantSchema.omit({ localizedNames: true, imageUrl: true,imageSource:true,catalogRole:true }).extend({ id: uuid, imageUrl: https.nullable(), externalIdentityId: uuid, lastCollectedAt: timestampSchema }).strict();
 const identitySchema = z.object({ id: uuid, provider: z.literal('TCGDEX'), externalId: text.max(128), language: text.max(16), edition: text.max(64), condition: text.max(64), createdAt: timestampSchema }).strict();
 const translationSchema = z.object({ speciesId: z.number().int().positive(), englishName: text, englishKey: text, koreanName: text.regex(/[가-힣]/), sourceUrl: https, importedAt: timestampSchema }).strict();
 const localizedSchema = z.object({ cardVariantId: uuid, locale: z.literal('ko'), name: text, source: z.literal('POKEAPI_SPECIES'), sourceUrl: https, speciesId: z.number().int().positive() }).strict();

@@ -1,0 +1,18 @@
+model CardImageReference {
+  cardVariantId String @id @db.Uuid
+  provider      String
+  officialCardId String
+  name          String
+  setCode       String
+  cardNumber    String
+  printedNumber String
+  productName   String
+  sourceUrl     String
+  imageUrl      String
+  contentSha256 String
+  byteLength    Int
+  verifiedAt    DateTime @db.Timestamptz(3)
+  cardVariant   CardVariant @relation(fields: [cardVariantId], references: [id], onDelete: Cascade)
+  @@index([provider, officialCardId])
+  @@schema("catalog")
+}

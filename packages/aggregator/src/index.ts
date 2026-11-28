@@ -5,6 +5,8 @@ import { toCardVariant } from './card-dto.js';
 import { selectCuratedCards, type CatalogCuration } from './curation.js';
 export { selectCuratedCards } from './curation.js';
 export type { CatalogCuration, CatalogCandidate } from './curation.js';
+export { createOfficialImageSource,parseOfficialImage } from './official-images.js';
+export type { OfficialImageTarget } from './official-images.js';
 import { AppError, cardParamsSchema, cardSearchQuerySchema, cardSearchResponseSchema, cardVariantSchema, type AggregatorService, type CardVariant } from '@tcg/contracts';
 
 export type { AggregatorService } from '@tcg/contracts';
@@ -44,31 +46,30 @@ export function createMockCardAdapter(cards: readonly CardVariant[] = mockCards)
     async getCardVariant(id) { const card = cards.find(card => card.id === id); return card ? structuredClone(card) : null; },
   };
 }
-export function createPrismaCardAdapter(prisma: PrismaClient, options: { cardIds?: readonly string[]; curation?: CatalogCuration } = {}): CardDataAdapter {
+export function createPrismaCardAdapter(prisma: PrismaClient, options: { cardIds?: readonly string[]; curation?: CatalogCuration; includeOfficialReferences?: boolean } = {}): CardDataAdapter {
   return {
     async searchCards({ query, limit }) {
       if (options.curation) {
         const rows = await prisma.cardVariant.findMany({
-          where: { ...(options.cardIds ? { id: { in: [...options.cardIds] } } : {}), imageUrl: { not: null } },
-          include: { localizedNames: true, inventoryItems: { select: { id: true } }, priceObservations: { where: { dataSource: 'MOCK' }, select: { amount:true,observedAt:true } }, marketPrices: { where: { originalCurrency:'USD',provider:'TCGPLAYER',priceType:'PROVIDER_MARKET' }, select: { originalAmount:true,observedAt:true } } },
+          where: { ...(options.cardIds ? options.includeOfficialReferences ? {OR:[{id:{in:[...options.cardIds]}},{imageReference:{is:{provider:'POKEMON_KOREA'}}}]} : { id: { in: [...options.cardIds] } } : {}), imageUrl: { not: null } },
+          include: { imageReference:true,localizedNames: true, inventoryItems: { select: { id: true } }, priceObservations: { where: { dataSource: 'MOCK' }, select: { amount:true,observedAt:true } }, marketPrices: { where: { originalCurrency:'USD',provider:'TCGPLAYER',priceType:'PROVIDER_MARKET' }, select: { originalAmount:true,observedAt:true } } },
         });
         const candidates = rows.flatMap(row => {
           try { return [{ card: toCardVariant(row), hasInventory: row.inventoryItems.length > 0, prices: options.curation!.priceSource === 'mock' ? row.priceObservations : row.marketPrices.map(p => ({amount:p.originalAmount,observedAt:p.observedAt})) }]; }
           catch { return []; }
         });
-        const search = query.normalize('NFKC').trim().toLowerCase();
-        return selectCuratedCards(candidates, options.curation).filter(card => card.name.normalize('NFKC').toLowerCase().includes(search) || card.localizedNames?.some(name=>name.name.normalize('NFKC').toLowerCase().includes(search))).slice(0,limit);
+        return selectCuratedCards(candidates, {...options.curation,query}).slice(0,limit);
       }
       const search = query.normalize('NFKC').trim().replace(/[\\%_]/g, character => `\\${character}`);
       const rows = await prisma.cardVariant.findMany({
         where: { ...(options.cardIds ? { id: { in: [...options.cardIds] } } : {}), OR: [{ name: { contains: search, mode: 'insensitive' } }, { localizedNames: { some: { locale: 'ko', name: { contains: search, mode: 'insensitive' } } } }] },
-        include: { localizedNames: { orderBy: { locale: 'asc' } } },
+        include: { imageReference:true,localizedNames: { orderBy: { locale: 'asc' } } },
         orderBy: { id: 'asc' }, take: limit,
       });
       return rows.map(toCardVariant);
     },
     async getCardVariant(id) {
-      const row = await prisma.cardVariant.findUnique({ where: { id }, include: { localizedNames: { orderBy: { locale: 'asc' } } } });
+      const row = await prisma.cardVariant.findUnique({ where: { id }, include: { imageReference:true,localizedNames: { orderBy: { locale: 'asc' } } } });
       return row ? toCardVariant(row) : null;
     },
   };

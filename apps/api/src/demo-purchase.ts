@@ -19,18 +19,28 @@ function data<T>(result: ToolResult, schema: z.ZodType<T>): T {
 }
 
 /** 정책·예산·소유권·정산은 각 모듈에 맡기고 승인된 구매의 MCP 호출만 조립한다. */
-export function createDemoPurchaseHandler({ env, trading, policies, getMcpUrl, signAgentPayment, resolvePaymentRecipient }: {
-  env: ApiEnv; trading: TradingService; policies: PolicyService; getMcpUrl(): string; signAgentPayment?: AgentPaymentSigner; resolvePaymentRecipient?: (listingId: string) => Promise<string>;
+export function createDemoPurchaseHandler({ env, trading, policies, getMcpUrl, signAgentPayment, resolvePaymentRecipient,includeKorean=false }: {
+  env: ApiEnv; trading: TradingService; policies: PolicyService; getMcpUrl(): string; signAgentPayment?: AgentPaymentSigner; resolvePaymentRecipient?: (listingId: string) => Promise<string>;includeKorean?:boolean;
 }): NonNullable<AgentSessionPluginOptions['purchase']> {
   const profile = getPaymentProfile(env.PAYMENT_CHAIN);
   let submitQueue: Promise<unknown> = Promise.resolve();
   const execute: NonNullable<AgentSessionPluginOptions['purchase']> = async input => {
     if (!env.DEMO_SCENARIOS_ENABLED || !env.PAYMENT_ENABLED || !env.DEMO_BUYER_TOKEN || !env.PAYMENT_RECIPIENT || !env.AGENT_WALLET_ADDRESS) throw new AppError('PAYMENT_UNAVAILABLE', '결제 지갑과 테스트넷 연결 설정이 필요합니다.', 503);
-    const pack = await readDemoScenarios(env.PAYMENT_CHAIN);
+    const pack = await readDemoScenarios(env.PAYMENT_CHAIN,includeKorean);
     if (!pack.scenarios.some(scene => scene.cardId === input.offer.card.id)) throw new AppError('FORBIDDEN', '시나리오 데모 카드만 구매할 수 있습니다.', 403);
     const expectedRecipient = await resolvePaymentRecipient?.(input.offer.listingId) ?? env.PAYMENT_RECIPIENT;
     const buyer = { userId: demoBuyerId, agentId: demoBuyerAgentId };
-    const policy = await policies.create(buyer, { enabled: true, totalBudget: profile.totalBudget, maxPerTrade: profile.maxPerTrade, allowedCardVariantIds: pack.scenarios.map(scene => scene.cardId), validUntil: '2099-01-01T00:00:00.000Z' }, { idempotencyKey: 'scenario-demo-policy-v1' });
+    const original=await readDemoScenarios(env.PAYMENT_CHAIN);
+    let policy = await policies.create(buyer, { enabled: true, totalBudget: profile.totalBudget, maxPerTrade: profile.maxPerTrade, allowedCardVariantIds: original.scenarios.map(scene => scene.cardId), validUntil: '2099-01-01T00:00:00.000Z' }, { idempotencyKey: 'scenario-demo-policy-v1' });
+    if(includeKorean){
+      policy=await policies.get(buyer,policy.id);
+      const defaults=original.scenarios.map(s=>s.cardId);
+      // Only expand the untouched default policy; custom restrictions and all spent/reserved balances remain intact.
+      if(policy.version===1&&policy.allowedCardVariantIds?.length===defaults.length&&defaults.every(id=>policy.allowedCardVariantIds!.includes(id))){
+        const {id,version,agentId:_,...input}=policy;
+        policy=await policies.update(buyer,id,{...input,expectedVersion:version,allowedCardVariantIds:pack.scenarios.map(s=>s.cardId)},{idempotencyKey:'scenario-korean-cards-v1'});
+      }
+    }
     const key = `${input.sessionId}:${input.requestId}`;
     const run = await policies.startRun(buyer, { policyId: policy.id, instruction: `${input.offer.card.name} 구매 · 사용자 확인 ${input.requestId}` }, { idempotencyKey: `scenario-run:${key}` });
     const mcp = createServerMcpClient({ url: getMcpUrl(), headers: { authorization: `Bearer ${env.DEMO_BUYER_TOKEN}` }, keyFor: (action, args) => policies.actionKey(buyer, run.id, action, args) });

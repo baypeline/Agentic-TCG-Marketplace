@@ -1,5 +1,7 @@
 # 팀 공통 수집 데이터
 
+`catalog/official-images.json`은 원본 410종 스냅샷과 분리한 공식 한국어판 이미지 12종의 출처·검증 해시입니다. 이미지 파일은 저장하지 않습니다. `db:seed:collected`는 원본 복원 후 이 연결도 적용합니다. `demo/korean-scenarios.json`은 별도 UUID·NORMAL/NM 시연 속성·합성 가격·판매 재고를 정의하며 `demo:seed`에 포함됩니다. 기존 원본의 미확정 상태나 가격을 덮어쓰지 않습니다. [한국어판 이미지와 거래 시드](../../../docs/korean-card-images.md)를 참고하세요.
+
 별도 `demo/scenarios.json`은 아래 수집 스냅샷과 구분한 합성 거래 데모입니다. `pnpm demo:seed`로 합성 카드·고정 MOCK 시세·재고·매물을 추가하며 원본 카드·시장 가격이나 기존 소유권은 수정하지 않습니다. 이 파일은 수집 manifest의 일부가 아니고, 로더가 별도 Schema로 검증합니다. [데모 실행 가이드](../../../docs/demo-scenarios.md)를 참고하세요.
 
 외부 API 없이 동일한 카탈로그로 개발하기 위한 고정 스냅샷입니다. 합성 Mock이 아니라 **수집한 참고 자료**입니다. DB 접속 정보, 사용자·Agent·매물·거래·결제 데이터와 판본·환율 검증 기록은 포함하지 않습니다.

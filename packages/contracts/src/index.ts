@@ -14,7 +14,10 @@ export const localizedCardNameSchema = z.object({
   source: z.literal('POKEAPI_SPECIES'),
   sourceUrl: z.url(),
 });
+export const officialCardImageSchema=z.object({provider:z.literal('POKEMON_KOREA'),officialCardId:z.string().regex(/^[A-Z0-9]+$/),sourceUrl:z.url(),productName:z.string().min(1),printedNumber:z.string().regex(/^\d{3}\/\d{3}$/),verifiedAt:timestampSchema});
 export const cardVariantSchema = z.object({
+  imageSource: officialCardImageSchema.optional(),
+  catalogRole: z.literal('REFERENCE').optional(),
   id: idSchema,
   game: z.literal('POKEMON'),
   name: z.string().min(1),

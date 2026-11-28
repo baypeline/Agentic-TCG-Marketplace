@@ -14,8 +14,8 @@ import { demoBuyerId, demoBuyerAgentId } from '../src/demo-auth.js';
 const apps: ReturnType<typeof Fastify>[] = [];
 afterEach(async () => { await Promise.all(apps.splice(0).map(app => app.close())); });
 
-async function fixture(unknown = false, serverSigning = false, paymentChain: PaymentChain = 'base-sepolia') {
-  const pack = await readDemoScenarios(paymentChain);
+async function fixture(unknown = false, serverSigning = false, paymentChain: PaymentChain = 'base-sepolia', includeKorean = false) {
+  const pack = await readDemoScenarios(paymentChain, includeKorean);
   const profile = getPaymentProfile(paymentChain);
   const buyer = { userId: demoBuyerId, agentId: demoBuyerAgentId };
   const wallet = `0x${'2'.repeat(40)}`;
@@ -38,7 +38,7 @@ async function fixture(unknown = false, serverSigning = false, paymentChain: Pay
   const input = (offer: AgentPurchaseOffer) => ({ offer, listingId: offer.listingId, requestId: randomUUID(), sessionId: randomUUID(), auth: { userId: randomUUID() } });
   const payload = (prepared: AgentPurchaseProgress) => ({ x402Version: 2, accepted: prepared.requirements!, payload: { authorization: { from: wallet, to: recipient, value: prepared.amount, nonce: `0x${'b'.repeat(64)}`, validAfter: '0', validBefore: '9999999999' }, signature: `0x${'c'.repeat(130)}` } });
   const signer = vi.fn(async (value: { requirements: NonNullable<AgentPurchaseProgress['requirements']>; amount: string }) => payload(value as AgentPurchaseProgress));
-  const purchase = createDemoPurchaseHandler({ env: { ...env, AGENT_SIGNING_MODE: serverSigning ? 'server' : 'browser' }, trading, policies, signAgentPayment: serverSigning ? signer : undefined, getMcpUrl: () => `${url}/mcp` });
+  const purchase = createDemoPurchaseHandler({ includeKorean, env: { ...env, AGENT_SIGNING_MODE: serverSigning ? 'server' : 'browser' }, trading, policies, signAgentPayment: serverSigning ? signer : undefined, getMcpUrl: () => `${url}/mcp` });
   return { purchase, input, payload, offers, adapter, trading, policies, buyer, store, inventory, signer };
 }
 
@@ -75,6 +75,25 @@ it('마루 원장의 tOKRW 금액으로 MCP 지급·체결·누적 예산을 처
   expect(await f.policies.budget(f.buyer, policy!.id)).toMatchObject({ spentAmount: '5000000000000000000' });
   expect((await f.purchase({ ...input, action: 'submit' })).status).toBe('COMPLETED');
   expect(f.adapter.settle).toHaveBeenCalledTimes(1);
+});
+it('한국어 매물을 기존 정책에 추가해도 기존 지출과 예산을 유지한다',async()=>{
+ const f=await fixture(false,true,'maroo',true);
+ const legacy=f.input(f.offers[0]!);await f.purchase({...legacy,action:'prepare'});await f.purchase({...legacy,action:'submit'});
+ const korean=f.input(f.offers[3]!);await f.purchase({...korean,action:'prepare'});expect((await f.purchase({...korean,action:'submit'})).status).toBe('COMPLETED');
+ const [policy]=await f.policies.list(f.buyer);expect(policy!.allowedCardVariantIds).toHaveLength(15);expect(await f.policies.budget(f.buyer,policy!.id)).toMatchObject({spentAmount:'13000000000000000000',availableAmount:'87000000000000000000'});
+});
+
+it('사용자 지정 정책에는 한국어판 허용 목록을 자동 추가하지 않는다', async () => {
+  const f = await fixture(false, true, 'maroo', true);
+  const legacy = f.input(f.offers[0]!);
+  await f.purchase({ ...legacy, action: 'prepare' });
+  await f.purchase({ ...legacy, action: 'cancel' });
+  const [policy] = await f.policies.list(f.buyer);
+  const custom = await f.policies.update(f.buyer, policy!.id, { ...policy!, expectedVersion: policy!.version, allowedCardVariantIds: [f.offers[0]!.card.id] }, { idempotencyKey: randomUUID() });
+  await expect(f.purchase({ ...f.input(f.offers[3]!), action: 'prepare' })).rejects.toThrow();
+  expect((await f.policies.get(f.buyer, custom.id)).allowedCardVariantIds).toEqual([f.offers[0]!.card.id]);
+  expect(f.signer).not.toHaveBeenCalled();
+  expect(f.adapter.settle).not.toHaveBeenCalled();
 });
 
 it('지급 전 취소는 매물을 되돌리고 잘못된 수납 주소의 서명은 정산하지 않는다', async () => {

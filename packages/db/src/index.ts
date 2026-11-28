@@ -12,3 +12,5 @@ export function createPrismaClient(databaseUrl: string): PrismaClient {
 }
 
 export { ensureMonetaryContext } from './monetary-context.js';
+export { readOfficialImages,seedOfficialImages,officialImageEntrySchema,officialImagesSchema } from './official-images.js';
+export type { OfficialImageEntry } from './official-images.js';

@@ -1,0 +1,86 @@
+[
+  {
+    "cardVariantId": "7187e8ab-7f8f-4c50-9cf9-fb20ed2b97cd",
+    "name": "로젤리아",
+    "setCode": "SV5K",
+    "cardNumber": "001",
+    "officialCardId": "BS2024004001"
+  },
+  {
+    "cardVariantId": "2d32d6c7-aeaf-4934-8537-69890a17ae2f",
+    "name": "로즈레이드",
+    "setCode": "SV5K",
+    "cardNumber": "002",
+    "officialCardId": "BS2024004002"
+  },
+  {
+    "cardVariantId": "dc4bcaea-f134-4fb0-ab29-63362cf57d67",
+    "name": "모부기",
+    "setCode": "SV5K",
+    "cardNumber": "003",
+    "officialCardId": "BS2024004003"
+  },
+  {
+    "cardVariantId": "4ac25b85-2000-48f2-9e06-1d7e864b8a6d",
+    "name": "수풀부기",
+    "setCode": "SV5K",
+    "cardNumber": "004",
+    "officialCardId": "BS2024004004"
+  },
+  {
+    "cardVariantId": "b0eea7db-0cc4-4060-80f7-93cb9e170c0a",
+    "name": "토대부기 ex",
+    "setCode": "SV5K",
+    "cardNumber": "005",
+    "officialCardId": "BS2024004005"
+  },
+  {
+    "cardVariantId": "0ff58651-3b07-42ce-bed6-c849fd69176d",
+    "name": "엘풍",
+    "setCode": "SV5K",
+    "cardNumber": "008",
+    "officialCardId": "BS2024004008"
+  },
+  {
+    "cardVariantId": "b020bcb3-eeb1-4598-863e-76d0d12d4651",
+    "name": "꿰뚫는화염 ex",
+    "setCode": "SV5K",
+    "cardNumber": "012",
+    "officialCardId": "BS2024004012"
+  },
+  {
+    "cardVariantId": "8d8cba34-9a3e-497d-a9b9-848ce98b82c9",
+    "name": "장크로다일",
+    "setCode": "SV5K",
+    "cardNumber": "015",
+    "officialCardId": "BS2024004015"
+  },
+  {
+    "cardVariantId": "642dcbdf-ec15-4057-8770-96d3d47a9f5d",
+    "name": "케르디오",
+    "setCode": "SV5K",
+    "cardNumber": "018",
+    "officialCardId": "BS2024004018"
+  },
+  {
+    "cardVariantId": "49841871-ebdb-458e-bf2a-be50e597b6c9",
+    "name": "날개치는머리",
+    "setCode": "SV5K",
+    "cardNumber": "076",
+    "officialCardId": "BS2024004076"
+  },
+  {
+    "cardVariantId": "7ecd0fd8-65b1-4419-81d6-b7c206dcb293",
+    "name": "고오스",
+    "setCode": "SV5K",
+    "cardNumber": "080",
+    "officialCardId": "BS2024004080"
+  },
+  {
+    "cardVariantId": "251bff63-c1f8-4261-a6b1-d6be1b74506a",
+    "name": "팬텀 ex",
+    "setCode": "SV5K",
+    "cardNumber": "088",
+    "officialCardId": "BS2024004088"
+  }
+]

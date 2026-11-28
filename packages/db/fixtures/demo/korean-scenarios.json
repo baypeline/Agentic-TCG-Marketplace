@@ -1,0 +1,187 @@
+{
+  "version": 1,
+  "mode": "SYNTHETIC_DEMO",
+  "observedAt": "2026-11-28T00:00:00.000Z",
+  "scenarios": [
+    {
+      "id": "koreanroselia",
+      "cardId": "3c326163-8ae0-4e21-8a82-7a928ea3796a",
+      "sourceCardId": "7187e8ab-7f8f-4c50-9cf9-fb20ed2b97cd",
+      "koreanName": "로젤리아",
+      "speciesId": 315,
+      "edition": "NORMAL",
+      "condition": "NM",
+      "referencePrice": "5000",
+      "listingPrices": [
+        "3000",
+        "4000"
+      ],
+      "suggestion": "로젤리아 적정가와 구매 가능한 매물을 알려줘"
+    },
+    {
+      "id": "koreanroserade",
+      "cardId": "20a4b435-0ede-45f0-872c-20feb56a649d",
+      "sourceCardId": "2d32d6c7-aeaf-4934-8537-69890a17ae2f",
+      "koreanName": "로즈레이드",
+      "speciesId": 407,
+      "edition": "NORMAL",
+      "condition": "NM",
+      "referencePrice": "8000",
+      "listingPrices": [
+        "5000",
+        "6000"
+      ],
+      "suggestion": "로즈레이드 적정가와 구매 가능한 매물을 알려줘"
+    },
+    {
+      "id": "koreanturtwig",
+      "cardId": "a83d84ee-d89b-4fbf-8fc4-5398a58767ba",
+      "sourceCardId": "dc4bcaea-f134-4fb0-ab29-63362cf57d67",
+      "koreanName": "모부기",
+      "speciesId": 387,
+      "edition": "NORMAL",
+      "condition": "NM",
+      "referencePrice": "5000",
+      "listingPrices": [
+        "3000",
+        "4000"
+      ],
+      "suggestion": "모부기 적정가와 구매 가능한 매물을 알려줘"
+    },
+    {
+      "id": "koreangrotle",
+      "cardId": "c86835e9-053c-468c-876b-098863ffb654",
+      "sourceCardId": "4ac25b85-2000-48f2-9e06-1d7e864b8a6d",
+      "koreanName": "수풀부기",
+      "speciesId": 388,
+      "edition": "NORMAL",
+      "condition": "NM",
+      "referencePrice": "6000",
+      "listingPrices": [
+        "4000",
+        "5000"
+      ],
+      "suggestion": "수풀부기 적정가와 구매 가능한 매물을 알려줘"
+    },
+    {
+      "id": "koreantorterra",
+      "cardId": "dd1d4b2d-76fb-4dbb-888b-0ae777900273",
+      "sourceCardId": "b0eea7db-0cc4-4060-80f7-93cb9e170c0a",
+      "koreanName": "토대부기 ex",
+      "speciesId": 389,
+      "edition": "NORMAL",
+      "condition": "NM",
+      "referencePrice": "15000",
+      "listingPrices": [
+        "10000",
+        "11000"
+      ],
+      "suggestion": "토대부기 ex 적정가와 구매 가능한 매물을 알려줘"
+    },
+    {
+      "id": "koreanwhimsicott",
+      "cardId": "64b11c46-7dff-40f1-81d0-065f873f7f3f",
+      "sourceCardId": "0ff58651-3b07-42ce-bed6-c849fd69176d",
+      "koreanName": "엘풍",
+      "speciesId": 547,
+      "edition": "NORMAL",
+      "condition": "NM",
+      "referencePrice": "7000",
+      "listingPrices": [
+        "5000",
+        "6000"
+      ],
+      "suggestion": "엘풍 적정가와 구매 가능한 매물을 알려줘"
+    },
+    {
+      "id": "koreangougingfire",
+      "cardId": "7793197b-eee5-414f-832b-4d7cc68de27f",
+      "sourceCardId": "b020bcb3-eeb1-4598-863e-76d0d12d4651",
+      "koreanName": "꿰뚫는화염 ex",
+      "speciesId": 1020,
+      "edition": "NORMAL",
+      "condition": "NM",
+      "referencePrice": "18000",
+      "listingPrices": [
+        "12000",
+        "13000"
+      ],
+      "suggestion": "꿰뚫는화염 ex 적정가와 구매 가능한 매물을 알려줘"
+    },
+    {
+      "id": "koreanferaligatr",
+      "cardId": "b46534ed-e474-467c-89bf-f6cca5cb0b91",
+      "sourceCardId": "8d8cba34-9a3e-497d-a9b9-848ce98b82c9",
+      "koreanName": "장크로다일",
+      "speciesId": 160,
+      "edition": "NORMAL",
+      "condition": "NM",
+      "referencePrice": "12000",
+      "listingPrices": [
+        "8000",
+        "9000"
+      ],
+      "suggestion": "장크로다일 적정가와 구매 가능한 매물을 알려줘"
+    },
+    {
+      "id": "koreankeldeo",
+      "cardId": "bb6a2764-8519-4446-8fac-3ceb6903cdaf",
+      "sourceCardId": "642dcbdf-ec15-4057-8770-96d3d47a9f5d",
+      "koreanName": "케르디오",
+      "speciesId": 647,
+      "edition": "NORMAL",
+      "condition": "NM",
+      "referencePrice": "10000",
+      "listingPrices": [
+        "6000",
+        "7000"
+      ],
+      "suggestion": "케르디오 적정가와 구매 가능한 매물을 알려줘"
+    },
+    {
+      "id": "koreanfluttermane",
+      "cardId": "13385ffb-cb8c-4909-8f69-49753a346907",
+      "sourceCardId": "49841871-ebdb-458e-bf2a-be50e597b6c9",
+      "koreanName": "날개치는머리",
+      "speciesId": 987,
+      "edition": "NORMAL",
+      "condition": "NM",
+      "referencePrice": "14000",
+      "listingPrices": [
+        "9000",
+        "10000"
+      ],
+      "suggestion": "날개치는머리 적정가와 구매 가능한 매물을 알려줘"
+    },
+    {
+      "id": "koreangastly",
+      "cardId": "043a0cf9-dd7a-44de-880e-f9401f3d4acd",
+      "sourceCardId": "7ecd0fd8-65b1-4419-81d6-b7c206dcb293",
+      "koreanName": "고오스",
+      "speciesId": 92,
+      "edition": "NORMAL",
+      "condition": "NM",
+      "referencePrice": "6000",
+      "listingPrices": [
+        "4000",
+        "5000"
+      ],
+      "suggestion": "고오스 적정가와 구매 가능한 매물을 알려줘"
+    },
+    {
+      "id": "koreangengar",
+      "cardId": "b80194b0-6b8b-4637-8c1e-f0aa459d0fe4",
+      "sourceCardId": "251bff63-c1f8-4261-a6b1-d6be1b74506a",
+      "koreanName": "팬텀 ex",
+      "speciesId": 94,
+      "edition": "NORMAL",
+      "condition": "NM",
+      "referencePrice": "16000",
+      "listingPrices": [
+        "10000",
+        "11000"
+      ],
+      "suggestion": "팬텀 ex 적정가와 구매 가능한 매물을 알려줘"
+    }
+  ]
+}

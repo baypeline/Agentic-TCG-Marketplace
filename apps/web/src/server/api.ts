@@ -22,6 +22,7 @@ export async function getCatalog(query: string): Promise<CatalogItem[]> {
   await Promise.all(Array.from({ length: Math.min(4, items.length) }, async () => {
     while (next < items.length) {
       const index = next++; const card = items[index]!;
+      if(card.catalogRole==='REFERENCE'){results[index]={card,valuation:null,prices:null,valuationFailed:false,pricesFailed:false};continue;}
       const [valuation, prices] = await Promise.allSettled([getValuation(card.id), getMarketPrices(card.id)]);
       results[index] = { card, valuation: valuation.status === 'fulfilled' ? valuation.value : null, prices: prices.status === 'fulfilled' ? prices.value : null, valuationFailed: valuation.status === 'rejected', pricesFailed: prices.status === 'rejected' };
     }

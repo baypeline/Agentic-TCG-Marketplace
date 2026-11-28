@@ -17,6 +17,7 @@ model CardVariant {
   marketPrices MarketPriceSnapshot[]
   inventoryItems InventoryItem[]
   rwaAssets RwaAsset[]
+  imageReference CardImageReference?
   buyOrders BuyOrder[]
 
   @@unique([game, setCode, cardNumber, language, edition, condition])
