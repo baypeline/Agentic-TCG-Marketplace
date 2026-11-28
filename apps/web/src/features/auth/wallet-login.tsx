@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import styled from '@emotion/styled';
 import type { EIP1193Provider } from 'viem';
 import { getWalletSession, loginWallet, logoutWallet, walletQueryKey } from './wallet-client';
+import { needsAgentWalletSetup, useAgentWalletSetupStore } from '../../stores/agent-wallet-setup';
 
 type BrowserWallet = EIP1193Provider & { on?(name: string, callback: (...args: unknown[]) => void): void; removeListener?(name: string, callback: (...args: unknown[]) => void): void };
 export function WalletLogin() {
@@ -33,7 +34,12 @@ export function WalletLogin() {
       const provider = (window as Window & { ethereum?: BrowserWallet }).ethereum;
       if (!provider) throw new Error('MetaMask 등 브라우저 지갑을 설치해 주세요.');
       const result = await loginWallet(provider);
-      client.clear(); client.setQueryData(walletQueryKey, result); router.refresh();
+      try { await useAgentWalletSetupStore.persist.rehydrate(); } catch { /* 로그인은 브라우저 저장소 사용 여부와 무관하게 유지한다. */ }
+      const setup = useAgentWalletSetupStore.getState();
+      const showSetup = needsAgentWalletSetup(result.user, setup.visitedUsers);
+      if (showSetup) { try { setup.markVisited(result.user!.userId); } catch { /* 저장 실패는 로그인과 설정 안내 진입을 막지 않는다. */ } }
+      client.clear(); client.setQueryData(walletQueryKey, result);
+      if (showSetup) router.push('/agent/wallet'); else router.refresh();
     } catch (failure) { setError((failure as { code?: number }).code === 4001 ? '로그인 서명을 취소했어요.' : failure instanceof Error && !('details' in failure) ? failure.message : '지갑 연결과 로그인 서명을 확인해 주세요.'); }
     finally { setBusy(false); }
   }

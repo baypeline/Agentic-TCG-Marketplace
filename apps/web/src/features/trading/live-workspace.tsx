@@ -11,6 +11,7 @@ import { createTradingClient } from '../../lib/trading-client';
 import { parseUsdcInput, usdcDecimal } from './demo-model';
 import { LiveTradingStatus } from './live-status';
 import { LiveCollection } from './live-collection';
+import { AgentWalletStatus } from '../auth/agent-wallet-status';
 import { Actions, EmptyRows, ErrorText, Field, FormGrid, QuietButton, RecordTable, ResultNote, Section, StateBadge } from './trading-ui';
 
 type Mode = 'agent' | 'marketplace' | 'collection' | 'activity';
@@ -68,6 +69,7 @@ export function LiveTradingWorkspace({ mode, mine = false }: { mode: Mode; mine?
   const cardName = (id: string) => { const card = data?.cards.find(card => card.id === id); return card ? getCardDisplayName(card) : '카드 상세에서 확인'; };
   return <div>
     <WorkspaceHeading><div><h1>{titles[mode]}</h1><p>{descriptions[mode]}</p></div><QuietButton disabled={busy} onClick={() => void run(load, true)}>새로고침</QuietButton></WorkspaceHeading>
+    {mode === 'agent' && <AgentWalletStatus />}
     {error && <ErrorText role="alert">{error}</ErrorText>}{notice && <ResultNote role="status">{notice}</ResultNote>}
     {busy && <ResultNote role="status">서버 응답을 확인하고 있어요.</ResultNote>}
     {unresolved && <Section><h2>이전 요청 확인 필요</h2><ResultNote>응답을 받지 못한 요청이 있습니다. 새 작업 전에 같은 요청 키로 결과를 확인해 주세요. 새 결제나 서명을 만들지 않습니다.</ResultNote><QuietButton disabled={busy} onClick={() => void run(() => client.current!.retry())}>같은 요청 다시 확인</QuietButton></Section>}

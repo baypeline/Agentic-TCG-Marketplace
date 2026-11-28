@@ -11,6 +11,7 @@ import { getWalletSession, walletQueryKey } from '../auth/wallet-client';
 import { agentBudgetResultSchema, type AgentBudgetProposal, type AgentBudgetResult } from '@tcg/contracts';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { agentPurchaseProgressSchema, demoStatusSchema, type AgentPurchaseOffer, type AgentPurchaseProgress, type CardVariant } from '@tcg/contracts';
 import { formatUsdc, getCardDisplayName } from '../../lib/formatters';
 
@@ -253,7 +254,7 @@ export function AgentChat({ onClose }: { onClose: () => void }) {
             {message.interrupted && <ReplyState>중단된 답변 · 완료되지 않은 내용이에요.</ReplyState>}
             {message.role === 'assistant' && message.cardChoices?.length ? <CardChoices cards={message.cardChoices} disabled={pending || index !== latestChoices} selectedId={message.selectedCardId} onSelect={card => { void selectCard(card, index); }} /> : null}
             {message.purchaseOffers?.length ? <PurchaseOffers offers={message.purchaseOffers} signingMode={demo.data?.signingMode} payer={demo.data?.payer} disabled={pending || index !== latestOffers || !wallet.data?.user?.agentWalletLinked} completedIds={receipts.filter(item => item.status === 'COMPLETED').map(item => item.listingId)} submittedIds={[...purchaseRequests.current.entries()].filter(([, item]) => item.submitted).map(([id]) => id)} onBuy={offer => { void buyOffer(offer); }} /> : null}
-            {!!message.purchaseOffers?.length && !wallet.data?.user?.agentWalletLinked && <ReplyState>{wallet.data?.user ? '이 계정에는 결제용 에이전트 지갑이 아직 연결되지 않았어요.' : '구매와 예산 설정은 상단의 지갑 로그인 후 이용할 수 있어요.'}</ReplyState>}
+            {!!message.purchaseOffers?.length && !wallet.data?.user?.agentWalletLinked && <ReplyState>{wallet.data?.user ? <>이 계정에는 결제용 에이전트 지갑이 아직 연결되지 않았어요. <Link href="/agent/wallet">지갑 연결 안내</Link></> : '구매와 예산 설정은 상단의 지갑 로그인 후 이용할 수 있어요.'}</ReplyState>}
             {message.budgetProposal && <BudgetProposal proposal={message.budgetProposal} result={message.budgetResult} disabled={pending || index !== messages.length - 1} onAction={action => { void updateBudget(message.budgetProposal!, action); }} />}
           </MessageBody>
         </Message>
