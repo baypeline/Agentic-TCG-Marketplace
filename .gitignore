@@ -10,3 +10,4 @@ packages/db/src/generated/
 *.tsbuildinfo
 next-env.d.ts
 *.log
+apps/facilitator/data/

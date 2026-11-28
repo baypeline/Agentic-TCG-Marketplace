@@ -10,6 +10,8 @@ export const apiEnvSchema = z.object({
   MARKET_VALUATION_MODE: z.enum(['demo', 'strict']).default('demo'),
   DEMO_SCENARIOS_ENABLED: z.enum(['true', 'false']).default('false').transform(value => value === 'true'),
   PAYMENT_ENABLED: z.enum(['true', 'false']).default('false').transform(value => value === 'true'),
+  PAYMENT_FACILITATOR_URL: z.url().refine(value => ['http:', 'https:'].includes(new URL(value).protocol)).default('https://x402.org/facilitator'),
+  PAYMENT_FACILITATOR_TOKEN: z.string().min(32).optional(),
   PAYMENT_RECIPIENT: z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional(),
   AGENT_WALLET_ADDRESS: z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional(),
   AGENT_SIGNING_MODE: z.enum(['browser', 'server']).default('browser'),

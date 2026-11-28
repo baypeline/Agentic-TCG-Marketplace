@@ -87,7 +87,7 @@ export function createPaymentService({ store, tradingService, valuationService, 
         const existing = (await tx.payments.find({ matchQuoteId: quote.id }))[0];
         if (existing && existing.status !== 'REQUIRED') throw new AppError('PAYMENT_UNKNOWN', '기존 결제 상태를 확인하세요. 새 지급을 만들 수 없습니다.', 409);
         if (existing) return { id: existing.id, matchQuoteId: quote.id, requirements: JSON.parse(existing.requirementsJson) as PaymentRequirements };
-        const requirements: PaymentRequirements = { scheme: 'exact', network: 'eip155:84532', asset, amount: quote.amount, payTo: recipient, maxTimeoutSeconds: Math.max(1,Math.min(60,Math.floor((quote.expiresAt.getTime()-now().getTime())/1000))), extra: { name: 'USDC', version: '2' } };
+        const requirements: PaymentRequirements = { scheme: 'exact', network: 'eip155:84532', asset, amount: quote.amount, payTo: recipient, maxTimeoutSeconds: Math.max(1,Math.min(60,Math.floor((quote.expiresAt.getTime()-now().getTime())/1000))), extra: { name: 'USDC', version: '2', tcgQuoteId: quote.id } };
         const row: PaymentRow = { id: randomUUID(), matchQuoteId: quote.id, userId: auth.userId, agentId: auth.agentId, policyId: policy.id, policyVersion: policy.version, amount: quote.amount, status: 'REQUIRED', requirementsJson: JSON.stringify(requirements), payloadHash: null, transactionHash: null, submittedAt: null, updatedAt: now(), needsReview: false };
         await tx.payments.insert(row);
         return { id: row.id, matchQuoteId: quote.id, requirements };

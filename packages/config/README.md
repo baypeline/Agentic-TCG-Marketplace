@@ -1,5 +1,7 @@
 # 공통 설정
 
+`PAYMENT_FACILITATOR_URL`은 기본 공개 서버 또는 자체 컨테이너의 HTTP(S) 주소를 선택합니다. 선택 `PAYMENT_FACILITATOR_TOKEN`은 API→퍼실리테이터 서버 간 인증에만 사용하며 브라우저에 공개하지 않습니다. 가스 지갑 키는 공통 환경 DTO에 포함하지 않고 `infra/.env.facilitator`에 별도로 둡니다.
+
 `parseApiEnv()`와 TypeScript strict 기본 설정을 제공합니다. `.env` 로드는 실행 호스트가 담당합니다. 현재 `DATA_MODE`는 mock만 허용합니다.
 
 `CARD_DATA_SOURCE=mock|database`로 카드와 Mock 표본의 저장 위치를 선택합니다. database에는 `DATABASE_ENABLED=true`와 `DATABASE_URL`이 필요합니다.

@@ -1,5 +1,7 @@
 # Fastify Core API
 
+`PAYMENT_FACILITATOR_URL`·`PAYMENT_FACILITATOR_TOKEN`으로 별도 자체 퍼실리테이터를 연결할 수 있습니다. 가스 지갑은 API 구매 지갑과 분리하며, 생성·별도 Docker 프로젝트 실행·정산 원장 복구는 [퍼실리테이터 가이드](../facilitator/README.md)를 참고하세요. 미설정 시 기존 공개 x402 퍼실리테이터를 사용합니다.
+
 `buildApp()`은 조립, 오류 처리, 인증 컨텍스트 및 자원 수명을 관리합니다. `server.ts`만 `listen()`을 호출합니다. 업무 로직은 packages의 Service에서 주입합니다.
 
 운영 진입점은 Trading REST(`/api`)와 MCP(`/mcp`)를 등록합니다. 거래 모드, 로컬 인증, DB 시연 재고와 요청 예시는 [트레이딩 통합 가이드](../../docs/trading-integration.md)를 참고하세요. 정책·예산·서버 실행 REST, 결제/체결 복구 및 MCP 거래 도구를 함께 연결합니다. Web은 검증된 신원 조회(`/api/me`)와 정책·수동 거래 제어·매물·주문·예약 관리 및 상태 조회를 연결합니다. 지급 서명/실행은 Web 경로에 제공하지 않습니다.

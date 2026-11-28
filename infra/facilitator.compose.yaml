@@ -1,0 +1,38 @@
+name: agentic-tcg-facilitator
+services:
+  facilitator:
+    build:
+      context: ..
+      dockerfile: infra/facilitator.Dockerfile
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 60s
+    ports:
+      - '127.0.0.1:${FACILITATOR_PORT:?Run pnpm facilitator:init}:4022'
+    environment:
+      NODE_ENV: production
+      FACILITATOR_HOST: 0.0.0.0
+      FACILITATOR_PORT: 4022
+      FACILITATOR_RPC_URL: ${FACILITATOR_RPC_URL:-https://sepolia.base.org}
+      FACILITATOR_API_TOKEN: ${FACILITATOR_API_TOKEN:?Run pnpm facilitator:init}
+      FACILITATOR_PRIVATE_KEY: ${FACILITATOR_PRIVATE_KEY:?Run pnpm facilitator:init}
+      FACILITATOR_RECIPIENT: ${FACILITATOR_RECIPIENT:?Run pnpm facilitator:init}
+      FACILITATOR_PAYERS: ${FACILITATOR_PAYERS:?Run pnpm facilitator:init}
+      FACILITATOR_MAX_AMOUNT: ${FACILITATOR_MAX_AMOUNT:-25000}
+      FACILITATOR_DATA_DIR: /data
+    volumes:
+      - settlement_data:/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ['CMD', 'node', '-e', 'fetch("http://127.0.0.1:4022/health").then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))']
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 6
+volumes:
+  settlement_data:

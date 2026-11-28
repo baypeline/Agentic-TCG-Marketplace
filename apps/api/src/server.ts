@@ -18,7 +18,8 @@ const agentWallet = createAgentWallet(env, process.env);
 if (agentWallet) env.AGENT_WALLET_ADDRESS = agentWallet.address;
 const getWalletAddress = async (auth: { userId: string; agentId: string }) => auth.userId === demoBuyerId && auth.agentId === demoBuyerAgentId ? env.AGENT_WALLET_ADDRESS ?? null : null;
 const previousWallet = agentWallet ? browserWallet : env.AGENT_SERVER_WALLET_ADDRESS;
-const paymentOptions = env.PAYMENT_ENABLED ? { recipient: env.PAYMENT_RECIPIENT, getWalletAddress, adapter: withPreviousWalletRecovery(createX402SettlementAdapter({ getWalletAddress }), previousWallet && previousWallet.toLowerCase() !== env.AGENT_WALLET_ADDRESS?.toLowerCase() ? createX402SettlementAdapter({ getWalletAddress: async auth => auth.userId === demoBuyerId && auth.agentId === demoBuyerAgentId ? previousWallet : null }) : undefined) } : undefined;
+const facilitatorOptions = { facilitatorUrl: env.PAYMENT_FACILITATOR_URL, facilitatorToken: env.PAYMENT_FACILITATOR_TOKEN };
+const paymentOptions = env.PAYMENT_ENABLED ? { recipient: env.PAYMENT_RECIPIENT, getWalletAddress, adapter: withPreviousWalletRecovery(createX402SettlementAdapter({ getWalletAddress, ...facilitatorOptions }), previousWallet && previousWallet.toLowerCase() !== env.AGENT_WALLET_ADDRESS?.toLowerCase() ? createX402SettlementAdapter({ getWalletAddress: async auth => auth.userId === demoBuyerId && auth.agentId === demoBuyerAgentId ? previousWallet : null, ...facilitatorOptions }) : undefined) } : undefined;
 let demoPurchase: AgentSessionPluginOptions['purchase'];
 const localAgent = createLocalAgentOptions(env, process.env, { purchase: async input => {
   if (!demoPurchase) throw new AppError('PAYMENT_UNAVAILABLE', '거래 데모가 연결되지 않았습니다.', 503);

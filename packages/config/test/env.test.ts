@@ -4,6 +4,11 @@ import { parseApiEnv } from '../src/index.js';
 it('문자열 false는 false로 파싱한다', () => {
   expect(parseApiEnv({ DATABASE_ENABLED: 'false' }).DATABASE_ENABLED).toBe(false);
 });
+it('퍼실리테이터는 기본 공개 서버 또는 명시한 HTTP 주소를 사용한다', () => {
+  expect(parseApiEnv({}).PAYMENT_FACILITATOR_URL).toBe('https://x402.org/facilitator');
+  expect(parseApiEnv({ PAYMENT_FACILITATOR_URL: 'http://127.0.0.1:4022', PAYMENT_FACILITATOR_TOKEN: 'a'.repeat(32) }).PAYMENT_FACILITATOR_URL).toBe('http://127.0.0.1:4022');
+  expect(() => parseApiEnv({ PAYMENT_FACILITATOR_URL: 'file:///tmp/test' })).toThrow();
+});
 it('서버 서명은 로컬 시나리오 결제에서만 허용하고 개인키는 환경 DTO에 포함하지 않는다', () => {
   expect(parseApiEnv({}).AGENT_SIGNING_MODE).toBe('browser');
   expect(() => parseApiEnv({ AGENT_SIGNING_MODE: 'server' })).toThrow();

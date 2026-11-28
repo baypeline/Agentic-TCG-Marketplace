@@ -4,8 +4,8 @@ import { baseSepolia } from 'viem/chains';
 import type { SettlementAdapter } from './service.js';
 
 /** 실패·타임아웃을 곧바로 확정 실패로 분류하지 않는다. */
-export function createX402SettlementAdapter({ getWalletAddress }: { getWalletAddress: (auth: { userId: string; agentId: string }) => Promise<string | null> }): SettlementAdapter {
-  const facilitator = new HTTPFacilitatorClient({ url: 'https://x402.org/facilitator' });
+export function createX402SettlementAdapter({ getWalletAddress, facilitatorUrl = 'https://x402.org/facilitator', facilitatorToken }: { getWalletAddress: (auth: { userId: string; agentId: string }) => Promise<string | null>; facilitatorUrl?: string; facilitatorToken?: string }): SettlementAdapter {
+  const facilitator = new HTTPFacilitatorClient({ url: facilitatorUrl, timeoutMs: 55_000, ...(facilitatorToken ? { createAuthHeaders: async () => { const headers = { Authorization: `Bearer ${facilitatorToken}` }; return { verify: headers, settle: headers, supported: headers }; } } : {}) });
   const chain = createPublicClient({ chain: baseSepolia, transport: http() });
   const transfer = parseAbiItem('event Transfer(address indexed from, address indexed to, uint256 value)');
   return {

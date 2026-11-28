@@ -1,5 +1,7 @@
 # Payment Server
 
+`createX402SettlementAdapter({ facilitatorUrl, facilitatorToken, getWalletAddress })`로 자체 퍼실리테이터를 선택할 수 있습니다. 기본 URL은 기존 공개 서버이며 선택 토큰은 SDK의 경로별 인증 헤더로 전달합니다. 새 결제 요구의 `extra.tcgQuoteId`는 자체 퍼실리테이터의 주문별 중복 방지에 사용합니다. [별도 컨테이너 실행 안내](../../apps/facilitator/README.md)를 참고하세요.
+
 `createPolicyService`는 정책 버전 이력, policyId별 누적 예산과 서버 실행을 관리합니다. `createPaymentService`는 MatchQuote에 결합한 x402 요구와 제출·복구를 처리합니다. 두 서비스는 Trading과 같은 저장소·트랜잭션 경계를 사용합니다. [계약서](../../docs/api-contract.md)의 구체 DTO를 따릅니다.
 
 - 외부 정산 전에 최신 정책·실행·카드·가용 예산을 재검사하고 예산 예약, PENDING, 정책 버전, 카드 보호를 원자적으로 저장합니다.
