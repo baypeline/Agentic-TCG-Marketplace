@@ -14,7 +14,7 @@ import { LiveCollection } from './live-collection';
 import { Actions, EmptyRows, ErrorText, Field, FormGrid, QuietButton, RecordTable, ResultNote, Section, StateBadge } from './trading-ui';
 
 type Mode = 'agent' | 'marketplace' | 'collection' | 'activity';
-type Identity = { userId: string; agentId?: string; currency?: Currency };
+type Identity = { userId: string; agentId?: string; currency?: Currency; rwaAvailable?: boolean };
 type Data = { rwaIds: string[]; me: Identity; policies: SpendingPolicy[]; runs: AgentRun[]; orders: BuyOrder[]; items: InventoryItem[]; listings: Listing[]; trades: Trade[]; cards: CardVariant[]; matches: { id: string; status: string }[] };
 type Mutate = (method: string, path: string, input?: unknown) => Promise<void>;
 const titles: Record<Mode, string> = { agent: '거래 정책과 실행 허용', marketplace: '고정가 매물', collection: '내 카드', activity: '거래 관리' };
@@ -35,7 +35,7 @@ export function LiveTradingWorkspace({ mode, mine = false }: { mode: Mode; mine?
     if (!demoResponse.ok) throw new Error('Cannot determine settlement currency');
     const demo = demoStatusSchema.parse(await demoResponse.json());
     me.currency = demo.currency;
-    const rwaIds = demo.rwaEnabled ? rwaViewSchema.parse(await read('rwa')).assets.map(a=>a.inventoryItemId) : [];
+    const rwaIds = demo.rwaEnabled && me.rwaAvailable !== false ? rwaViewSchema.parse(await read('rwa')).assets.map(a=>a.inventoryItemId) : [];
     if (!client.current) client.current = createTradingClient(sessionStorage, `${me.userId}.${me.agentId ?? 'seller'}`);
     const [items, listings, policies, runs, orders, trades, matches] = await Promise.all([
       read('inventory'), read('listings'), me.agentId ? read('policies') : [], me.agentId ? read('sessions') : [], me.agentId ? read('buy-orders') : [], read('trades'), me.agentId ? read('matches') : [],

@@ -1,5 +1,7 @@
 # 모듈 통합 가이드
 
+웹 인증은 [지갑 로그인](wallet-login.md)으로 전환했습니다. `auth.WalletIdentity/WalletChallenge/WalletSession`과 SIWE 서명을 사용하며 거래·예산·MCP 쓰기 요청의 사용자·Agent를 서버가 결정합니다. 지갑 로그인 토큰을 LLM 입력으로 보내지 않습니다. 익명 대화는 카드 조회만 가능하고, 공통 데모 역할로 자동 진입하지 않습니다.
+
 이 가이드는 현재 코드의 조립 방법입니다. 2026년 11월 24일 확정한 목표 규칙은 [시스템 설계서 v2.2](system-design.md)·[API 계약서 v2.1](api-contract.md)·[합의 사항과 구현 차이](decisions.md)를 따릅니다. 조회 SSE와 서버 실행을 분리하고 정책 변경·중단 시 미제출 예약을 유지하는 규칙을 반영했습니다.
 
 ## 공개 API

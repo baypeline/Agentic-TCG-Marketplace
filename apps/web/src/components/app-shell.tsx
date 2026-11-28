@@ -9,10 +9,13 @@ import { useQuery } from '@tanstack/react-query';
 import { demoStatusSchema } from '@tcg/contracts';
 import { AgentChat } from '../features/chat/agent-chat';
 import { useAgentPanelStore } from '../stores/agent-panel';
+import { WalletLogin } from '../features/auth/wallet-login';
+import { getWalletSession, walletQueryKey } from '../features/auth/wallet-client';
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { color } = useTheme();
   const pathname = usePathname();
+  const wallet = useQuery({ queryKey: walletQueryKey, queryFn: getWalletSession, staleTime: 30_000, retry: false });
   const demo = useQuery({ queryKey: ['demo-status'], queryFn: async () => { const response = await fetch('/api/demo'); if (!response.ok) throw new Error('Unavailable'); return demoStatusSchema.parse(await response.json()); }, staleTime: Infinity, retry: false });
   const chatOpen = useAgentPanelStore(state => state.chatOpen);
   const setChatOpen = useAgentPanelStore(state => state.setChatOpen);
@@ -31,24 +34,24 @@ export function AppShell({ children }: { children: ReactNode }) {
     <SkipLink href={chatOpen ? '#agent-message' : '#main-content'}>{chatOpen ? '대화 입력으로 바로가기' : '본문으로 바로가기'}</SkipLink>
     <Header><HeaderInner data-chat-open={chatOpen}><Brand href="/" aria-label="Agentic TCG 홈">
       <svg width="30" height="36" viewBox="0 0 30 36" fill="none" aria-hidden="true"><rect x="1" y="6" width="21" height="28" rx="2" stroke={color.ink} /><rect x="8" y="1" width="21" height="28" rx="2" fill={color.coral} /><path d="m18.5 9 5 6-5 6-5-6 5-6Z" stroke={color.surface} strokeWidth="1.5" /></svg>
-      Agentic TCG</Brand><Navigation aria-label="주요 메뉴"><Link href={isLanding ? '/cards' : '/'}>{isLanding ? <>마켓<NavDetail> 둘러보기</NavDetail></> : '홈'}</Link><ChatToggle ref={chatToggle} type="button" aria-controls="agent-panel" aria-expanded={chatOpen} onClick={toggleChat}>에이전트 {chatOpen ? '닫기' : '열기'}</ChatToggle></Navigation>
+      Agentic TCG</Brand><Navigation aria-label="주요 메뉴"><Link href={isLanding ? '/cards' : '/'}>{isLanding ? <>마켓<NavDetail> 둘러보기</NavDetail></> : '홈'}</Link><WalletLogin /><ChatToggle ref={chatToggle} type="button" aria-controls="agent-panel" aria-expanded={chatOpen} onClick={toggleChat}>에이전트 {chatOpen ? '닫기' : '열기'}</ChatToggle></Navigation>
     </HeaderInner></Header>
     <Workspace data-chat-open={chatOpen}><BrowsePane ref={browse} id="browse-pane">
     {!isLanding && <ServiceNav aria-label="서비스 메뉴"><ServiceNavInner>{[['/rwa', 'NFT'], ['/cards', '카드 검색'], ['/marketplace', '매물'], ['/collection', '내 카드'], ['/activity', '거래 관리'], ['/agent', '에이전트 설정'], ['/agent/logs', 'Agent 로그']].map(([href, label]) => <Link key={href} href={href!} aria-current={(pathname === href || href === '/cards' && pathname.startsWith('/cards/')) ? 'page' : undefined}>{label}</Link>)}</ServiceNavInner></ServiceNav>}
-    <PageFrame id="main-content" tabIndex={-1}>{children}</PageFrame>
+    <PageFrame key={wallet.data?.user?.userId ?? 'anonymous'} id="main-content" tabIndex={-1}>{children}</PageFrame>
     <Footer id="data-guide"><FooterBrand>Agentic TCG</FooterBrand><details><summary>서비스 안내</summary>
       <p>영어판의 한국어 이름은 포켓몬 종명 표기이며, 한국어판은 원문 이름을 표시합니다. 해외 참고 시세는 제공자의 집계·판매 희망 가격으로, 한국어판 실거래가와 다를 수 있습니다.</p>
       <p>이 서비스는 테스트넷에서 실행되며, 매물·가격·보관 기록에는 시연용 데이터가 포함돼요. 구매하면 {demo.data?.paymentChain === 'maroo' ? 'Maroo Testnet tOKRW' : 'Base Sepolia 테스트 USDC'}와 NFT가 실제로 이동합니다. NFT 이전은 NFT 매물에만 해당해요.</p>
       <p>실물 카드의 보관·감정·배송은 제공하지 않으며, 인출 기능은 절차를 체험하는 용도예요. 참고 가격은 실제 시세나 체결가를 보장하지 않아요. USD 기준 추정가는 1 USD ≈ 1 USDC로 표시하며 판본·보존 상태를 보정하지 않습니다. ‘화면 미리보기’의 기록은 예시입니다.</p>
-    </details></Footer></BrowsePane><ChatPane inert={!chatOpen} aria-hidden={!chatOpen}><AgentChat onClose={closeChat} /></ChatPane></Workspace>
+    </details></Footer></BrowsePane><ChatPane inert={!chatOpen} aria-hidden={!chatOpen}><AgentChat key={wallet.data?.user?.userId ?? 'anonymous'} onClose={closeChat} /></ChatPane></Workspace>
   </>;
 }
 
 const SkipLink = styled.a(({ theme }) => ({ position: 'fixed', top: -80, left: 16, zIndex: 100, padding: 12, color: theme.color.surface, background: theme.color.ink, '&:focus': { top: 8 } }));
 const Header = styled.header(({ theme }) => ({ position: 'sticky', top: 0, zIndex: 20, height: 72, background: theme.color.canvas, borderBottom: `1px solid ${theme.color.line}`, '@media(max-width:639px)': { height: 68 } }));
-const HeaderInner = styled.div({ maxWidth: 1280, margin: '0 auto', padding: '0 32px', minHeight: 71, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20, '@media(max-width:639px)': { padding: '0 20px', minHeight: 67, gap: 10 } });
+const HeaderInner = styled.div({ maxWidth: 1280, margin: '0 auto', padding: '0 32px', minHeight: 71, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20, '@media(max-width:639px)': { padding: '12px 20px', minHeight: 67, gap: 10, flexWrap: 'wrap' } });
 const Brand = styled(Link)(({ theme }) => ({ display: 'flex', alignItems: 'center', gap: 10, color: theme.color.ink, fontSize: 19, fontWeight: 650, textDecoration: 'none', whiteSpace: 'nowrap', '@media(max-width:639px)': { fontSize: 16, gap: 7 } }));
-const Navigation = styled.nav(({ theme }) => ({ display: 'flex', alignItems: 'center', gap: 24, '& a': { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 44, minHeight: 44, color: theme.color.ink, fontSize: 14, fontWeight: 650, textDecoration: 'none', padding: '12px 0', '&[aria-current=page]': { textDecoration: 'underline', textUnderlineOffset: 8 }, '&:hover': { textDecoration: 'underline' } }, '@media(max-width:639px)': { gap: 12, '& a': { fontSize: 13 } } }));
+const Navigation = styled.nav(({ theme }) => ({ display: 'flex', alignItems: 'center', gap: 24, '& a': { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 44, minHeight: 44, color: theme.color.ink, fontSize: 14, fontWeight: 650, textDecoration: 'none', padding: '12px 0', '&[aria-current=page]': { textDecoration: 'underline', textUnderlineOffset: 8 }, '&:hover': { textDecoration: 'underline' } }, '@media(max-width:639px)': { width: '100%', justifyContent: 'space-between', gap: 8, '& a': { fontSize: 13 } } }));
 const ChatToggle = styled.button(({ theme }) => ({ minHeight: 44, padding: '8px 14px', border: `1px solid ${theme.color.line}`, borderRadius: 6, background: theme.color.surface, color: theme.color.ink, fontSize: 13, whiteSpace: 'nowrap', '@media(max-width:639px)': { paddingInline: 10, fontSize: 12 } }));
 const NavDetail = styled.span({ '@media(max-width:639px)': { display: 'none' } });
 const Workspace = styled.div(({ theme }) => ({

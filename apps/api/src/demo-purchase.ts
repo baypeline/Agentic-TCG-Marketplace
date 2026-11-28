@@ -29,11 +29,12 @@ export function createDemoPurchaseHandler({ env, trading, policies, getMcpUrl, s
     const pack = await readDemoScenarios(env.PAYMENT_CHAIN,includeKorean);
     if (!pack.scenarios.some(scene => scene.cardId === input.offer.card.id)) throw new AppError('FORBIDDEN', '시나리오 데모 카드만 구매할 수 있습니다.', 403);
     const expectedRecipient = await resolvePaymentRecipient?.(input.offer.listingId) ?? env.PAYMENT_RECIPIENT;
-    const buyer = { userId: demoBuyerId, agentId: demoBuyerAgentId };
-    const policy = await ensureDemoPurchasePolicy(env, policies, includeKorean);
+    const buyer = input.auth.walletAddress ? { userId: input.auth.userId, agentId: input.auth.agentId! } : { userId: demoBuyerId, agentId: demoBuyerAgentId };
+    if (input.auth.walletAddress && (buyer.userId !== demoBuyerId || buyer.agentId !== demoBuyerAgentId)) throw new AppError('PAYMENT_UNAVAILABLE', '이 계정에는 결제용 에이전트 지갑이 연결되지 않았습니다. 기존 공통 지갑의 자금은 사용할 수 없습니다.', 409);
+    const policy = await ensureDemoPurchasePolicy(env, policies, includeKorean, buyer);
     const key = `${input.sessionId}:${input.requestId}`;
     const run = await policies.startRun(buyer, { policyId: policy.id, instruction: `${input.offer.card.name} 구매 · 사용자 확인 ${input.requestId}` }, { idempotencyKey: `scenario-run:${key}` });
-    const mcp = createServerMcpClient({ url: getMcpUrl(), headers: { authorization: `Bearer ${env.DEMO_BUYER_TOKEN}` }, keyFor: (action, args) => policies.actionKey(buyer, run.id, action, args) });
+    const mcp = createServerMcpClient({ url: getMcpUrl(), headers: { authorization: input.auth.walletAddress ? input.authorization! : `Bearer ${env.DEMO_BUYER_TOKEN}` }, keyFor: (action, args) => policies.actionKey(buyer, run.id, action, args) });
     let quote;
     try { quote = data(await mcp.call('quote_fixed_purchase', { listingId: input.offer.listingId, maxPrice: input.offer.price }, 'quote'), matchQuoteSchema); }
     catch (error) { await policies.stopRun(buyer, run.id).catch(() => undefined); throw error; }
@@ -105,10 +106,9 @@ export function createDemoPurchaseHandler({ env, trading, policies, getMcpUrl, s
   };
 }
 
-export async function ensureDemoPurchasePolicy(env: ApiEnv, policies: PolicyService, includeKorean = true) {
+export async function ensureDemoPurchasePolicy(env: ApiEnv, policies: PolicyService, includeKorean = true, buyer = { userId: demoBuyerId, agentId: demoBuyerAgentId }) {
   const profile = getPaymentProfile(env.PAYMENT_CHAIN);
   const pack = await readDemoScenarios(env.PAYMENT_CHAIN, includeKorean);
-  const buyer = { userId: demoBuyerId, agentId: demoBuyerAgentId };
   const original=await readDemoScenarios(env.PAYMENT_CHAIN);
   let policy = await policies.create(buyer, { enabled: true, totalBudget: profile.totalBudget, maxPerTrade: profile.maxPerTrade, allowedCardVariantIds: original.scenarios.map(scene => scene.cardId), validUntil: '2099-01-01T00:00:00.000Z' }, { idempotencyKey: 'scenario-demo-policy-v1' });
   if(includeKorean){

@@ -1,4 +1,5 @@
 import { expect, it } from 'vitest';
+import { randomUUID } from 'node:crypto';
 import { parseApiEnv } from '@tcg/config';
 import { createMockTradingStore } from '@tcg/trading';
 import { createPolicyService } from '@tcg/payment-server';
@@ -29,6 +30,18 @@ it('총예산만 변경해도 건당 한도를 임의로 바꾸지 않으며 통
   const patch = { currency: 'tOKRW' as const, totalBudget: '120', maxPerTrade: null };
   expect((await f.handler.propose(patch)).maxPerTrade).toBe('25000000000000000000');
   for (const change of [{ currency: 'USDC' as const }, { totalBudget: '0' }, { maxPerTrade: '26' }, { maxPerTrade: '0.0000000000000000001' }, { totalBudget: '1' }]) await expect(f.handler.propose({ ...patch, ...change })).rejects.toThrow();
+});
+it('로그인 지갑의 예산은 다른 지갑과 기존 데모 정책으로부터 분리한다', async () => {
+  const f = await fixture();
+  const alice = { userId: randomUUID(), agentId: randomUUID(), walletAddress: `0x${'8'.repeat(40)}` };
+  const bob = { userId: randomUUID(), agentId: randomUUID(), walletAddress: `0x${'9'.repeat(40)}` };
+  const patch = { currency: 'tOKRW' as const, totalBudget: '120', maxPerTrade: '10' };
+  const a = await f.handler.propose(patch, alice), b = await f.handler.propose(patch, bob);
+  expect(a.policyId).not.toBe(b.policyId); expect(a.policyId).not.toBe(f.proposal.policyId);
+  await expect(f.handler.confirm(a, bob)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  await f.handler.confirm(a, alice);
+  expect((await f.policies.get(bob, b.policyId)).totalBudget).toBe('100000000000000000000');
+  expect((await f.policies.get(f.buyer, f.proposal.policyId)).totalBudget).toBe('100000000000000000000');
 });
 it('확인 시점의 지출·예약 증가, 정책 수정과 변경안 만료를 재검사한다', async () => {
   const f = await fixture();

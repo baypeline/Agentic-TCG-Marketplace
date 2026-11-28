@@ -7,6 +7,7 @@ import { readAgentMessage } from './agent-client';
 import { CardChoices, cardChoiceLabel, cardChoiceQuestion } from './card-choices';
 import { PurchaseOffers, PurchaseReceipt } from './purchase-offers';
 import { BudgetProposal } from './budget-proposal';
+import { getWalletSession, walletQueryKey } from '../auth/wallet-client';
 import { agentBudgetResultSchema, type AgentBudgetProposal, type AgentBudgetResult } from '@tcg/contracts';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
@@ -41,6 +42,7 @@ export function AgentChat({ onClose }: { onClose: () => void }) {
   const announcedPurchases = useRef(new Set<string>());
   const queryClient = useQueryClient();
   const router = useRouter();
+  const wallet = useQuery({ queryKey: walletQueryKey, queryFn: getWalletSession, staleTime: 30_000, retry: false });
   const demo = useQuery({ queryKey: ['demo-status'], queryFn: async () => { const result = await fetch('/api/demo'); if (!result.ok) throw new Error('Unavailable'); return demoStatusSchema.parse(await result.json()); }, staleTime: Infinity, retry: false });
   const examples = demo.data?.enabled ? demo.data.suggestions : suggestions;
   const sessionId = useRef<string | undefined>(undefined);
@@ -250,7 +252,8 @@ export function AgentChat({ onClose }: { onClose: () => void }) {
             ) : <PlainMessage>{message.content}</PlainMessage>}
             {message.interrupted && <ReplyState>중단된 답변 · 완료되지 않은 내용이에요.</ReplyState>}
             {message.role === 'assistant' && message.cardChoices?.length ? <CardChoices cards={message.cardChoices} disabled={pending || index !== latestChoices} selectedId={message.selectedCardId} onSelect={card => { void selectCard(card, index); }} /> : null}
-            {message.purchaseOffers?.length ? <PurchaseOffers offers={message.purchaseOffers} signingMode={demo.data?.signingMode} payer={demo.data?.payer} disabled={pending || index !== latestOffers} completedIds={receipts.filter(item => item.status === 'COMPLETED').map(item => item.listingId)} submittedIds={[...purchaseRequests.current.entries()].filter(([, item]) => item.submitted).map(([id]) => id)} onBuy={offer => { void buyOffer(offer); }} /> : null}
+            {message.purchaseOffers?.length ? <PurchaseOffers offers={message.purchaseOffers} signingMode={demo.data?.signingMode} payer={demo.data?.payer} disabled={pending || index !== latestOffers || !wallet.data?.user?.agentWalletLinked} completedIds={receipts.filter(item => item.status === 'COMPLETED').map(item => item.listingId)} submittedIds={[...purchaseRequests.current.entries()].filter(([, item]) => item.submitted).map(([id]) => id)} onBuy={offer => { void buyOffer(offer); }} /> : null}
+            {!!message.purchaseOffers?.length && !wallet.data?.user?.agentWalletLinked && <ReplyState>{wallet.data?.user ? '이 계정에는 결제용 에이전트 지갑이 아직 연결되지 않았어요.' : '구매와 예산 설정은 상단의 지갑 로그인 후 이용할 수 있어요.'}</ReplyState>}
             {message.budgetProposal && <BudgetProposal proposal={message.budgetProposal} result={message.budgetResult} disabled={pending || index !== messages.length - 1} onAction={action => { void updateBudget(message.budgetProposal!, action); }} />}
           </MessageBody>
         </Message>

@@ -1,5 +1,7 @@
 # 공통 DB
 
+`wallet-auth.prisma`는 지갑 주소와 사용자·Agent ID의 영구 매핑, 5분 로그인 도전값과 사용 여부, 해시로 저장한 8시간 세션·폐기 시각을 관리합니다. 사용자 식별자는 기존 거래 테이블의 UUID 소유권 필드에 연결하며 기존 데이터를 일괄 변경하지 않습니다. `pnpm db:generate`와 `pnpm db:migrate`가 필요합니다. [로그인 설계와 검증](../../docs/wallet-login.md)을 참고하세요.
+
 `card-images.prisma`의 `catalog.CardImageReference`는 공식 한국어판 이미지 출처·세트/번호·해시·검증 시각을 보존합니다. `pnpm db:seed:images`로 Git JSON을 복원하며 `db:seed:collected`에도 포함됩니다. `pnpm demo:seed`는 원본과 다른 UUID의 한국어판 20종·MOCK 가격·판매 재고 40개를 추가합니다. 기존 거래·소유권은 유지합니다. [한국어판 데이터 구성](../../docs/korean-card-images.md)을 참고하세요.
 
 `rwa.prisma`는 실물 개체/NFT, 온체인 매물 매핑, 인출, 이벤트/커서, 요청 키와 사전 방송 해시를 저장합니다. 기존 카드·재고·매물에는 Restrict FK로 연결하며 카탈로그 판본과 NFT 한 장을 구분합니다. 기존 거래를 일괄 NFT화하지 않습니다. [RWA 실행과 복구](../../docs/rwa.md)를 참고하세요.

@@ -1,5 +1,7 @@
 # 카드 검색부터 테스트넷 구매까지
 
+웹 거래·예산 설정에는 지갑 로그인이 필요합니다. 기존 `AGENT_WALLET_ADDRESS`의 소유권을 서명으로 증명한 계정만 기존 구매 기록과 서버 에이전트 지갑을 이어서 사용합니다. 새 지갑은 별도 사용자·Agent로 생성하며 공통 지갑의 자금을 사용할 수 없습니다. 기존 `WEB_DEMO_ROLE` 자동 인증은 제거했습니다. [로그인 절차와 제한](wallet-login.md)을 참고하세요.
+
 현재 기본 예시는 한국어판 치라미·쉐이미·누니머기입니다. `pnpm demo:seed`는 기존 영어판 3종을 보존하며 한국어판 20종·매물 40개를 추가합니다. 마루 매물은 3~13 tOKRW이고 새 한국어판은 일반 DB 재고입니다. 기존 RWA NFT 3종을 교체하거나 추가 NFT를 자동 발행하지 않습니다. [공식 이미지 수집·오프라인 복원](korean-card-images.md)을 참고하세요. 아래 세 영어판 예시·USDC 금액은 이전 프로필 기록입니다.
 
 아래는 기존 Base Sepolia USDC 프로필입니다. 마루 tOKRW의 별도 DB·가격·예산·가스비·초기화는 [마루 실행 가이드](./maroo.md)를 따르세요. `PAYMENT_CHAIN`만 바꾸어 기존 DB를 전환하지 않습니다.
@@ -37,7 +39,7 @@ CARD_DATA_SOURCE=database
 TRADING_DATA_SOURCE=database
 DEMO_SCENARIOS_ENABLED=true
 PAYMENT_ENABLED=true
-WEB_DEMO_ROLE=buyer
+# 웹 상단에서 지갑 서명으로 로그인합니다.
 ```
 
 루트 `.env`에 `OPENAI_API_KEY`, `AGENT_LOCAL_SECRET`, 서로 다른 `DEMO_BUYER_TOKEN`/`DEMO_SELLER_TOKEN`과 공개 지갑 주소 `AGENT_WALLET_ADDRESS`/`PAYMENT_RECIPIENT`를 설정합니다. 기본 `AGENT_SIGNING_MODE=browser`에서는 구매 지갑 개인키가 서버에 필요하지 않습니다. Web·API를 재시작하고 `/health`의 `scenarioDemo=true`, `paymentEnabled=true`, `priceDataSource=mock`, `tradingDataSource=database`를 확인합니다. 시나리오 모드는 원래 PRICE_DATA_SOURCE와 별개로 고정 합성 시세를 사용합니다.
@@ -68,7 +70,7 @@ WEB_DEMO_ROLE=buyer
 - 지갑 거절·잔액 부족·서명 전 실패는 미제출 예약을 해제합니다. 제출 결과가 불명확하면 원래 요청과 ‘기존 결제 확인’을 유지합니다.
 - PENDING/UNKNOWN은 완료로 표시하지 않고 Payment 복구를 기다립니다. 제출 결제를 TTL이나 채팅 초기화만으로 취소하지 않습니다.
 - 세션은 메모리이므로 API 재시작·만료 뒤 구매 버튼을 재사용하지 않습니다. 영속 거래·예산·결제는 거래 관리에서 확인합니다.
-- 로컬 시연은 공유 구매자·Agent 역할을 사용합니다. 브라우저 대화 접근은 분리하지만 거래 역할·예산은 공유합니다. 운영 인증을 대체하지 않습니다.
+- 지갑별 사용자·Agent·예산을 분리합니다. 기존 구매자 지갑만 기존 시연 기록과 결제용 서버 지갑을 이어서 사용하며 새 지갑에 공통 자금 권한을 부여하지 않습니다.
 
 자동 검증은 가짜 모델·정산 어댑터와 지갑 RPC 모형으로 MCP 예약→지급→소유권 이전, 중복 지급 방지, 취소, 미확정 결제, 잘못된 지갑·잔액 부족, 시드 소유권 보존을 확인합니다. 실제 지갑 서명·송금은 별도 확인이 필요하며 자동 테스트를 실제 온체인 정산 성공으로 보고하지 않습니다.
 

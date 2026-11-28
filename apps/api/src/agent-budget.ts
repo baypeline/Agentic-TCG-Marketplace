@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { AppError, agentBudgetPatchSchema, agentBudgetProposalSchema, type AgentBudgetProposal } from '@tcg/contracts';
+import { AppError, agentBudgetPatchSchema, agentBudgetProposalSchema, type AgentBudgetProposal, type AuthContext } from '@tcg/contracts';
 import { getPaymentProfile } from '@tcg/contracts/payment-profile';
 import type { ApiEnv } from '@tcg/config';
 import type { PolicyService } from '@tcg/payment-server';
@@ -9,7 +9,11 @@ import { demoBuyerId, demoBuyerAgentId } from './demo-auth.js';
 
 export function createAgentBudgetHandler(env: ApiEnv, policies: PolicyService, now = () => new Date()): NonNullable<AgentSessionPluginOptions['budget']> {
   const profile = getPaymentProfile(env.PAYMENT_CHAIN);
-  const buyer = { userId: demoBuyerId, agentId: demoBuyerAgentId };
+  const actor = (auth?: AuthContext) => {
+    if (!auth?.walletAddress) return { userId: demoBuyerId, agentId: demoBuyerAgentId };
+    if (!auth.agentId) throw new AppError('FORBIDDEN', '사용자 에이전트가 필요합니다.', 403);
+    return { userId: auth.userId, agentId: auth.agentId };
+  };
   function units(value: string) {
     const [whole, fraction = ''] = value.split('.');
     if (fraction.length > profile.decimals) throw new AppError('VALIDATION_ERROR', `소수점은 ${profile.decimals}자리까지 입력해 주세요.`, 400);
@@ -23,19 +27,21 @@ export function createAgentBudgetHandler(env: ApiEnv, policies: PolicyService, n
     if (BigInt(total) < BigInt(spent) + BigInt(reserved)) throw new AppError('BUDGET_EXCEEDED', '총예산을 사용 완료액과 결제 예약액의 합계보다 낮출 수 없습니다.', 409);
   }
   return {
-    async propose(patch) {
+    async propose(patch, auth) {
+      const buyer = actor(auth);
       patch = agentBudgetPatchSchema.parse(patch);
       if (patch.currency !== profile.currency) throw new AppError('VALIDATION_ERROR', `현재 예산 통화는 ${profile.currency}입니다. 다른 통화로 자동 환산하지 않습니다.`, 400);
       const total = patch.totalBudget === null ? null : units(patch.totalBudget);
       const per = patch.maxPerTrade === null ? null : units(patch.maxPerTrade);
-      const initial = await ensureDemoPurchasePolicy(env, policies);
+      const initial = await ensureDemoPurchasePolicy(env, policies, true, buyer);
       const policy = await policies.get(buyer, initial.id);
       const budget = await policies.budget(buyer, policy.id);
       const totalBudget = total ?? policy.totalBudget, maxPerTrade = per ?? policy.maxPerTrade;
       validate(totalBudget, maxPerTrade, budget.spentAmount, budget.reservedAmount);
       return agentBudgetProposalSchema.parse({ id: randomUUID(), policyId: policy.id, expectedVersion: policy.version, currency: profile.currency, previousTotalBudget: policy.totalBudget, previousMaxPerTrade: policy.maxPerTrade, totalBudget, maxPerTrade, spentAmount: budget.spentAmount, reservedAmount: budget.reservedAmount, availableAmount: (BigInt(totalBudget) - BigInt(budget.spentAmount) - BigInt(budget.reservedAmount)).toString(), signerMaxPerTrade: profile.maxPerTrade, expiresAt: new Date(now().getTime() + 5 * 60_000).toISOString() });
     },
-    async confirm(proposal: AgentBudgetProposal) {
+    async confirm(proposal: AgentBudgetProposal, auth) {
+      const buyer = actor(auth);
       if (new Date(proposal.expiresAt) <= now()) throw new AppError('POLICY_VIOLATION', '변경안이 만료되었습니다. 예산 변경을 다시 요청해 주세요.', 409);
       const current = await policies.get(buyer, proposal.policyId);
       const budget = await policies.budget(buyer, current.id);

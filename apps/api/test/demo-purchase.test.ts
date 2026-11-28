@@ -97,6 +97,12 @@ it('이전 한국어판 기본 정책을 확장해 새 추천 카드를 예약�
   expect(await f.policies.budget(f.buyer, policy.id)).toMatchObject({ spentAmount: '0', reservedAmount: '0', availableAmount: profile.totalBudget });
 });
 
+it('새 지갑 로그인 계정은 기존 공통 에이전트 지갑으로 결제하지 않는다', async () => {
+  const f = await fixture(false, true, 'maroo', true);
+  await expect(f.purchase({ ...f.input(f.offers[0]!), action: 'prepare', auth: { userId: randomUUID(), agentId: randomUUID(), walletAddress: `0x${'9'.repeat(40)}` }, authorization: 'Bearer wallet-test' })).rejects.toMatchObject({ code: 'PAYMENT_UNAVAILABLE' });
+  expect(f.signer).not.toHaveBeenCalled(); expect(f.adapter.settle).not.toHaveBeenCalled();
+});
+
 it('사용자 지정 정책에는 한국어판 허용 목록을 자동 추가하지 않는다', async () => {
   const f = await fixture(false, true, 'maroo', true);
   const legacy = f.input(f.offers[0]!);

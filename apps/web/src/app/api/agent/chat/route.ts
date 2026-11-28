@@ -29,7 +29,8 @@ export async function POST(request: NextRequest) {
   if (!parsedId.success) return error(400, '대화 세션 정보가 올바르지 않습니다.');
 
   const existing = request.cookies.get(identityCookie)?.value;
-  const token = existing && readLocalAgentUserId(existing, secret) ? existing : createLocalAgentToken(secret);
+  const wallet = request.cookies.get('tcg_session')?.value;
+  const token = wallet ?? (existing && readLocalAgentUserId(existing, secret) ? existing : createLocalAgentToken(secret));
   const headers = { authorization: `Bearer ${token}` };
   let sessionId = parsedId.data;
 
@@ -64,7 +65,7 @@ export async function POST(request: NextRequest) {
         'x-agent-session-id': sessionId,
       },
     });
-    if (token !== existing) {
+    if (!wallet && token !== existing) {
       response.cookies.set(identityCookie, token, {
         httpOnly: true, sameSite: 'strict', secure: request.nextUrl.protocol === 'https:', path: '/api/agent/chat',
       });

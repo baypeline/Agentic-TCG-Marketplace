@@ -45,7 +45,7 @@ export async function createIntegrationPlugins({ env, prisma, aggregatorService,
       } });
       options.onDemoPurchaseReady?.(input => rwa && input.action==='submit' ? withWalletLock(env.AGENT_WALLET_ADDRESS!,()=>handler(input)) : handler(input));
     }
-    app.get('/api/me', async request => { const { userId, agentId } = requireAuth(request); return { userId, ...(agentId ? { agentId } : {}) }; });
+    app.get('/api/me', async request => { const { userId, agentId, walletAddress } = requireAuth(request); return { userId, ...(agentId ? { agentId } : {}), ...(walletAddress ? { walletAddress } : {}), agentWalletLinked: userId === demoBuyerId, rwaAvailable: userId === demoBuyerId || userId === demoSellerId }; });
     await app.register(createTradingPlugin({ tradingService: trading, requireAuth }), { prefix: '/api' });
     await app.register(createCommercePlugin({ policies, payments, requireAuth }), { prefix: '/api' });
     await app.register(createServerRunPlugin({ runs: policies, requireAuth, execute: executeAgentRun }));

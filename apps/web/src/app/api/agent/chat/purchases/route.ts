@@ -9,8 +9,9 @@ export async function POST(request: NextRequest) {
   const core = URL.parse(process.env.CORE_API_URL ?? 'http://127.0.0.1:4000');
   if (!secret || !core || !['http:', 'https:'].includes(core.protocol) || !isLoopbackHost(core.hostname)) return NextResponse.json({ message: '거래 연결 설정을 확인해 주세요.' }, { status: 503 });
   if (!host || !isLoopbackHost(request.nextUrl.hostname) || (origin !== `http://${host}` && origin !== `https://${host}`)) return NextResponse.json({ message: '이 화면에서 보낸 요청만 처리합니다.' }, { status: 403 });
-  const token = request.cookies.get('tcg-local-agent')?.value;
-  if (!token || !readLocalAgentUserId(token, secret)) return NextResponse.json({ message: '먼저 에이전트와 대화를 시작해 주세요.' }, { status: 401 });
+  const wallet = request.cookies.get('tcg_session')?.value;
+  const token = wallet ?? request.cookies.get('tcg-local-agent')?.value;
+  if (!token || (!wallet && !readLocalAgentUserId(token, secret))) return NextResponse.json({ message: '먼저 지갑으로 로그인하고 대화를 시작해 주세요.' }, { status: 401 });
   const body = await request.json().catch(() => null);
   const input = agentPurchaseInputSchema.extend({ sessionId: idSchema }).safeParse(body);
   if (!input.success) return NextResponse.json({ message: '구매 요청 형식을 확인해 주세요.' }, { status: 400 });

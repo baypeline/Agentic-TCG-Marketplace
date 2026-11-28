@@ -84,9 +84,9 @@ it('Web 신원 조회는 인증된 사용자·Agent만 반환하고 임의 ID �
   const f = await setup();
   expect((await f.app.inject({ url:'/api/me' })).statusCode).toBe(401);
   const me = await f.app.inject({ url:'/api/me', headers:{ ...f.buyer, 'x-user-id':randomUUID(), 'x-agent-id':randomUUID() } });
-  expect(me.json()).toEqual({ userId:'00000000-0000-4000-8002-000000000002', agentId:'00000000-0000-4000-8002-000000000003' });
-  expect((await f.app.inject({ url:'/api/me', headers:f.seller })).json()).toEqual({ userId:'00000000-0000-4000-8002-000000000001' });
+  expect(me.json()).toEqual({ userId:'00000000-0000-4000-8002-000000000002', agentId:'00000000-0000-4000-8002-000000000003', agentWalletLinked:true, rwaAvailable:true });
+  expect((await f.app.inject({ url:'/api/me', headers:f.seller })).json()).toEqual({ userId:'00000000-0000-4000-8002-000000000001', agentWalletLinked:false, rwaAvailable:true });
   const custom = await buildApp({ env:parseApiEnv({ NODE_ENV:'test' }), createIntegrationPlugins, resolveAuth:async () => ({ userId:'00000000-0000-4000-8002-000000000001', internalCredential:'must-not-leak' }) });
   apps.push(custom);
-  expect((await custom.inject({ url:'/api/me' })).json()).toEqual({ userId:'00000000-0000-4000-8002-000000000001' });
+  expect((await custom.inject({ url:'/api/me' })).json()).toEqual({ userId:'00000000-0000-4000-8002-000000000001', agentWalletLinked:false, rwaAvailable:true });
 });

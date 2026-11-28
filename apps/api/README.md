@@ -1,5 +1,7 @@
 # Fastify Core API
 
+`wallet-auth.ts`는 DB에 보존한 SIWE 메시지와 EOA 서명을 검증해 사용자·Agent 세션을 발급합니다. 세션의 SHA-256 해시만 DB에 저장하며 요청마다 만료·폐기를 검사합니다. `AUTH_WEB_ORIGIN` 또는 `http://127.0.0.1:PORT`에 웹 주소를 맞춰 주세요. 기존 구매자 지갑 매핑과 새 사용자 분리는 [지갑 로그인](../../docs/wallet-login.md)을 참고하세요.
+
 로컬 채팅 예산 설정은 `agent-budget.ts`가 기존 PolicyService에 연결합니다. 총예산·건당 한도만 수정하며 기존 소비·예약·허용 카드·유효기간·활성 상태를 보존합니다. 모델은 변경안만 제시하고 웹의 확인 버튼으로 저장합니다. [예산 설정과 검증](../../docs/agent-budget.md)을 참고하세요.
 
 `RWA_ENABLED=true`에서는 `packages/rwa` 서비스를 등록해 `/api/rwa`·고정 NFT 업무·기존 요청 상태 조회와 finalized 이벤트 수집을 제공합니다. 기존 MCP/Trading/Payment에 선택적 RWA 요구 생성·조회 장식·일반 DB 매물 변경 가드를 주입합니다. [실행·역할·x402 정산](../../docs/rwa.md)을 참고하세요.

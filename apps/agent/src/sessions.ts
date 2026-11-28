@@ -14,14 +14,15 @@ export interface AgentSessionPluginOptions {
   onSessionStarted?: (auth: AuthContext, sessionId: string) => Promise<void>;
   // 호스트는 먼저 online 상태를 해제한 뒤 Trading.pauseAgentOrders를 호출한다.
   onSessionStopped?: (auth: AuthContext, sessionId: string) => Promise<void>;
-  purchase?: (input: AgentPurchaseInput & { offer: AgentPurchaseOffer; auth: AuthContext; sessionId: string }) => Promise<AgentPurchaseProgress>;
-  budget?: { propose(patch: AgentBudgetPatch): Promise<AgentBudgetProposal>; confirm(proposal: AgentBudgetProposal): Promise<AgentBudgetResult> };
+  purchase?: (input: AgentPurchaseInput & { offer: AgentPurchaseOffer; auth: AuthContext; sessionId: string; authorization?: string }) => Promise<AgentPurchaseProgress>;
+  budget?: { propose(patch: AgentBudgetPatch, auth?: AuthContext): Promise<AgentBudgetProposal>; confirm(proposal: AgentBudgetProposal, auth?: AuthContext): Promise<AgentBudgetResult> };
 }
 
 interface AgentSession {
   id: string;
   userId: string;
   agentId?: string;
+  walletAddress?: string;
   updatedAt: number;
   messages: AgentMessage[];
   busy: boolean;
@@ -110,7 +111,7 @@ export function createAgentSessionPlugin({ runtime, requireAuth, onSessionStarte
       const id = randomUUID();
       const messages: AgentMessage[] = [];
       await onSessionStarted?.(auth, id);
-      sessions.set(id, { id, userId: auth.userId, agentId: auth.agentId, updatedAt: now, messages, busy: false, stopped: false, stopNotified: false, purchases: new Map() });
+      sessions.set(id, { id, userId: auth.userId, agentId: auth.agentId, walletAddress: auth.walletAddress, updatedAt: now, messages, busy: false, stopped: false, stopNotified: false, purchases: new Map() });
       return reply.code(201).send({ id, messages });
     });
 
@@ -146,7 +147,7 @@ export function createAgentSessionPlugin({ runtime, requireAuth, onSessionStarte
       const current = state;
       const task = (async () => {
         try {
-          const result = agentPurchaseProgressSchema.parse(await purchase({ ...input, offer: current.offer, auth: { userId: session.userId, ...(session.agentId ? { agentId: session.agentId } : {}) }, sessionId: session.id }));
+          const result = agentPurchaseProgressSchema.parse(await purchase({ ...input, offer: current.offer, auth: { userId: session.userId, ...(session.agentId ? { agentId: session.agentId } : {}), ...(session.walletAddress ? { walletAddress: session.walletAddress } : {}) }, sessionId: session.id, authorization: request.headers.authorization }));
           if (result.status === 'COMPLETED' && !current.recorded) {
             current.recorded = true;
             session.messages = [...session.messages, { role: 'assistant' as const, content: `${current.offer.card.name} 구매가 완료되었습니다. 카드가 구매자에게 이전되었으며 Base Sepolia 테스트 USDC 결제가 정산되었습니다. 거래 ID: ${result.tradeId}` }].slice(-maxHistoryMessages);
@@ -173,7 +174,7 @@ export function createAgentSessionPlugin({ runtime, requireAuth, onSessionStarte
       if (session.busy) throw new AppError('SESSION_BUSY', '이전 요청을 처리 중입니다.', 409, true);
       session.busy = true;
       try {
-        const result = agentBudgetResultSchema.parse(input.action === 'confirm' ? await budget.confirm(proposal) : { proposalId: proposal.id, status: 'CANCELLED', currency: proposal.currency });
+        const result = agentBudgetResultSchema.parse(input.action === 'confirm' ? await budget.confirm(proposal, { userId: session.userId, agentId: session.agentId, walletAddress: session.walletAddress }) : { proposalId: proposal.id, status: 'CANCELLED', currency: proposal.currency });
         session.budgetResult = result;
         session.updatedAt = Date.now();
         session.messages.push({ role: 'assistant', content: result.status === 'APPLIED' ? '사용자가 확인한 예산 변경을 서버에 저장했습니다. 지출과 결제 예약 내역은 유지됩니다.' : '예산 변경을 취소했습니다.' });
@@ -223,7 +224,7 @@ export function createAgentSessionPlugin({ runtime, requireAuth, onSessionStarte
             onCardChoices: cards => { cardChoices = cards; },
             onPurchaseOffers: offers => { purchaseOffers = offers.length ? [...purchaseOffers.filter(old => !offers.some(offer => offer.card.id === old.card.id)), ...offers].slice(0, 10) : []; },
             ...(budget ? { onBudgetChange: async (patch: AgentBudgetPatch) => {
-              budgetProposal = agentBudgetProposalSchema.parse(await budget.propose(patch));
+              budgetProposal = agentBudgetProposalSchema.parse(await budget.propose(patch, { userId: session.userId, agentId: session.agentId, walletAddress: session.walletAddress }));
               return budgetProposal;
             } } : {}),
             onTextDelta: delta => emit('delta', { delta }),
