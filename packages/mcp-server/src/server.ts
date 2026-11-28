@@ -44,7 +44,7 @@ export function createMcpServer(tools: readonly ToolDefinition[], scope: Request
       }
       const result = toolSuccess(outcome.data, scope.requestId);
       const value = outcome.data as Record<string, unknown> | null;
-      if (value && value.paymentStatus === 'SETTLED' && typeof value.transactionHash === 'string') result._meta = { 'x402/payment-response': { success: true, transaction: value.transactionHash, network: 'eip155:84532' } };
+      if (value && value.paymentStatus === 'SETTLED' && typeof value.transactionHash === 'string') result._meta = { 'x402/payment-response': { success: true, transaction: value.transactionHash, network: typeof value.network === 'string' ? value.network : 'eip155:84532' } };
       return result;
     } catch (error) {
       if (error instanceof PaymentChallenge) return { isError: true, structuredContent: error.data, content: [{ type: 'text', text: JSON.stringify(error.data) }] };

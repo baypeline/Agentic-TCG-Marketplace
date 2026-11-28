@@ -144,9 +144,9 @@ export function AgentChat({ onClose }: { onClose: () => void }) {
         if (progress.status === 'PAYMENT_REQUIRED') {
           let payload: unknown;
           if (progress.signingMode === 'server') {
-            setPurchaseStatus(`에이전트 지갑에서 ${formatUsdc(progress.amount)} 지급을 승인하고 있어요.`);
+            setPurchaseStatus(`에이전트 지갑에서 ${formatUsdc(progress.amount, progress.currency)} 지급을 승인하고 있어요.`);
           } else {
-            setPurchaseStatus(`${formatUsdc(progress.amount)} 지급 승인을 지갑에서 확인해 주세요. Base Sepolia 테스트 USDC가 실제 전송됩니다.`);
+            setPurchaseStatus(`${formatUsdc(progress.amount, progress.currency)} 지급 승인을 지갑에서 확인해 주세요. Base Sepolia 테스트 USDC가 실제 전송됩니다.`);
             const { connectPaymentWallet } = await import('./wallet-payment');
             const wallet = await connectPaymentWallet();
             payload = await wallet.sign(progress, offer);
@@ -174,7 +174,7 @@ export function AgentChat({ onClose }: { onClose: () => void }) {
       if (progress.status === 'COMPLETED' && !announcedPurchases.current.has(progress.requestId)) {
         announcedPurchases.current.add(progress.requestId);
         setOpenedCard(progress.card);
-        setMessages(current => [...current, { role: 'assistant', content: `${getCardDisplayName(offer.card)} 카드를 ${formatUsdc(progress.amount)}에 구매했어요. 테스트 USDC 결제가 확인되어 내 카드와 거래 내역에 반영됐어요.` }]);
+        setMessages(current => [...current, { role: 'assistant', content: `${getCardDisplayName(offer.card)} 카드를 ${formatUsdc(progress.amount, progress.currency)}에 구매했어요. ${progress.currency === 'tOKRW' ? 'tOKRW' : '테스트 USDC'} 결제가 확인되어 내 카드와 거래 내역에 반영됐어요.` }]);
         void queryClient.invalidateQueries(); window.dispatchEvent(new Event('tcg:purchase-completed')); router.refresh();
       }
     } catch (failure) {

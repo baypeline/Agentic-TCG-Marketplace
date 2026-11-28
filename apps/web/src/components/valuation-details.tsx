@@ -12,7 +12,7 @@ export function ValuationDetails({ valuation, prices, card }: { valuation: Valua
   const status = getValuationStatus(valuation, prices, card);
   return <Panel aria-labelledby="valuation-heading">
     <PanelHeader><h2 id="valuation-heading">{getValuationLabel(valuation)}</h2><Badge tone={isMock || isDemo ? 'demo' : 'neutral'}>{isMock ? 'Mock / 합성 데이터' : isDemo ? '시장 데이터 · 데모 환산' : '시장 데이터'}</Badge></PanelHeader>
-    <Price>{valuation.status === 'AVAILABLE' ? formatUsdc(valuation.estimatedPrice) : '평가 자료 부족'}</Price>
+    <Price>{valuation.status === 'AVAILABLE' ? formatUsdc(valuation.estimatedPrice, valuation.currency) : '평가 자료 부족'}</Price>
     {status && <Explanation><h3>{status.title}</h3><ul>{status.reasons.map(reason => <li key={reason}>{reason}</li>)}</ul>{prices?.items.length ? <a href="#market-data">참고 시세와 검증 상태 보기</a> : null}</Explanation>}
     {isMock && <Notice title="시연용 합성 가격" tone="demo">실제 시장가격이나 구매 판단에 사용할 수 없습니다.</Notice>}
     {isDemo && <Notice title="USD 기준 데모 환산" tone="demo">{valuation.assumptions?.join(' ') || '1 USD ≈ 1 USDC로 표시하며 판본·보존 상태는 보정하지 않았어요.'}</Notice>}

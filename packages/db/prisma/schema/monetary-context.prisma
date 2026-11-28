@@ -1,0 +1,9 @@
+// 하나의 거래 DB에 서로 다른 통화 단위가 섞이지 않도록 고정한다.
+model MonetaryContext {
+  id       String @id
+  chain    String
+  currency String
+  decimals Int
+
+  @@schema("market")
+}

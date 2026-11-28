@@ -11,6 +11,7 @@ services:
       - '127.0.0.1:${FACILITATOR_PORT:?Run pnpm facilitator:init}:4022'
     environment:
       NODE_ENV: production
+      FACILITATOR_CHAIN: ${FACILITATOR_CHAIN:-base-sepolia}
       FACILITATOR_HOST: 0.0.0.0
       FACILITATOR_PORT: 4022
       FACILITATOR_RPC_URL: ${FACILITATOR_RPC_URL:-https://sepolia.base.org}

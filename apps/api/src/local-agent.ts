@@ -37,7 +37,7 @@ export function createLocalAgentOptions(env: ApiEnv, variables: NodeJS.ProcessEn
               decisionApi,
               aggregatorService: { async searchCards(input) { return (await connect()).aggregatorService.searchCards(input); } },
               valuationService: { async getValuation(id) { return (await connect()).valuationService.getValuation(id); } },
-              ...(env.DEMO_SCENARIOS_ENABLED ? { marketplaceService: { paymentReady: env.PAYMENT_ENABLED, async listListings(id: string) { return (await connect()).listListings(id); } } } : {}),
+              ...(env.DEMO_SCENARIOS_ENABLED ? { marketplaceService: { paymentReady: env.PAYMENT_ENABLED, paymentChain: env.PAYMENT_CHAIN, signingMode: env.AGENT_SIGNING_MODE, async listListings(id: string) { return (await connect()).listListings(id); } } } : {}),
             });
             try { return await agent.runAgentTurn(message, options); }
             finally {

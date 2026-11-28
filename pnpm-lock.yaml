@@ -258,6 +258,12 @@ importers:
 
   apps/facilitator:
     dependencies:
+      '@tcg/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@tcg/payment-client':
+        specifier: workspace:*
+        version: link:../../packages/payment-client
       '@x402/core':
         specifier: 2.32.0
         version: 2.32.0
@@ -465,6 +471,9 @@ importers:
 
   packages/payment-client:
     dependencies:
+      '@tcg/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@x402/core':
         specifier: ^2.31.0
         version: 2.32.0
@@ -480,6 +489,9 @@ importers:
       '@tcg/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@tcg/payment-client':
+        specifier: workspace:*
+        version: link:../payment-client
       '@tcg/trading':
         specifier: workspace:*
         version: link:../trading

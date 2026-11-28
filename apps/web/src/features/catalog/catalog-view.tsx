@@ -25,7 +25,7 @@ function CardTile({ item, query, priority }: { item: CatalogItem; query: string;
   const reference = getReferencePrice(item.prices);
   const available = valuation?.status === 'AVAILABLE';
   const label = available ? getValuationLabel(valuation) : reference ? '해외 참고 시세' : '평가 정보';
-  const amount = available ? formatUsdc(valuation.estimatedPrice) : reference ? `${reference.originalAmount} ${reference.originalCurrency}` : item.valuationFailed ? '가격 조회 실패' : '평가 자료 부족';
+  const amount = available ? formatUsdc(valuation.estimatedPrice, valuation.currency) : reference ? `${reference.originalAmount} ${reference.originalCurrency}` : item.valuationFailed ? '가격 조회 실패' : '평가 자료 부족';
   return <Tile href={`/cards/${card.id}${query ? `?${new URLSearchParams({ q: query })}` : ''}`} aria-label={`${getCardDisplayName(card)} 상세 보기`}>
     <CardImage card={card} priority={priority} /><TileText><h3>{getCardDisplayName(card)}</h3><CardMeta>{formatSet(card.setCode)} / {card.cardNumber}<span>{card.language}</span></CardMeta>
       <PriceLine title={!available && reference ? eligibilityLabels[reference.eligibility] : undefined}><span>{label}</span><strong>{amount}</strong></PriceLine>

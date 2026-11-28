@@ -1,5 +1,7 @@
 # Fastify Core API
 
+`PAYMENT_CHAIN=maroo`는 별도 tOKRW 거래 DB·서버 서명·자체 퍼실리테이터로 동작합니다. DB 초기화·보존·18자리 원장·구매자 가스비는 [마루 가이드](../../docs/maroo.md)를 따르세요. `pnpm maroo:init` 후 퍼실리테이터를 초기화·재생성하고 서버를 재시작합니다.
+
 `PAYMENT_FACILITATOR_URL`·`PAYMENT_FACILITATOR_TOKEN`으로 별도 자체 퍼실리테이터를 연결할 수 있습니다. 가스 지갑은 API 구매 지갑과 분리하며, 생성·별도 Docker 프로젝트 실행·정산 원장 복구는 [퍼실리테이터 가이드](../facilitator/README.md)를 참고하세요. 미설정 시 기존 공개 x402 퍼실리테이터를 사용합니다.
 
 `buildApp()`은 조립, 오류 처리, 인증 컨텍스트 및 자원 수명을 관리합니다. `server.ts`만 `listen()`을 호출합니다. 업무 로직은 packages의 Service에서 주입합니다.

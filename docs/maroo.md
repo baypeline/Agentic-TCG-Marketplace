@@ -1,0 +1,44 @@
+# Maroo Testnet tOKRW 데모
+
+마루 모드는 네이티브 tOKRW를 사용합니다. 체인 ID는 `450815`, RPC는 `https://rpc-testnet.maroo.io`, 금액 정밀도는 18자리입니다. [마루 테스트넷 접속 정보](https://docs.maroo.io/resources/network/testnet-access/)를 참고하세요.
+
+## 초기화
+
+기존 로컬 DB·데모 인증·에이전트 전용 지갑 설정을 준비하고 실행합니다.
+
+```powershell
+pnpm maroo:init
+pnpm facilitator:init
+pnpm facilitator:up
+pnpm dev
+```
+
+`maroo:init`은 Docker PostgreSQL 안에 기존 DB 이름에 `_maroo`를 붙인 별도 DB를 생성하고 Migration·수집 카드·합성 시나리오 시드를 적용합니다. 기존 USDC DB와 거래 기록은 보존하며 원래 `.env`는 `.env.base-sepolia`, 기존 DB URL은 `BASE_SEPOLIA_DATABASE_URL`에 보존합니다. 이 파일과 URL에는 비밀값이 있으므로 Git에 포함하지 않습니다. 재실행해도 이미 체결된 재고·예산을 초기화하지 않습니다.
+
+루트 환경을 `PAYMENT_CHAIN=maroo`, 서버 서명, 합성 가격 모드로 전환합니다. `market.MonetaryContext`는 거래 DB의 체인·통화·정밀도를 고정합니다. 기존 금액 데이터가 있는 DB를 tOKRW로 재해석하거나 통화가 다른 DB로 서버를 실행하면 거부합니다.
+
+| 시나리오 | 합성 적정가 | 매물 가격 |
+| --- | --- | --- |
+| 피카츄 | 15 tOKRW | 10 / 12 tOKRW |
+| 리자몽 | 30 tOKRW | 20 / 25 tOKRW |
+| 이브이 | 8 tOKRW | 5 / 6 tOKRW |
+
+가격은 데모용 값이며 USD 환율을 뜻하지 않습니다. 정책은 건당 25, 총예산 100 tOKRW입니다. 가격·정책·예약·사용 예산·결제·판매 대금은 새 DB에서 모두 tOKRW 최소 단위 정수 문자열로 처리합니다. 기존 USD 시장 관측 자료는 원본 참고 자료로 보존하며 네이티브 시세로 사용하지 않습니다. 합성 세 카드의 고정 MOCK 평가를 사용합니다.
+
+## 서명과 정산
+
+마루 모드는 x402 v2 메시지를 사용하는 자체 확장 `maroo-native` / `native:tOKRW`입니다. 공식 EVM `exact`의 ERC20 EIP-3009 방식과 호환되는 구현은 아닙니다. 자체 퍼실리테이터와 서버 에이전트 지갑을 함께 사용하며 브라우저 서명은 지원하지 않습니다.
+
+구매 버튼 승인 → Web → Agent 구매 처리 → MCP → 정책·예산·매물 검증 → 서버 지갑의 네이티브 전송 서명 → 퍼실리테이터 검증·동일 원문 방송 → 영수증 검증 → DB 카드 소유권·거래·예산 반영 순서입니다. 채팅 조회 자체로 구매하지 않습니다. tOKRW는 플랫폼 수납 주소로 보내며 판매 대금은 내부 원장에 기록합니다.
+
+**구매 지갑이 결제 금액과 가스비를 모두 tOKRW로 부담합니다.** 퍼실리테이터의 기존 키는 마루에서는 운영 식별에만 사용하며 가스비를 내지 않습니다. 잔액은 결제와 예상 가스비를 함께 검사합니다. 가스비는 거래 정책의 사용 예산에 합산하지 않으며 별도로 최대 2 tOKRW, gas limit 300,000을 제한합니다. 실제 가스 사용량은 체인에서 결정됩니다.
+
+서명에 체인·수납처·금액·nonce·주문 ID·만료 시각을 묶습니다. 퍼실리테이터는 EOA 수납 주소, 지급자, 잔액, pending nonce, 가스 추정치와 서명을 확인합니다. 만료는 서버·퍼실리테이터가 검사하며 **네이티브 EOA 트랜잭션에는 온체인 만료 기능이 없습니다.** 유출된 원문은 nonce가 소모되기 전 방송될 수 있으므로 원문은 로그·DB·LLM에 보관하지 않습니다.
+
+해시는 방송 전에 SQLite에 저장합니다. 중복 요청은 동일 원장 항목을 사용하고 미확정 결제는 기존 해시만 조회합니다. 결과가 불명확할 때 새 서명·새 전송을 만들지 않습니다. 한 서버 프로세스에서 구매 제출을 직렬화하며, 같은 지갑을 여러 API 인스턴스에서 동시에 사용하는 배포는 지원하지 않습니다.
+
+## 확인과 복귀
+
+`GET /api/demo`의 `paymentChain=maroo`, `currency=tOKRW`, `decimals=18`과 퍼실리테이터 `/supported`의 `network=eip155:450815`, `scheme=maroo-native`를 확인하세요. 테스트는 실제 서명·로컬 RPC 대역·정산 중복 방지·MCP 구매·18자리 예산 반영을 검증하며 실제 체인 송금은 수행하지 않습니다.
+
+Base로 복귀하려면 서버를 중지하고 `.env.base-sepolia`의 설정으로 복원한 뒤 `pnpm facilitator:init`, `pnpm facilitator:up`을 실행하고 서버를 재시작하세요. 마루 DB를 그대로 USDC DB로 지정하면 통화 검사에서 거부됩니다. 별도 DB와 퍼실리테이터 SQLite 볼륨은 삭제하지 마세요.

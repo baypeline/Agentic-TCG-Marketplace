@@ -1,3 +1,4 @@
+import { createNativeEngine } from './native-engine.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { x402Facilitator } from '@x402/core/facilitator';
 import type { PaymentPayload, PaymentRequirements, SettleResponse, VerifyResponse } from '@x402/core/types';
@@ -16,6 +17,7 @@ export interface Engine {
   reconcile(hash: string, payload: PaymentPayload, requirements: PaymentRequirements): Promise<SettleResponse>;
 }
 export async function createEngine(env: FacilitatorEnv): Promise<Engine> {
+  if (env.FACILITATOR_CHAIN === 'maroo') return createNativeEngine(env);
   const account = privateKeyToAccount(env.FACILITATOR_PRIVATE_KEY as `0x${string}`);
   if ([env.FACILITATOR_RECIPIENT.toLowerCase(), ...env.FACILITATOR_PAYERS].includes(account.address.toLowerCase())) throw new Error('퍼실리테이터는 구매·수납 지갑과 분리해야 합니다.');
   const client = createWalletClient({ account, chain: baseSepolia, transport: http(env.FACILITATOR_RPC_URL, { timeout: 10_000, retryCount: 1 }) }).extend(publicActions);

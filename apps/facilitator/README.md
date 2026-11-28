@@ -1,6 +1,6 @@
 # 자체 x402 퍼실리테이터
 
-공식 `@x402/core`·`@x402/evm` 2.32.0의 EVM exact 구현을 Fastify로 호스팅합니다. 현재 지원은 **Base Sepolia / USDC / EIP-3009 / EOA 서명**입니다. 마루 tOKRW·Permit2·스마트 지갑 배포는 구현하지 않았습니다. [공식 예제](https://github.com/x402-foundation/x402/tree/main/examples/typescript/facilitator/basic)를 참고했습니다.
+Base Sepolia USDC는 공식 `@x402/core`·`@x402/evm` 2.32.0 EVM exact / EIP-3009를 사용합니다. Maroo Testnet 네이티브 tOKRW는 x402 v2의 자체 확장 `maroo-native`를 사용하며 공식 ERC20 exact 방식과 다릅니다. [마루 실행 가이드](../../docs/maroo.md)에서 별도 DB·18자리 원장·서명·가스비·복귀 방법을 확인하세요. 아래 가스 지갑과 USDC 설명은 Base 프로필에 해당합니다. 마루는 구매 지갑이 결제와 가스비를 부담하고 퍼실리테이터는 동일 서명 원문을 방송합니다.
 
 ## 실행
 
@@ -45,6 +45,6 @@ pnpm --filter @tcg/facilitator typecheck
 pnpm --filter @tcg/facilitator build
 ```
 
-테스트는 인증·지급 요구 변조·검증만으로 전송하지 않음·동시/반복 정산·주문 간 nonce 재사용·재시작 후 완료/미확정 복구를 확인합니다. 마루 전환 시 자산과 정산 메커니즘을 별도 구현해야 하며 RPC 주소만 바꾸면 동작하지 않습니다.
+테스트는 인증·지급 요구 변조·검증만으로 전송하지 않음·동시/반복 정산·주문 간 nonce 재사용·재시작 후 완료/미확정 복구를 확인합니다. 마루 테스트는 실제 서명과 로컬 RPC 대역으로 금액·수납처·nonce·가스 검증과 방송 전 해시 저장·중복 방송 방지를 확인합니다. 실제 마루 송금은 자동 테스트에 포함하지 않습니다.
 
 2026-11-28 검증에서는 PostgreSQL 통합 테스트를 포함해 전체 330개 테스트·타입 검사·빌드를 통과했습니다. 실제 SDK 서명을 컨테이너의 `/verify`에서 검증하고, Web BFF→Agent→MCP→자체 퍼실리테이터로 이브이 0.005 테스트 USDC 구매를 완료했습니다. 온체인 트랜잭션의 가스 지급자가 자체 퍼실리테이터 지갑인 것, USDC 전송·DB 카드 이전·동일 구매 요청의 중복 지급 방지를 확인했습니다. 컨테이너 재시작 후에도 SQLite 완료 기록이 보존됐습니다. [실제 테스트넷 거래](https://sepolia.basescan.org/tx/0xdf2244a364b6d3e4a1e79b80da66ffce6ef2f16eca0bcb6be6712ebc112705e6).

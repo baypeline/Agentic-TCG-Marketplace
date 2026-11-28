@@ -1,6 +1,8 @@
 # Agentic TCG Marketplace
 
 AI Agent × MCP × x402 기반 TCG 거래 PoC의 개발 시작용 모노레포입니다.
+
+Maroo Testnet tOKRW의 별도 DB·합성 가격·서버 서명·자체 퍼실리테이터 실행 방법은 [마루 데모 가이드](docs/maroo.md)를 참고하세요.
 카드 조회와 Trading·정책 예산·서버 실행·MCP x402 결제/체결 복구 기반을 제공합니다. 실제 LLM 구매·서명 실행기 주입은 남아 있으며 [현재 구현 범위](docs/decisions.md#현재-구현과-검증-범위)에 구분합니다.
 
 ## 빠른 시작

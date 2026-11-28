@@ -1,7 +1,11 @@
 import { z } from 'zod';
+import { profileForNetwork } from './payment-profile.js';
+export * from './payment-profile.js';
+export const currencySchema = z.enum(['USDC', 'tOKRW']);
+export const paymentModeSchema = z.enum(['X402_BASE_SEPOLIA', 'X402_MAROO_NATIVE']);
 
 export const idSchema = z.uuid();
-export const amountSchema = z.string().regex(/^(0|[1-9]\d*)$/, 'USDC 최소 단위의 정수 문자열이어야 합니다.');
+export const amountSchema = z.string().regex(/^(0|[1-9]\d*)$/, '통화 최소 단위의 정수 문자열이어야 합니다.');
 export const timestampSchema = z.iso.datetime();
 export const localizedCardNameSchema = z.object({
   locale: z.literal('ko'),
@@ -25,7 +29,7 @@ export type CardVariant = z.infer<typeof cardVariantSchema>;
 
 export const agentPurchaseOfferSchema = z.object({
   listingId: idSchema, card: cardVariantSchema, price: amountSchema,
-  dataSource: z.literal('SYNTHETIC_DEMO'), paymentMode: z.literal('X402_BASE_SEPOLIA'), paymentReady: z.boolean(),
+  dataSource: z.literal('SYNTHETIC_DEMO'), paymentMode: paymentModeSchema, paymentReady: z.boolean(), currency: currencySchema.optional(),
 });
 export type AgentPurchaseOffer = z.infer<typeof agentPurchaseOfferSchema>;
 export const agentPurchaseInputSchema = z.object({
@@ -33,20 +37,24 @@ export const agentPurchaseInputSchema = z.object({
 });
 export type AgentPurchaseInput = z.infer<typeof agentPurchaseInputSchema>;
 export const agentPaymentRequirementsSchema = z.object({
-  scheme: z.literal('exact'), network: z.literal('eip155:84532'), asset: z.literal('0x036CbD53842c5426634e7929541eC2318f3dCF7e'),
+  scheme: z.enum(['exact', 'maroo-native']), network: z.enum(['eip155:84532', 'eip155:450815']), asset: z.enum(['0x036CbD53842c5426634e7929541eC2318f3dCF7e', 'native:tOKRW']),
   amount: amountSchema, payTo: z.string().regex(/^0x[0-9a-fA-F]{40}$/), maxTimeoutSeconds: z.number().int().positive(), extra: z.record(z.string(), z.unknown()).default({}),
+}).superRefine((value, ctx) => {
+  const profile = profileForNetwork(value.network);
+  if (value.scheme !== profile.scheme || value.asset !== profile.asset) ctx.addIssue({ code: 'custom', message: '결제 체인·자산·방식이 일치하지 않습니다.' });
+  if (value.network === 'eip155:450815' && (!z.uuid().safeParse(value.extra.tcgQuoteId).success || !z.iso.datetime().safeParse(value.extra.expiresAt).success)) ctx.addIssue({ code: 'custom', message: '마루 지급에는 주문 ID와 만료 시각이 필요합니다.' });
 });
 export const agentPurchaseProgressSchema = z.object({
   requestId: idSchema, listingId: idSchema, card: cardVariantSchema, amount: amountSchema, matchQuoteId: idSchema,
   status: z.enum(['PAYMENT_REQUIRED', 'PENDING', 'COMPLETED', 'CANCELLED', 'FAILED']),
-  paymentMode: z.literal('X402_BASE_SEPOLIA'), expiresAt: timestampSchema,
+  paymentMode: paymentModeSchema, expiresAt: timestampSchema, currency: currencySchema.optional(),
   signingMode: z.enum(['browser', 'server']).optional(),
   payer: z.string().regex(/^0x[0-9a-fA-F]{40}$/), recipient: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
   requirements: agentPaymentRequirementsSchema.optional(), tradeId: idSchema.optional(),
   transactionHash: z.string().regex(/^0x[0-9a-fA-F]{64}$/).optional(),
 });
 export type AgentPurchaseProgress = z.infer<typeof agentPurchaseProgressSchema>;
-export const demoStatusSchema = z.object({ enabled: z.boolean(), paymentEnabled: z.boolean(), signingMode: z.enum(['browser', 'server']).default('browser'), suggestions: z.array(z.string()), payer: z.string().nullable(), recipient: z.string().nullable() });
+export const demoStatusSchema = z.object({ enabled: z.boolean(), paymentEnabled: z.boolean(), signingMode: z.enum(['browser', 'server']).default('browser'), paymentChain: z.enum(['base-sepolia', 'maroo']).default('base-sepolia'), currency: currencySchema.default('USDC'), decimals: z.number().int().default(6), suggestions: z.array(z.string()), payer: z.string().nullable(), recipient: z.string().nullable() });
 
 export const agentChatReplySchema = z.object({
   content: z.string().min(1),
@@ -96,7 +104,7 @@ export type MarketPricesResponse = z.infer<typeof marketPricesResponseSchema>;
 // v2.0에서 미정이던 가격 부재 및 Mock 구분의 초기 제안. 팀 합의 전 거래 판단에 사용하지 않는다.
 const valuationBaseSchema = z.object({
   cardVariantId: idSchema,
-  currency: z.literal('USDC'),
+  currency: currencySchema,
   sampleSize: z.number().int().nonnegative(),
   confidence: z.enum(['LOW', 'MEDIUM', 'HIGH']),
   evaluatedAt: timestampSchema,
@@ -146,7 +154,7 @@ export interface ValuationService { getValuation(cardVariantId: string): Promise
 export const inventoryItemSchema = z.object({ id: idSchema, cardVariantId: idSchema, ownerId: idSchema, status: z.enum(['AVAILABLE', 'LISTED', 'RESERVED']) });
 export const listingSchema = z.object({ id: idSchema, inventoryItemId: idSchema, cardVariantId: idSchema, sellerId: idSchema, price: amountSchema, status: z.enum(['ACTIVE', 'RESERVED', 'SOLD', 'CANCELLED']), createdAt: timestampSchema });
 export const buyOrderSchema = z.object({ id: idSchema, agentId: idSchema, cardVariantId: idSchema, maxPrice: amountSchema, status: z.enum(['ACTIVE', 'PAUSED', 'MATCH_PENDING', 'FILLED', 'CANCELLED', 'EXPIRED']), expiresAt: timestampSchema, createdAt: timestampSchema });
-export const matchQuoteSchema = z.object({ id: idSchema, listingId: idSchema, inventoryItemId: idSchema, buyerAgentId: idSchema, buyOrderId: idSchema.optional(), amount: amountSchema, currency: z.literal('USDC'), status: z.enum(['RESERVED', 'PAYMENT_PENDING', 'SETTLED', 'COMPLETED', 'RELEASED', 'RECONCILING']), expiresAt: timestampSchema });
+export const matchQuoteSchema = z.object({ id: idSchema, listingId: idSchema, inventoryItemId: idSchema, buyerAgentId: idSchema, buyOrderId: idSchema.optional(), amount: amountSchema, currency: currencySchema, status: z.enum(['RESERVED', 'PAYMENT_PENDING', 'SETTLED', 'COMPLETED', 'RELEASED', 'RECONCILING']), expiresAt: timestampSchema });
 export const tradeSchema = z.object({ id: idSchema, matchQuoteId: idSchema, buyerId: idSchema, sellerId: idSchema, inventoryItemId: idSchema, price: amountSchema, paymentAttemptId: idSchema, status: z.literal('COMPLETED'), completedAt: timestampSchema });
 export const spendingPolicySchema = z.object({ id: idSchema, version: z.number().int().positive(), agentId: idSchema, enabled: z.boolean(), totalBudget: amountSchema, maxPerTrade: amountSchema, allowedCardVariantIds: z.array(idSchema).optional(), minDiscountPercent: z.number().min(0).max(100).optional(), validUntil: timestampSchema });
 export type InventoryItem = z.infer<typeof inventoryItemSchema>;
@@ -193,6 +201,7 @@ export const purchaseStatusSchema = z.object({
   amount: amountSchema, quoteStatus: matchQuoteSchema.shape.status, paymentStatus: paymentStatusSchema.nullable(), tradeStatus: tradeProgressSchema,
   holdReasons: z.array(z.string()), expiresAt: timestampSchema, remainingMs: z.number().nonnegative(),
   transactionHash: z.string().nullable(), needsReview: z.boolean(), retryPaymentAllowed: z.boolean(),
+  network: z.enum(['eip155:84532', 'eip155:450815']).optional(), currency: currencySchema.optional(),
 });
 export type PurchaseStatus = z.infer<typeof purchaseStatusSchema>;
 export const agentRunInputSchema = z.object({ policyId: idSchema, instruction: z.string().trim().min(1).max(4000) });

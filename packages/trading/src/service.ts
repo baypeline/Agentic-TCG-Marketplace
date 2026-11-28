@@ -1,3 +1,4 @@
+import type { Currency } from '@tcg/contracts/payment-profile';
 import { createRequestExecutor } from './requests.js';
 import { randomUUID } from 'node:crypto';
 import {
@@ -12,7 +13,7 @@ export { createListingInputSchema as listingInputSchema, createBuyOrderInputSche
   fixedPurchaseInputSchema as fixedInputSchema, marketPurchaseInputSchema as marketInputSchema,
   listingQuerySchema, tradingUserSchema as userSchema, tradingBuyerSchema as buyerSchema } from '@tcg/contracts';
 import { z } from 'zod';
-import { listingDto, orderDto, quoteDto, tradeDto, type TradingStore, type TradingTransaction } from './store.js';
+import { listingDto, orderDto, quoteDto as storedQuoteDto, tradeDto, type TradingStore, type TradingTransaction } from './store.js';
 
 type Buyer = z.infer<typeof buyerSchema>;
 type QuoteRow = NonNullable<Awaited<ReturnType<TradingTransaction['quotes']['get']>>>;
@@ -22,7 +23,7 @@ export interface PaymentRecord {
   paymentAttemptId: string;
   matchQuoteId: string;
   amount: string;
-  currency: 'USDC';
+  currency: Currency;
   status: 'REQUIRED' | 'PENDING' | 'UNKNOWN' | 'FAILED' | 'SETTLED';
 }
 
@@ -31,6 +32,7 @@ export interface PaymentEvidenceReader {
 }
 
 export interface TradingOptions {
+  currency?: Currency;
   store: TradingStore;
   payment?: PaymentEvidenceReader;
   quoteTtlMs?: number;
@@ -85,28 +87,29 @@ async function resolveOrder(tx: TradingTransaction, quote: QuoteRow, now: Date, 
   await tx.orders.replace({ ...order, status }, { status: order.status });
 }
 
-async function release(tx: TradingTransaction, quote: QuoteRow, now: Date) {
+async function release(tx: TradingTransaction, quote: QuoteRow, now: Date, currency: Currency = 'USDC') {
   const listing = await reservedListing(tx, quote);
   const released = { ...quote, status: 'RELEASED' as const };
   await tx.quotes.replace(released, { status: quote.status });
   await tx.listings.replace({ ...listing, status: 'ACTIVE' }, { status: 'RESERVED' });
   await updateInventory(tx, listing, 'LISTED');
   await resolveOrder(tx, quote, now, false);
-  return quoteDto(released);
+  return storedQuoteDto(released, currency);
 }
 
-export function createTradingService({ store, payment, quoteTtlMs = 120_000, now = () => new Date(), executionContext, valuationService, executionInTransaction }: TradingOptions) {
+export function createTradingService({ store, payment, currency = 'USDC', quoteTtlMs = 120_000, now = () => new Date(), executionContext, valuationService, executionInTransaction }: TradingOptions) {
   z.number().int().positive().max(86_400_000).parse(quoteTtlMs);
   const run = <T>(work: (tx: TradingTransaction, time: Date) => Promise<T>) =>
     store.transaction(tx => work(tx, now()));
 
+  const quoteDto = (row: QuoteRow) => storedQuoteDto(row, currency);
   const mutate = createRequestExecutor(store, now);
   const contextFor = (tx: TradingTransaction, time: Date, policyId?: string | null) => executionInTransaction ? { getExecutionContext: (buyer: Buyer) => executionInTransaction(tx, buyer, time, policyId) } : executionContext;
 
   function expireReservations() {
     return run(async (tx, time) => {
       const expired = await tx.quotes.find({ status: 'RESERVED', expiresAt: { lte: time } });
-      for (const quote of expired) await release(tx, quote, time);
+      for (const quote of expired) await release(tx, quote, time, currency);
       for (const status of ['ACTIVE', 'PAUSED'] as const) {
         for (const order of await tx.orders.find({ status, expiresAt: { lte: time } })) {
           await tx.orders.replace({ ...order, status: 'EXPIRED' }, { status });
@@ -142,7 +145,7 @@ export function createTradingService({ store, payment, quoteTtlMs = 120_000, now
 
   async function readEvidence(quoteId: string, attemptId: string, statuses: PaymentRecord['status'][]) {
     const record = await payment?.getPaymentRecord(attemptId);
-    if (!record || record.paymentAttemptId !== attemptId || record.matchQuoteId !== quoteId || record.currency !== 'USDC') {
+    if (!record || record.paymentAttemptId !== attemptId || record.matchQuoteId !== quoteId || record.currency !== currency) {
       conflict('PAYMENT_REQUIRED', '예약과 연결된 결제 증빙이 필요합니다.');
     }
     if (!statuses.includes(record.status)) {
@@ -204,7 +207,7 @@ export function createTradingService({ store, payment, quoteTtlMs = 120_000, now
     },
     async sellerProceeds(auth: { userId: string }) {
       const { userId } = userSchema.parse(auth);
-      return run(async tx => { const rows = await tx.trades.find({ sellerId: userId }); return { amount: rows.reduce((sum, row) => sum + BigInt(row.price), 0n).toString(), currency: 'USDC' as const, tradeCount: rows.length, withdrawable: false as const }; });
+      return run(async tx => { const rows = await tx.trades.find({ sellerId: userId }); return { amount: rows.reduce((sum, row) => sum + BigInt(row.price), 0n).toString(), currency, tradeCount: rows.length, withdrawable: false as const }; });
     },
     async getTrade(auth: { userId: string }, rawId: string) {
       const { userId } = userSchema.parse(auth);
@@ -338,7 +341,7 @@ export function createTradingService({ store, payment, quoteTtlMs = 120_000, now
         authorize(order.buyerId === buyer.userId && order.agentId === buyer.agentId);
         if (order.status === 'CANCELLED' || order.status === 'EXPIRED') return orderDto(order);
         if (order.status !== 'ACTIVE' && order.status !== 'PAUSED') conflict('ORDER_NOT_ACTIVE', '취소 가능한 주문이 아닙니다.');
-        for (const quote of await tx.quotes.find({ buyOrderId: id, status: 'RESERVED' })) await release(tx, quote, time);
+        for (const quote of await tx.quotes.find({ buyOrderId: id, status: 'RESERVED' })) await release(tx, quote, time, currency);
         const updated = { ...order, status: order.expiresAt <= time ? 'EXPIRED' as const : 'CANCELLED' as const };
         await tx.orders.replace(updated, { status: order.status });
         return orderDto(updated);
@@ -403,7 +406,7 @@ export function createTradingService({ store, payment, quoteTtlMs = 120_000, now
         authorize(quote.buyerId === buyer.userId && quote.buyerAgentId === buyer.agentId);
         if (quote.status === 'RELEASED') return quoteDto(quote);
         if (quote.status !== 'RESERVED') conflict('QUOTE_EXPIRED', '해제 가능한 예약이 아닙니다.');
-        return release(tx, quote, time);
+        return release(tx, quote, time, currency);
       });
     },
     expireReservations,
@@ -435,7 +438,7 @@ export function createTradingService({ store, payment, quoteTtlMs = 120_000, now
         if (quote.status !== 'PAYMENT_PENDING' && quote.status !== 'RECONCILING') {
           conflict('PAYMENT_FAILED', '실패 처리할 수 없는 결제입니다.');
         }
-        return release(tx, quote, time);
+        return release(tx, quote, time, currency);
       });
     },
     async finalizeTrade(rawQuoteId: string, rawAttemptId: string) {

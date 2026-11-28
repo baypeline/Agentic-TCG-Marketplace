@@ -1,3 +1,4 @@
+import { getPaymentProfile, type PaymentChain } from '@tcg/contracts/payment-profile';
 import { randomUUID } from 'node:crypto';
 import Fastify from 'fastify';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -13,22 +14,23 @@ import { demoBuyerId, demoBuyerAgentId } from '../src/demo-auth.js';
 const apps: ReturnType<typeof Fastify>[] = [];
 afterEach(async () => { await Promise.all(apps.splice(0).map(app => app.close())); });
 
-async function fixture(unknown = false, serverSigning = false) {
-  const pack = await readDemoScenarios();
+async function fixture(unknown = false, serverSigning = false, paymentChain: PaymentChain = 'base-sepolia') {
+  const pack = await readDemoScenarios(paymentChain);
+  const profile = getPaymentProfile(paymentChain);
   const buyer = { userId: demoBuyerId, agentId: demoBuyerAgentId };
   const wallet = `0x${'2'.repeat(40)}`;
   const recipient = `0x${'1'.repeat(40)}`;
-  const env = parseApiEnv({ NODE_ENV: 'test', DATABASE_ENABLED: 'true', DATABASE_URL: 'postgresql://localhost/unused', CARD_DATA_SOURCE: 'database', TRADING_DATA_SOURCE: 'database', DEMO_SCENARIOS_ENABLED: 'true', PAYMENT_ENABLED: 'true', AGENT_WALLET_ADDRESS: wallet, PAYMENT_RECIPIENT: recipient, DEMO_BUYER_TOKEN: 'b'.repeat(32), DEMO_SELLER_TOKEN: 's'.repeat(32) });
+  const env = parseApiEnv({ NODE_ENV: 'test', PAYMENT_CHAIN: paymentChain, PAYMENT_FACILITATOR_URL: 'http://127.0.0.1:4022', AGENT_SIGNING_MODE: serverSigning ? 'server' : 'browser', AGENT_SERVER_WALLET_ADDRESS: wallet, DATABASE_ENABLED: 'true', DATABASE_URL: 'postgresql://localhost/unused', CARD_DATA_SOURCE: 'database', TRADING_DATA_SOURCE: 'database', DEMO_SCENARIOS_ENABLED: 'true', PAYMENT_ENABLED: 'true', AGENT_WALLET_ADDRESS: wallet, PAYMENT_RECIPIENT: recipient, DEMO_BUYER_TOKEN: 'b'.repeat(32), DEMO_SELLER_TOKEN: 's'.repeat(32) });
   const inventory = pack.scenarios.map(scene => ({ id: randomUUID(), cardVariantId: scene.cardId, ownerId: pack.sellerId, status: 'AVAILABLE' as const }));
   const store = createMockTradingStore(inventory);
-  const trading = createTradingService({ store, payment: createPaymentEvidenceReader(store), executionInTransaction: getPolicyExecutionContext });
+  const trading = createTradingService({ store, currency: profile.currency, payment: createPaymentEvidenceReader(store, profile.currency), executionInTransaction: getPolicyExecutionContext });
   const policies = createPolicyService({ store });
   const adapter = { verify: vi.fn(async () => ({ valid: true })), settle: vi.fn(async () => ({ status: unknown ? 'UNKNOWN' as const : 'SETTLED' as const, ...(unknown ? {} : { transactionHash: `0x${'a'.repeat(64)}` }) })), reconcile: vi.fn(async () => ({ status: 'UNKNOWN' as const })) };
-  const payments = createPaymentService({ store, tradingService: trading, adapter, recipient, getWalletAddress: async () => wallet });
+  const payments = createPaymentService({ paymentChain, store, tradingService: trading, adapter, recipient, getWalletAddress: async () => wallet });
   const offers: AgentPurchaseOffer[] = [];
   for (const [index, scene] of pack.scenarios.entries()) {
     const listing = await trading.createListing({ userId: pack.sellerId }, { inventoryItemId: inventory[index]!.id, price: scene.listingPrices[0]! }, { idempotencyKey: randomUUID() });
-    offers.push({ listingId: listing.id, card: { id: scene.cardId, game: 'POKEMON', name: scene.id, setCode: 'demo', cardNumber: String(index), language: 'EN', edition: scene.edition, condition: scene.condition }, price: listing.price, dataSource: 'SYNTHETIC_DEMO', paymentMode: 'X402_BASE_SEPOLIA', paymentReady: true });
+    offers.push({ listingId: listing.id, card: { id: scene.cardId, game: 'POKEMON', name: scene.id, setCode: 'demo', cardNumber: String(index), language: 'EN', edition: scene.edition, condition: scene.condition }, price: listing.price, dataSource: 'SYNTHETIC_DEMO', paymentMode: profile.paymentMode, currency: profile.currency, paymentReady: true });
   }
   const app = Fastify(); apps.push(app);
   await app.register(createMcpPlugin({ aggregatorService: { async searchCards() { return offers.map(offer => offer.card); }, async getCardVariant(id) { return offers.find(offer => offer.card.id === id)?.card ?? null; } }, valuationService: { async getValuation() { throw new Error('Not used'); } }, tradingService: trading, paymentService: payments, getAuth: request => request.headers.authorization === `Bearer ${env.DEMO_BUYER_TOKEN}` ? buyer : null }));
@@ -60,6 +62,19 @@ it('세 시나리오를 실제 MCP로 예약·지급·체결하고 재요청 시
   expect(await f.policies.budget(f.buyer, policy!.id)).toMatchObject({ spentAmount: '35000', reservedAmount: '0' });
   const owned = await f.store.transaction(tx => tx.inventory.find({ ownerId: f.buyer.userId }));
   expect(owned).toHaveLength(3);
+});
+
+it('마루 원장의 tOKRW 금액으로 MCP 지급·체결·누적 예산을 처리한다', async () => {
+  const f = await fixture(false, true, 'maroo');
+  const input = f.input(f.offers[2]!);
+  const prepared = await f.purchase({ ...input, action: 'prepare' });
+  expect(prepared).toMatchObject({ currency: 'tOKRW', paymentMode: 'X402_MAROO_NATIVE', amount: '5000000000000000000', requirements: { network: 'eip155:450815', scheme: 'maroo-native', asset: 'native:tOKRW' } });
+  expect((await f.purchase({ ...input, action: 'submit' })).status).toBe('COMPLETED');
+  const [policy] = await f.policies.list(f.buyer);
+  expect(policy).toMatchObject({ totalBudget: '100000000000000000000', maxPerTrade: '25000000000000000000' });
+  expect(await f.policies.budget(f.buyer, policy!.id)).toMatchObject({ spentAmount: '5000000000000000000' });
+  expect((await f.purchase({ ...input, action: 'submit' })).status).toBe('COMPLETED');
+  expect(f.adapter.settle).toHaveBeenCalledTimes(1);
 });
 
 it('지급 전 취소는 매물을 되돌리고 잘못된 수납 주소의 서명은 정산하지 않는다', async () => {

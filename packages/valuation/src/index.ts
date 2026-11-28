@@ -1,3 +1,4 @@
+import type { Currency } from '@tcg/contracts/payment-profile';
 import type { FastifyPluginAsync } from 'fastify';
 import type { PrismaClient } from '@tcg/db';
 import { demoPriceObservations, demoPriceSource } from '@tcg/contracts/fixtures';
@@ -18,11 +19,12 @@ export interface PriceDataAdapter {
   getObservations(cardVariantId: string): Promise<PriceObservation[]>;
 }
 export interface ValuationDependencies {
+  currency?: Currency;
   aggregatorService: AggregatorService;
   adapter: PriceDataAdapter;
   now?: () => Date;
 }
-export function createValuationService({ aggregatorService, adapter, now = () => new Date() }: ValuationDependencies): ValuationService {
+export function createValuationService({ aggregatorService, adapter, currency = 'USDC', now = () => new Date() }: ValuationDependencies): ValuationService {
   return {
     async getValuation(cardVariantId) {
       if (!await aggregatorService.getCardVariant(cardVariantId)) throw new AppError('CARD_NOT_FOUND', '카드를 찾을 수 없습니다.', 404);
@@ -36,7 +38,7 @@ export function createValuationService({ aggregatorService, adapter, now = () =>
       });
       const sourceSummary = [...new Set([...adapter.sourceSummary, ...samples.map(sample => sample.source)])];
       const times = samples.map(sample => sample.observedAt).sort((a, b) => Date.parse(a) - Date.parse(b));
-      const base = { cardVariantId, currency: 'USDC' as const, sampleSize: samples.length, confidence: 'LOW' as const, evaluatedAt, dataSource: adapter.dataSource, sourceSummary,
+      const base = { cardVariantId, currency, sampleSize: samples.length, confidence: 'LOW' as const, evaluatedAt, dataSource: adapter.dataSource, sourceSummary,
         methodology: adapter.methodology ?? (adapter.dataSource === 'MOCK' ? 'MEDIAN_OF_MOCK_SAMPLES' as const : 'MEDIAN_OF_PROVIDER_AGGREGATES' as const),
         ...(adapter.assumptions ? { assumptions: adapter.assumptions } : {}),
         ...(times.length ? { oldestObservedAt: times[0], latestObservedAt: times[times.length - 1] } : {}),

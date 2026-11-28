@@ -10,3 +10,5 @@ export type { CatalogFixtures } from './catalog-fixtures.js';
 export function createPrismaClient(databaseUrl: string): PrismaClient {
   return new PrismaClient({ adapter: new PrismaPg({ connectionString: databaseUrl, connectionTimeoutMillis: 5000 }) });
 }
+
+export { ensureMonetaryContext } from './monetary-context.js';

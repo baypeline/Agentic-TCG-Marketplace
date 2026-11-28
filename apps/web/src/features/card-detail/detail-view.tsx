@@ -24,7 +24,7 @@ export function DetailView({ card, valuation, prices, query, related = [], relat
     <DetailLayout><ImageColumn><CardImage card={card} variant="detail" /></ImageColumn>
       <Info><Title>{getCardDisplayName(card)}</Title>{getCardDisplayName(card) !== card.name && <Original>{card.name}</Original>}
         <PriceOverview aria-label="대표 가격 정보"><PriceLabel>{available ? getValuationLabel(valuation) : reference ? '해외 참고 시세' : '평가 정보'}</PriceLabel>
-          <MainPrice>{available ? formatUsdc(valuation.estimatedPrice) : reference ? `${reference.originalAmount} ${reference.originalCurrency}` : valuation ? '평가 자료 부족' : '가격 조회 실패'}</MainPrice>
+          <MainPrice>{available ? formatUsdc(valuation.estimatedPrice, valuation.currency) : reference ? `${reference.originalAmount} ${reference.originalCurrency}` : valuation ? '평가 자료 부족' : '가격 조회 실패'}</MainPrice>
           {available ? <PriceStatus>{valuation.dataSource === 'MOCK' ? <Badge tone="demo">시연용 합성 데이터</Badge> : isDemo ? <Badge tone="demo">시장 데이터 · USD 데모 환산</Badge> : `검증 표본 ${valuation.sampleSize}개 · 신뢰 수준 낮음`}</PriceStatus> : reference ? <><PriceStatus>{formatProvider(reference.provider)} / {formatVariant(reference.providerVariant)} · {eligibilityLabels[reference.eligibility]}</PriceStatus><Updated>갱신 {formatUtc(reference.observedAt)} UTC</Updated></> : <PriceStatus>사용 가능한 가격을 확인한 뒤 표시합니다.</PriceStatus>}
           {reference && !available && <Caveat>위 금액은 제공자의 원본 참고 가격입니다. 개별 체결가나 USDC 적정가가 아닙니다.</Caveat>}
           {available && valuation.dataSource === 'MOCK' && <Caveat>실제 시장가격이나 구매 판단에 사용할 수 없습니다.</Caveat>}
@@ -37,7 +37,7 @@ export function DetailView({ card, valuation, prices, query, related = [], relat
     <RelatedCards card={card} cards={related} query={query} failed={relatedFailed} />
     <SectionNav aria-label="카드 상세 정보"><a href="#market-data">참고 시세</a><a href="#valuation-details">평가 근거</a><a href="#card-notes">카드 정보</a></SectionNav>
     <MarketSection id="market-data">{prices ? <MarketPrices prices={prices} demoValuation={isDemo} /> : <RequestState compact title="참고 시세를 불러오지 못했습니다." message="가격 자료의 유무를 확인하지 못했습니다. 잠시 후 다시 시도하세요." />}</MarketSection>
-    <Evaluation id="valuation-details" open={valuation?.status === 'INSUFFICIENT_DATA'}><summary>USDC 평가와 근거 확인</summary><EvaluationContent>{valuation ? <ValuationDetails valuation={valuation} prices={prices} card={card} /> : <RequestState compact title="평가 정보를 불러오지 못했습니다." message="카드 정보는 확인할 수 있습니다. 잠시 후 다시 시도하세요." />}</EvaluationContent></Evaluation>
+    <Evaluation id="valuation-details" open={valuation?.status === 'INSUFFICIENT_DATA'}><summary>{valuation?.currency ?? 'USDC'} 평가와 근거 확인</summary><EvaluationContent>{valuation ? <ValuationDetails valuation={valuation} prices={prices} card={card} /> : <RequestState compact title="평가 정보를 불러오지 못했습니다." message="카드 정보는 확인할 수 있습니다. 잠시 후 다시 시도하세요." />}</EvaluationContent></Evaluation>
     <CardNotes id="card-notes"><h2>카드 정보</h2><p>{card.language === 'KO' ? 'TCGdex 한국어 카탈로그의 이름을 표시합니다. 실제 카드의 이름과 세트·번호를 함께 확인해 주세요.' : '한국어 표기는 포켓몬 종명이며 한국어판 카드의 정식 제목과는 다를 수 있습니다. 카드의 인쇄 언어는 별도로 확인하세요.'}</p><details><summary>카드 식별 정보</summary><code>{card.id}</code></details></CardNotes>
   </>;
 }

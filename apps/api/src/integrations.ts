@@ -1,3 +1,4 @@
+import { getPaymentProfile } from '@tcg/contracts/payment-profile';
 import type { FastifyPluginAsync } from 'fastify';
 import { AppError } from '@tcg/contracts';
 import { createMcpPlugin } from '@tcg/mcp-server';
@@ -10,14 +11,15 @@ import { requireAuth, type IntegrationDependencies } from './app.js';
 
 export async function createIntegrationPlugins({ env, prisma, aggregatorService, valuationService, tradingExecutionContext, paymentOptions, executeAgentRun }: IntegrationDependencies, options: { signAgentPayment?: AgentPaymentSigner; onDemoPurchaseReady?: (handler: NonNullable<AgentSessionPluginOptions['purchase']>) => void } = {}): Promise<FastifyPluginAsync[]> {
   const store = env.TRADING_DATA_SOURCE === 'database' ? createPrismaTradingStore(prisma!) : createMockTradingStore();
+  const profile = getPaymentProfile(env.PAYMENT_CHAIN);
   let trading: TradingService;
   const policies = createPolicyService({ store, onInactive: auth => trading.pauseAgentOrders(auth) });
-  trading = createTradingService({ store, payment: createPaymentEvidenceReader(store), valuationService,
+  trading = createTradingService({ store, currency: profile.currency, payment: createPaymentEvidenceReader(store, profile.currency), valuationService,
     executionContext: tradingExecutionContext,
     // Tests/custom hosts may inject a trusted reader. Production uses the shared transaction.
     executionInTransaction: tradingExecutionContext ? undefined : getPolicyExecutionContext,
   });
-  const payments = createPaymentService({ ...paymentOptions, store, tradingService: trading, valuationService });
+  const payments = createPaymentService({ ...paymentOptions, paymentChain: env.PAYMENT_CHAIN, store, tradingService: trading, valuationService });
   const plugin: FastifyPluginAsync = async app => {
     if (env.DEMO_SCENARIOS_ENABLED) options.onDemoPurchaseReady?.(createDemoPurchaseHandler({ env, trading, policies, signAgentPayment: options.signAgentPayment, getMcpUrl: () => {
       const address = app.server.address();

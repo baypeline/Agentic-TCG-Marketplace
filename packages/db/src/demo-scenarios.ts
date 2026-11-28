@@ -1,3 +1,5 @@
+import { getPaymentProfile, type PaymentChain } from '@tcg/contracts/payment-profile';
+import { ensureMonetaryContext } from './monetary-context.js';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { z } from 'zod';
@@ -14,8 +16,10 @@ const scenarioSchema = z.object({
 });
 const packSchema = z.object({ version: z.literal(1), mode: z.literal('SYNTHETIC_DEMO'), observedAt: timestampSchema, sellerId: idSchema, scenarios: z.array(scenarioSchema).length(3) });
 export type DemoScenarioPack = z.infer<typeof packSchema>;
-export async function readDemoScenarios(): Promise<DemoScenarioPack> {
-  return packSchema.parse(JSON.parse(await readFile(new URL('../fixtures/demo/scenarios.json', import.meta.url), 'utf8')));
+export async function readDemoScenarios(chain: PaymentChain = 'base-sepolia'): Promise<DemoScenarioPack> {
+  const pack = packSchema.parse(JSON.parse(await readFile(new URL('../fixtures/demo/scenarios.json', import.meta.url), 'utf8')));
+  const scale = BigInt(getPaymentProfile(chain).seedMultiplier);
+  return { ...pack, scenarios: pack.scenarios.map(scene => ({ ...scene, referencePrice: (BigInt(scene.referencePrice) * scale).toString(), listingPrices: scene.listingPrices.map(price => (BigInt(price) * scale).toString()) })) };
 }
 
 export function demoRowId(key: string) {
@@ -24,9 +28,10 @@ export function demoRowId(key: string) {
 }
 
 /** 독립된 합성 카드·가격·판매 재고만 추가한다. 재실행으로 체결·소유권을 되돌리지 않는다. */
-export async function seedDemoScenarios(prisma: PrismaClient, round = 'default') {
+export async function seedDemoScenarios(prisma: PrismaClient, round = 'default', chain: PaymentChain = 'base-sepolia') {
   z.string().regex(/^[A-Za-z0-9_-]{1,40}$/).parse(round);
-  const [pack, catalog] = await Promise.all([readDemoScenarios(), readCatalogFixtures()]);
+  await ensureMonetaryContext(prisma, chain);
+  const [pack, catalog] = await Promise.all([readDemoScenarios(chain), readCatalogFixtures()]);
   return prisma.$transaction(async tx => {
     let cards = 0; let inventory = 0; let listings = 0;
     for (const scenario of pack.scenarios) {

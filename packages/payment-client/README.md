@@ -1,5 +1,7 @@
 # Payment Client
 
+마루 서버 서명은 `@tcg/payment-client/native`의 `signNativePayment`·`inspectNativePayment`·`marooTestnet`을 사용합니다. 18자리 네이티브 tOKRW, 주문이 결합된 서명 원문과 구매자 가스비를 검사합니다. 아래는 기존 USDC EIP-3009 인터페이스 설명이며 [마루 가이드](../../docs/maroo.md)에 차이를 정리했습니다.
+
 에이전트 지갑이 지급 요청을 검토하고, 승인된 조건을 충족하면 x402 지급 승인에 서명한다.
 
 - `validatePaymentRequirements()`는 네트워크, 결제 방식, 토큰, 수납 주소, 건별 한도를 확인한다.

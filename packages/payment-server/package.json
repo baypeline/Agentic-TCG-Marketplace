@@ -10,6 +10,7 @@
     "@x402/core": "^2.31.0",
     "@x402/evm": "^2.31.0",
     "@tcg/contracts": "workspace:*",
+    "@tcg/payment-client": "workspace:*",
     "@tcg/trading": "workspace:*",
     "fastify": "5.12.8",
     "zod": "4.6.7",

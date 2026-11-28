@@ -1,5 +1,7 @@
 # 공통 DB
 
+`monetary-context.prisma`의 `market.MonetaryContext`는 거래 DB의 체인·통화·정밀도를 고정합니다. `ensureMonetaryContext`를 API 시작 및 시드에서 호출하며 기존 금액을 다른 통화로 재해석하지 않습니다. 마루는 별도 DB에 18자리 tOKRW 합성 시드를 구성하고 기존 USDC DB는 보존합니다. [초기화와 복귀](../../docs/maroo.md)를 참고하세요.
+
 `TradingRequest`는 사용자·Agent·작업·요청 키에 결합한 입력 해시와 성공 응답을 보존합니다. Trading의 업무 변경과 같은 트랜잭션에 저장하므로 재시작·동시 재시도에도 같은 요청 결과를 반환합니다. 임의로 삭제하면 과거 요청의 중복 방지 보장이 사라집니다.
 
 Prisma 7과 PostgreSQL driver adapter를 사용합니다. `createPrismaClient(databaseUrl)`은 Client를 생성하며 연결·종료는 호스트가 담당합니다. 최초 `pnpm install` 시 Client가 생성됩니다. Schema와 Migration은 `prisma/`에 있습니다. 타 담당 모델은 합의 후 추가합니다.

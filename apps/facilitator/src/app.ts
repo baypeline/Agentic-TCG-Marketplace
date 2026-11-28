@@ -1,9 +1,11 @@
+import { getPaymentProfile } from '@tcg/contracts/payment-profile';
+import { inspectNativePayment } from '@tcg/payment-client/native';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import Fastify from 'fastify';
 import { z } from 'zod';
 import { PaymentPayloadV2Schema, PaymentRequirementsV2Schema } from '@x402/core/schemas';
 import type { PaymentPayload, PaymentRequirements, SettleResponse } from '@x402/core/types';
-import { asset, network, type FacilitatorEnv } from './config.js';
+import { type FacilitatorEnv } from './config.js';
 import type { Engine } from './engine.js';
 import type { Journal } from './journal.js';
 
@@ -13,6 +15,8 @@ const signedSchema = z.object({ authorization: authorizationSchema, signature: z
 const hash = (text: string) => createHash('sha256').update(text).digest('hex');
 
 export function buildApp({ env, engine, journal }: { env: FacilitatorEnv; engine: Engine; journal: Journal }) {
+  const profile = getPaymentProfile(env.FACILITATOR_CHAIN);
+  const { network, asset } = profile;
   const app = Fastify({ bodyLimit: 16_384, logger: false });
   const credential = Buffer.from(`Bearer ${env.FACILITATOR_API_TOKEN}`);
   app.addHook('onRequest', async (request, reply) => {
@@ -26,11 +30,18 @@ export function buildApp({ env, engine, journal }: { env: FacilitatorEnv; engine
   app.get('/supported', async () => engine.supported());
   let queue: Promise<unknown> = Promise.resolve();
 
-  function validate(body: unknown) {
+  async function validate(body: unknown) {
     const parsed = bodySchema.safeParse(body);
     if (!parsed.success) return null;
     const { paymentPayload: payload } = parsed.data;
     const requirements = parsed.data.paymentRequirements as PaymentRequirements;
+    if (profile.chain === 'maroo') {
+      try {
+        const info = await inspectNativePayment(payload as PaymentPayload, requirements);
+        if (requirements.payTo.toLowerCase() !== env.FACILITATOR_RECIPIENT.toLowerCase() || !env.FACILITATOR_PAYERS.includes(info.payer.toLowerCase()) || BigInt(requirements.amount) > BigInt(env.FACILITATOR_MAX_AMOUNT)) return null;
+        return { payload: payload as PaymentPayload, requirements, payer: info.payer, id: hash([network, asset, info.payer.toLowerCase(), String(info.tx.nonce)].join(':')), fingerprint: hash(info.hash + ':' + String(requirements.extra?.tcgQuoteId)) };
+      } catch { return null; }
+    }
     const signed = signedSchema.safeParse(payload.payload);
     if (!signed.success) return null;
     const auth = signed.data.authorization;
@@ -42,13 +53,15 @@ export function buildApp({ env, engine, journal }: { env: FacilitatorEnv; engine
     return { payload: payload as PaymentPayload, requirements, id, fingerprint, payer: auth.from };
   }
   app.post('/verify', async (request, reply) => {
-    const input = validate(request.body);
+    const input = await validate(request.body);
     if (!input) return reply.code(400).send({ isValid: false, invalidReason: 'payment_not_allowed' });
+    const prior = journal.get(input.id);
+    if (prior && prior.fingerprint !== input.fingerprint) return { isValid: false, invalidReason: 'nonce_conflict' };
     try { return await engine.verify(input.payload, input.requirements); }
     catch { return reply.code(503).send({ isValid: false, invalidReason: 'verification_unavailable' }); }
   });
   app.post('/settle', async (request, reply) => {
-    const input = validate(request.body);
+    const input = await validate(request.body);
     if (!input) return reply.code(400).send({ success: false, errorReason: 'payment_not_allowed', network, transaction: '' });
     const { payload, requirements, id, fingerprint, payer } = input;
     const pending = (transaction = ''): SettleResponse => ({ success: false, errorReason: 'settlement_pending', network, transaction, payer });

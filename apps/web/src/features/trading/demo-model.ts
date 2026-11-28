@@ -1,3 +1,4 @@
+import type { Currency } from '@tcg/contracts/payment-profile';
 import type { BuyOrder, InventoryItem, Listing, SpendingPolicy, Trade } from '@tcg/contracts';
 import { previewCards } from './demo-cards';
 
@@ -11,13 +12,14 @@ export interface PreviewLog { id: string; level: 'INFO' | 'WARN' | 'ERROR'; even
 export interface DemoState { policy: SpendingPolicy; run: 'IDLE' | 'RUNNING' | 'PAUSED'; inventory: InventoryItem[]; listings: Listing[]; orders: BuyOrder[]; payments: PreviewPayment[]; trades: PreviewTrade[]; logs: PreviewLog[] }
 export interface PolicyDraft { enabled: boolean; totalBudget: string; maxPerTrade: string; minDiscountPercent: string; validUntil: string; allowedCardVariantIds: string[] }
 
-export function parseUsdcInput(value: string): string | null {
-  if (!/^\d{1,9}(\.\d{1,6})?$/.test(value.trim())) return null;
+export function parseUsdcInput(value: string, currency: Currency = 'USDC'): string | null {
+  const decimals = currency === 'tOKRW' ? 18 : 6;
+  if (!new RegExp(`^\\d{1,9}(\\.\\d{1,${decimals}})?$`).test(value.trim())) return null;
   const [whole, fraction = ''] = value.trim().split('.');
-  const amount = BigInt(whole!) * 1_000_000n + BigInt(fraction.padEnd(6, '0'));
+  const amount = BigInt(whole!) * 10n ** BigInt(decimals) + BigInt(fraction.padEnd(decimals, '0'));
   return amount > 0n ? amount.toString() : null;
 }
-export function usdcDecimal(amount: string) { const n = BigInt(amount); const fraction = (n % 1_000_000n).toString().padStart(6, '0').replace(/0+$/, ''); return `${n / 1_000_000n}${fraction ? `.${fraction}` : ''}`; }
+export function usdcDecimal(amount: string, currency: Currency = 'USDC') { const n = BigInt(amount), decimals = currency === 'tOKRW' ? 18 : 6, scale = 10n ** BigInt(decimals); const fraction = (n % scale).toString().padStart(decimals, '0').replace(/0+$/, ''); return `${n / scale}${fraction ? `.${fraction}` : ''}`; }
 export function policyToDraft(policy: SpendingPolicy): PolicyDraft { return { enabled: policy.enabled, totalBudget: usdcDecimal(policy.totalBudget), maxPerTrade: usdcDecimal(policy.maxPerTrade), minDiscountPercent: String(policy.minDiscountPercent ?? 0), validUntil: policy.validUntil.slice(0, 10), allowedCardVariantIds: [...(policy.allowedCardVariantIds ?? [])] }; }
 export function validatePolicy(draft: PolicyDraft, now = Date.now()): Partial<Record<keyof PolicyDraft, string>> {
   const errors: Partial<Record<keyof PolicyDraft, string>> = {};

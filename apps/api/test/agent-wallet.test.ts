@@ -3,6 +3,7 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { recoverTypedDataAddress } from 'viem';
 import { parseApiEnv } from '@tcg/config';
 import { createAgentWallet } from '../src/agent-wallet.js';
+import { marooProfile, inspectNativePayment } from '@tcg/payment-client/native';
 
 const key = `0x${'11'.repeat(32)}` as const; // 공개 테스트 전용 키이며 실제 지갑과 무관
 const account = privateKeyToAccount(key);
@@ -21,6 +22,15 @@ it('전용 개인키로 유효한 x402 EIP-3009 서명을 생성한다', async (
   const recovered = await recoverTypedDataAddress({ domain: { name: 'USDC', version: '2', chainId: 84532, verifyingContract: requirements.asset }, primaryType: 'TransferWithAuthorization', types: { TransferWithAuthorization: [{ name: 'from', type: 'address' }, { name: 'to', type: 'address' }, { name: 'value', type: 'uint256' }, { name: 'validAfter', type: 'uint256' }, { name: 'validBefore', type: 'uint256' }, { name: 'nonce', type: 'bytes32' }] }, message: { from: auth.from as `0x${string}`, to: auth.to as `0x${string}`, nonce: auth.nonce as `0x${string}`, value: BigInt(auth.value!), validAfter: BigInt(auth.validAfter!), validBefore: BigInt(auth.validBefore!) }, signature: signed.payload.signature });
   expect(recovered).toBe(account.address);
   expect(JSON.stringify(signed)).not.toContain(key);
+});
+
+it('마루 구매자는 18자리 금액과 가스비를 확인하고 송금 없이 원문에 서명한다', async () => {
+  const wallet = createAgentWallet({ ...env, PAYMENT_CHAIN: 'maroo' }, { AGENT_SERVER_PRIVATE_KEY: key }, { readBalance: async () => 100n * 10n ** 18n, prepareNative: async () => ({ nonce: 0, gas: 30000n, gasPrice: 1_000_000_000n }) })!;
+  const native = { ...requirements, scheme: marooProfile.scheme, network: marooProfile.network, asset: 'native:tOKRW' as const, amount: '5000000000000000000', extra: { name: 'tOKRW', version: '1', tcgQuoteId: input.matchQuoteId, expiresAt: new Date(Date.now() + 60_000).toISOString() } };
+  const payload = await wallet.sign({ requirements: native, amount: native.amount, matchQuoteId: input.matchQuoteId });
+  expect((await inspectNativePayment(payload as Parameters<typeof inspectNativePayment>[0], native)).payer).toBe(account.address);
+  const empty = createAgentWallet({ ...env, PAYMENT_CHAIN: 'maroo' }, { AGENT_SERVER_PRIVATE_KEY: key }, { readBalance: async () => 0n, prepareNative: async () => ({ nonce: 0, gas: 30000n, gasPrice: 1_000_000_000n }) })!;
+  await expect(empty.sign({ requirements: native, amount: native.amount, matchQuoteId: input.matchQuoteId })).rejects.toThrow('충전');
 });
 
 it('잔액 부족과 변조된 금액·수납처·네트워크·토큰·초과 금액을 거부한다', async () => {

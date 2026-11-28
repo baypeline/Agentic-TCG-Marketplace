@@ -1,5 +1,6 @@
 'use client';
 
+import type { Currency } from '@tcg/contracts/payment-profile';
 import { useState } from 'react';
 import Link from 'next/link';
 import styled from '@emotion/styled';
@@ -15,9 +16,11 @@ const exampleSteps = [
   { label: '카드 반영', title: '구매 결과를 한곳에서 확인해요', description: '정산 성공을 확인한 뒤 서비스 안에서 카드 소유권을 옮겨요. 구매한 카드는 내 카드에, 처리 과정은 거래 내역과 로그에 남아요.', rows: [['내 카드', '구매 카드 반영'], ['거래 내역', '주문 · 결제 결과'], ['Agent 로그', '판단과 처리 과정']], note: '카드 NFT를 전송하는 구조가 아니에요. 현재 거래 화면은 미리보기로 제공해요.' },
 ];
 
-export function LandingView({ discovery }: { discovery: DiscoveryData }) {
+export function LandingView({ discovery, currency = 'USDC' }: { discovery: DiscoveryData; currency?: Currency }) {
   const [step, setStep] = useState(0);
-  const current = exampleSteps[step]!;
+  const text = (value: string) => value.replaceAll('USDC', currency).replaceAll('Base Sepolia', currency === 'tOKRW' ? 'Maroo Testnet' : 'Base Sepolia');
+  const original = exampleSteps[step]!;
+  const current = { ...original, description: text(original.description), note: text(original.note), rows: original.rows.map(row => row.map(text)) };
   const cards = [...discovery.spotlight.map(item => item.card), ...discovery.family]
     .filter((card, index, all) => all.findIndex(item => item.id === card.id) === index).slice(0, 4);
   return <>
@@ -25,7 +28,7 @@ export function LandingView({ discovery }: { discovery: DiscoveryData }) {
       <Introduction><h1>카드 구매는<br />AI 에이전트에게</h1><p>원하는 카드와 예산을 정해 구매를 맡겨요. 보유 카드는 내가 정한 가격으로 직접 판매 등록할 수 있어요.</p><HeroActions><PrimaryLink href="/agent">구매 조건 정하기</PrimaryLink><SellerLink href="/collection#owned-cards">보유 카드 판매하기</SellerLink></HeroActions><TextLink href="/cards">카드 먼저 찾아보기</TextLink><Availability>현재는 카드 검색과 구매·판매 화면 미리보기를 이용할 수 있어요.</Availability></Introduction>
       <Example aria-labelledby="example-heading">
         <ExampleHeading><h2 id="example-heading">에이전트에게 구매를 맡기면</h2><span>설명용 예시</span></ExampleHeading>
-        <Request><span>내가 원하는 거래</span><p>“영문 피카츄 한 장을<br /><strong>10 USDC 이하</strong>로 구해줘.”</p></Request>
+        <Request><span>내가 원하는 거래</span><p>“영문 피카츄 한 장을<br /><strong>10 {currency} 이하</strong>로 구해줘.”</p></Request>
         <StepButtons aria-label="거래 과정 살펴보기">{exampleSteps.map((item, index) => <StepButton key={item.label} type="button" aria-pressed={step === index} aria-controls="trade-example-detail" onClick={() => setStep(index)}><span aria-hidden="true">{index + 1}</span>{item.label}</StepButton>)}</StepButtons>
         <StepDetail id="trade-example-detail" aria-live="polite" aria-atomic="true"><h3>{current.title}</h3><p>{current.description}</p><Facts>{current.rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</Facts><ExampleNote>{current.note}</ExampleNote></StepDetail>
       </Example>

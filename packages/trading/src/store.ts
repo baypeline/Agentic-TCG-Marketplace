@@ -1,3 +1,4 @@
+import type { Currency } from '@tcg/contracts/payment-profile';
 import { AppError, type BuyOrder, type InventoryItem, type Listing, type MatchQuote, type Trade } from '@tcg/contracts';
 import type { PrismaClient } from '@tcg/db';
 import { demoCards } from '@tcg/contracts/fixtures';
@@ -30,8 +31,8 @@ export function orderDto({ buyerId: _, ...row }: OrderRow): BuyOrder {
   return { ...row, createdAt: row.createdAt.toISOString(), expiresAt: row.expiresAt.toISOString() };
 }
 
-export function quoteDto({ buyerId: _, paymentAttemptId: __, policyId: ___, buyOrderId, ...row }: QuoteRow): MatchQuote {
-  return { ...row, currency: 'USDC', ...(buyOrderId ? { buyOrderId } : {}), expiresAt: row.expiresAt.toISOString() };
+export function quoteDto({ buyerId: _, paymentAttemptId: __, policyId: ___, buyOrderId, ...row }: QuoteRow, currency: Currency = 'USDC'): MatchQuote {
+  return { ...row, currency, ...(buyOrderId ? { buyOrderId } : {}), expiresAt: row.expiresAt.toISOString() };
 }
 
 export function tradeDto(row: TradeRow): Trade {

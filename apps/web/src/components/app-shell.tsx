@@ -5,12 +5,15 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import styled from '@emotion/styled';
 import { useTheme } from '@emotion/react';
+import { useQuery } from '@tanstack/react-query';
+import { demoStatusSchema } from '@tcg/contracts';
 import { AgentChat } from '../features/chat/agent-chat';
 import { useAgentPanelStore } from '../stores/agent-panel';
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { color } = useTheme();
   const pathname = usePathname();
+  const demo = useQuery({ queryKey: ['demo-status'], queryFn: async () => { const response = await fetch('/api/demo'); if (!response.ok) throw new Error('Unavailable'); return demoStatusSchema.parse(await response.json()); }, staleTime: Infinity, retry: false });
   const chatOpen = useAgentPanelStore(state => state.chatOpen);
   const setChatOpen = useAgentPanelStore(state => state.setChatOpen);
   const isLanding = pathname === '/';
@@ -35,7 +38,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <PageFrame id="main-content" tabIndex={-1}>{children}</PageFrame>
     <Footer id="data-guide"><FooterBrand>Agentic TCG</FooterBrand><details><summary>데이터 안내</summary>
       <p>영어판의 한국어 이름은 포켓몬 종명 표기이며, 한국어판은 원문 이름을 표시합니다. 해외 참고 시세는 제공자의 집계·판매 희망 가격으로, 한국어판 실거래가와 다를 수 있습니다.</p>
-      <p>데모 매물과 가격은 합성 데이터입니다. 구매 시 Base Sepolia 테스트 USDC가 실제 전송되며, 결제가 완료되면 보유 카드와 거래 내역에 반영됩니다. ‘화면 미리보기’로 표시된 화면의 데이터는 예시입니다.</p>
+      <p>데모 매물과 가격은 합성 데이터입니다. 구매 시 {demo.data?.paymentChain === 'maroo' ? 'Maroo Testnet tOKRW' : 'Base Sepolia 테스트 USDC'}가 실제 전송되며, 결제가 완료되면 보유 카드와 거래 내역에 반영됩니다. ‘화면 미리보기’로 표시된 화면의 데이터는 예시입니다.</p>
     </details></Footer></BrowsePane><ChatPane inert={!chatOpen} aria-hidden={!chatOpen}><AgentChat onClose={closeChat} /></ChatPane></Workspace>
   </>;
 }

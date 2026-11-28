@@ -1,9 +1,11 @@
 import { z } from 'zod';
+import { getPaymentProfile } from '@tcg/contracts/payment-profile';
 
 export const network = 'eip155:84532';
 export const asset = '0x036CbD53842c5426634e7929541eC2318f3dCF7e';
 const address = z.string().regex(/^0x[0-9a-fA-F]{40}$/);
 const schema = z.object({
+  FACILITATOR_CHAIN: z.enum(['base-sepolia', 'maroo']).default('base-sepolia'),
   FACILITATOR_HOST: z.string().default('127.0.0.1'),
   FACILITATOR_PORT: z.coerce.number().int().min(1).max(65535).default(4022),
   FACILITATOR_RPC_URL: z.url().refine(value => ['http:', 'https:'].includes(new URL(value).protocol)).default('https://sepolia.base.org'),
@@ -19,5 +21,6 @@ export function parseEnv(input: NodeJS.ProcessEnv): FacilitatorEnv {
   const parsed = schema.safeParse(input);
   // Zod 입력값이나 SDK 오류 원문에 비밀값을 노출하지 않는다.
   if (!parsed.success) throw new Error('퍼실리테이터 환경변수 형식을 확인하세요.');
-  return parsed.data;
+  const profile = getPaymentProfile(parsed.data.FACILITATOR_CHAIN);
+  return { ...parsed.data, FACILITATOR_RPC_URL: input.FACILITATOR_RPC_URL || profile.rpcUrl, FACILITATOR_MAX_AMOUNT: input.FACILITATOR_MAX_AMOUNT || profile.maxPerTrade };
 }
