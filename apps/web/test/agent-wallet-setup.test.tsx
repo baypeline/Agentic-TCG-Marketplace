@@ -12,10 +12,11 @@ it('자동 발급 지갑의 첫 충전 안내는 사용자별로 기억하고 �
   const store = createAgentWalletSetupStore(storage);
   expect(needsAgentWalletSetup(user, [])).toBe(true);
   expect(needsAgentWalletSetup(null, [])).toBe(false);
-  store.getState().markVisited(user.userId);
+  store.getState().markVisited(user.userId, user.agentWalletAddress);
   const restored = createAgentWalletSetupStore(storage); await restored.persist.rehydrate();
-  expect(needsAgentWalletSetup(user, restored.getState().visitedUsers)).toBe(false);
+  expect(needsAgentWalletSetup(user, restored.getState().visitedUsers, restored.getState().visitedWallets)).toBe(false);
   expect(needsAgentWalletSetup({ ...user, userId: '00000000-0000-4000-8000-000000000003' }, restored.getState().visitedUsers)).toBe(true);
+  expect(needsAgentWalletSetup({ ...user, agentWalletAddress: `0x${'4'.repeat(40)}` }, restored.getState().visitedUsers, restored.getState().visitedWallets)).toBe(true);
   expect(saved).not.toContain('agentWalletLinked');
 });
 it('생성된 주소·잔액·복사와 충전 안내를 표시하고 수동 생성 버튼을 제공하지 않는다', () => {

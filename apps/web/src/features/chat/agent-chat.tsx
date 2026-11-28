@@ -5,9 +5,10 @@ import styled from '@emotion/styled';
 import { keyframes } from '@emotion/react';
 import { readAgentMessage } from './agent-client';
 import { CardChoices, cardChoiceLabel, cardChoiceQuestion } from './card-choices';
+import { useAgentBudget } from '../auth/agent-budget-client';
 import { PurchaseOffers, PurchaseReceipt } from './purchase-offers';
 import { BudgetProposal } from './budget-proposal';
-import { getWalletSession, walletQueryKey } from '../auth/wallet-client';
+import { getWalletSession, getAgentWallet, walletQueryKey } from '../auth/wallet-client';
 import { agentBudgetResultSchema, type AgentBudgetProposal, type AgentBudgetResult } from '@tcg/contracts';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
@@ -43,9 +44,11 @@ export function AgentChat({ onClose }: { onClose: () => void }) {
   const announcedPurchases = useRef(new Set<string>());
   const queryClient = useQueryClient();
   const router = useRouter();
+  const currentBudget = useAgentBudget();
   const wallet = useQuery({ queryKey: walletQueryKey, queryFn: getWalletSession, staleTime: 30_000, retry: false });
   const demo = useQuery({ queryKey: ['demo-status'], queryFn: async () => { const result = await fetch('/api/demo'); if (!result.ok) throw new Error('Unavailable'); return demoStatusSchema.parse(await result.json()); }, staleTime: Infinity, retry: false });
   const examples = demo.data?.enabled ? demo.data.suggestions : suggestions;
+  const walletInfo = useQuery({ queryKey: ['agent-wallet', wallet.data?.user?.userId], queryFn: getAgentWallet, enabled: !!wallet.data?.user, staleTime: 15_000, retry: false });
   const sessionId = useRef<string | undefined>(undefined);
   const activeRequest = useRef<AbortController | null>(null);
   const input = useRef<HTMLTextAreaElement>(null);
@@ -253,7 +256,7 @@ export function AgentChat({ onClose }: { onClose: () => void }) {
             ) : <PlainMessage>{message.content}</PlainMessage>}
             {message.interrupted && <ReplyState>중단된 답변 · 완료되지 않은 내용이에요.</ReplyState>}
             {message.role === 'assistant' && message.cardChoices?.length ? <CardChoices cards={message.cardChoices} disabled={pending || index !== latestChoices} selectedId={message.selectedCardId} onSelect={card => { void selectCard(card, index); }} /> : null}
-            {message.purchaseOffers?.length ? <PurchaseOffers offers={message.purchaseOffers} signingMode={demo.data?.signingMode} payer={demo.data?.payer} disabled={pending || index !== latestOffers || !wallet.data?.user?.agentWalletLinked} completedIds={receipts.filter(item => item.status === 'COMPLETED').map(item => item.listingId)} submittedIds={[...purchaseRequests.current.entries()].filter(([, item]) => item.submitted).map(([id]) => id)} onBuy={offer => { void buyOffer(offer); }} /> : null}
+            {message.purchaseOffers?.length ? <PurchaseOffers offers={message.purchaseOffers} signingMode={demo.data?.signingMode} payer={wallet.data?.user?.agentWalletAddress} budget={currentBudget.data} budgetUnavailable={!currentBudget.data} walletBalance={walletInfo.data?.balance} disabled={pending || index !== latestOffers || !wallet.data?.user?.agentWalletLinked} completedIds={receipts.filter(item => item.status === 'COMPLETED').map(item => item.listingId)} submittedIds={[...purchaseRequests.current.entries()].filter(([, item]) => item.submitted).map(([id]) => id)} onBuy={offer => { void buyOffer(offer); }} /> : null}
             {!!message.purchaseOffers?.length && !wallet.data?.user?.agentWalletLinked && <ReplyState>{wallet.data?.user ? <>이 계정에는 결제용 에이전트 지갑이 아직 연결되지 않았어요. <Link href="/agent/wallet">지갑 연결 안내</Link></> : '구매와 예산 설정은 상단의 지갑 로그인 후 이용할 수 있어요.'}</ReplyState>}
             {message.budgetProposal && <BudgetProposal proposal={message.budgetProposal} result={message.budgetResult} disabled={pending || index !== messages.length - 1} onAction={action => { void updateBudget(message.budgetProposal!, action); }} />}
           </MessageBody>
@@ -262,7 +265,7 @@ export function AgentChat({ onClose }: { onClose: () => void }) {
       {pending && streamingText && <Message aria-live="off"><span>에이전트</span><MessageBody><PlainMessage>{streamingText}</PlainMessage><ReplyState>답변을 작성하고 있어요.</ReplyState></MessageBody></Message>}
       {pending && !streamingText && <Waiting role="status">{purchaseStatus || '요청을 확인하고 답변을 준비하고 있어요.'}</Waiting>}
       {receipts.map(progress => <PurchaseReceipt key={progress.requestId} progress={progress} disabled={pending} onCheck={() => { void buyOffer({ listingId: progress.listingId, card: progress.card, price: progress.amount, dataSource: 'SYNTHETIC_DEMO', paymentMode: 'X402_BASE_SEPOLIA', paymentReady: true }); }} />)}
-      {error && <Waiting role="alert">{error}</Waiting>}
+      {error && <Waiting role="alert">{error} <Link href="/agent">충전·예산 설정 확인</Link></Waiting>}
     </History>
     <Composer onSubmit={submit}><label htmlFor="agent-message">에이전트에게 보낼 내용</label><InputBox><ChatInput ref={input} id="agent-message" value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={keyDown} onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }} placeholder="카드 이름이나 조회할 내용" maxLength={2000} rows={3} aria-describedby="agent-connection-note" /><ComposerActions><span>{draft.length.toLocaleString()} / 2,000</span><SendButton type="submit" disabled={pending || !draft.trim()} aria-label="메시지 보내기"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg></SendButton></ComposerActions></InputBox><ConnectionNote id="agent-connection-note">카드 검색과 예산 설정을 요청할 수 있어요. 예산은 변경안을 확인한 뒤 저장해요.</ConnectionNote></Composer>
     {openedCard && (

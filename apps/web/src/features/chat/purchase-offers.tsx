@@ -3,19 +3,32 @@
 import styled from '@emotion/styled';
 import { getPaymentProfile } from '@tcg/contracts/payment-profile';
 import Link from 'next/link';
-import type { AgentPurchaseOffer, AgentPurchaseProgress } from '@tcg/contracts';
+import type { AgentPurchaseOffer, AgentPurchaseProgress, agentBudgetStateSchema } from '@tcg/contracts';
 import { formatUsdc, getCardDisplayName, formatSet } from '../../lib/formatters';
 
-export function PurchaseOffers({ offers, disabled, completedIds, submittedIds, onBuy, signingMode = 'browser', payer }: { signingMode?: 'browser' | 'server'; payer?: string | null; offers: AgentPurchaseOffer[]; disabled: boolean; completedIds: string[]; submittedIds: string[]; onBuy: (offer: AgentPurchaseOffer) => void }) {
+export function PurchaseOffers({ offers, disabled, completedIds, submittedIds, onBuy, signingMode = 'browser', payer, budget, budgetUnavailable = false, walletBalance }: { budget?: ReturnType<typeof agentBudgetStateSchema.parse>; budgetUnavailable?: boolean; walletBalance?: string | null; signingMode?: 'browser' | 'server'; payer?: string | null; offers: AgentPurchaseOffer[]; disabled: boolean; completedIds: string[]; submittedIds: string[]; onBuy: (offer: AgentPurchaseOffer) => void }) {
   const profile = getPaymentProfile(offers.some(offer => offer.paymentMode !== 'X402_BASE_SEPOLIA') ? 'maroo' : 'base-sepolia');
+  const reason = (offer: AgentPurchaseOffer) => {
+    if (submittedIds.includes(offer.listingId)) return null;
+    if (budgetUnavailable) return '예산 확인 필요';
+    if (budget && budget.currency !== (offer.currency ?? profile.currency)) return '결제 통화 확인';
+    if (budget && !budget.policy.enabled) return '구매 일시중지';
+    if (budget && BigInt(offer.price) > BigInt(budget.policy.maxPerTrade)) return '건당 한도 초과';
+    if (budget && BigInt(offer.price) > BigInt(budget.budget.availableAmount)) return '남은 예산 부족';
+    if (walletBalance !== null && walletBalance !== undefined && BigInt(walletBalance) < BigInt(offer.price)) return '지갑 충전 필요';
+    return null;
+  };
   return <Offers aria-label="구매 가능한 매물">
     <Hint>구매 금액 외에 가스비가 발생해요.{profile.chain === 'maroo' && ' 가스비는 구매 지갑에서 함께 지불합니다.'}</Hint>
-    {signingMode === 'server' && <Hint>에이전트가 건당 {formatUsdc(profile.maxPerTrade, profile.currency)}, 기본 총예산 {formatUsdc(profile.totalBudget, profile.currency)} 범위에서 자동 서명해요.{payer && <> 지급 지갑: {payer.slice(0, 6)}…{payer.slice(-4)}</>}</Hint>}
+    {signingMode === 'server' && <Hint>설정한 예산 안에서 에이전트 지갑이 자동 서명해요.{payer && <> 지급 지갑: {payer.slice(0, 6)}…{payer.slice(-4)}</>}</Hint>}
+    {budget && <Hint>남은 예산 {formatUsdc(budget.budget.availableAmount, budget.currency)} · 건당 한도 {formatUsdc(budget.policy.maxPerTrade, budget.currency)}</Hint>}
+    {walletBalance !== null && walletBalance !== undefined && <Hint>지갑 잔액 {formatUsdc(walletBalance, profile.currency)}</Hint>}
+    {(budgetUnavailable || offers.some(offer => reason(offer))) && <Hint><Link href="/agent">충전·예산 설정 확인</Link></Hint>}
     {offers.map(offer => <Offer key={offer.listingId}>
       <div><strong>{getCardDisplayName(offer.card)}</strong><small>{formatSet(offer.card.setCode)} · {offer.card.cardNumber} · {offer.card.language}</small></div>
       {offer.rwa && <Hint>받을 NFT #{offer.rwa.tokenId} · 결제와 소유권 이전을 함께 처리해요.</Hint>}
       <Price>{formatUsdc(offer.price, offer.currency ?? profile.currency)}</Price>
-      <Buy type="button" disabled={disabled || !offer.paymentReady || completedIds.includes(offer.listingId)} onClick={() => onBuy(offer)}>{completedIds.includes(offer.listingId) ? '구매 완료' : !offer.paymentReady ? '결제 설정 필요' : submittedIds.includes(offer.listingId) ? '기존 결제 확인' : signingMode === 'server' ? '에이전트 지갑으로 구매' : '지갑으로 구매'}</Buy>
+      <Buy type="button" disabled={disabled || !!reason(offer) || !offer.paymentReady || completedIds.includes(offer.listingId)} onClick={() => onBuy(offer)}>{completedIds.includes(offer.listingId) ? '구매 완료' : !offer.paymentReady ? '결제 설정 필요' : submittedIds.includes(offer.listingId) ? '기존 결제 확인' : reason(offer) ?? (signingMode === 'server' ? '에이전트 지갑으로 구매' : '지갑으로 구매')}</Buy>
     </Offer>)}
   </Offers>;
 }
