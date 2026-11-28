@@ -43,7 +43,7 @@ const app = await buildApp({
     return await walletAuth?.resolveAuth(request.headers.authorization) ?? await localAgent.resolveAuth?.(request) ?? await demoAuth(request);
   },
   async createIntegrationPlugins(deps) {
-    if (deps.prisma) walletAuth = createWalletAuth({ prisma: deps.prisma, origin: env.AUTH_WEB_ORIGIN ?? `http://127.0.0.1:${process.env.PORT ?? '3000'}`, chainId: env.PAYMENT_CHAIN === 'maroo' ? 450815 : 84532, ownerAddress: browserWallet });
+    if (deps.prisma) walletAuth = createWalletAuth({ prisma: deps.prisma, origin: env.AUTH_WEB_ORIGIN ?? `http://127.0.0.1:${process.env.PORT ?? '3000'}`, allowLocalhostAlias: env.NODE_ENV !== 'production' && !env.AUTH_WEB_ORIGIN, chainId: env.PAYMENT_CHAIN === 'maroo' ? 450815 : 84532, ownerAddress: browserWallet });
     const plugins = await createIntegrationPlugins(deps, { rwaVariables: process.env, signAgentPayment: agentWallet?.sign, onDemoPurchaseReady: handler => { demoPurchase = handler; }, onAgentBudgetReady: handler => { agentBudget = handler; } });
     const agentPlugins = await localAgent.createIntegrationPlugins?.(deps) ?? [];
     return [...(walletAuth ? [walletAuth.plugin] : []), ...plugins, ...agentPlugins];

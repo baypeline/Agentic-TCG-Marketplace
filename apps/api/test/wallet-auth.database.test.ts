@@ -6,6 +6,28 @@ import { AppError } from '@tcg/contracts';
 import { createWalletAuth } from '../src/wallet-auth.js';
 import { demoBuyerId } from '../src/demo-auth.js';
 
+it.skipIf(!process.env.DATABASE_TEST_URL)('로컬 별칭은 같은 포트만 허용하고 로그인 서명은 실제 접속 주소에 결합한다', async () => {
+  const db = createPrismaClient(process.env.DATABASE_TEST_URL!), account = privateKeyToAccount(generatePrivateKey());
+  const origin = 'http://127.0.0.1:3000', alias = 'http://localhost:3000', address = account.address.toLowerCase(), binding = 'd'.repeat(64);
+  const app = Fastify(), strict = Fastify();
+  for (const host of [app, strict]) host.setErrorHandler((e, _req, reply) => reply.status(e instanceof AppError ? e.statusCode : 400).send({ message: e instanceof Error ? e.message : 'error' }));
+  try {
+    await app.register(createWalletAuth({ prisma: db, origin, chainId: 450815, allowLocalhostAlias: true }).plugin);
+    await strict.register(createWalletAuth({ prisma: db, origin, chainId: 450815 }).plugin);
+    const challenge = (host: typeof app, site: string) => host.inject({ method: 'POST', url: '/api/auth/challenge', headers: { origin: site }, payload: { address, binding } });
+    expect((await challenge(strict, alias)).statusCode).toBe(403);
+    for (const invalid of ['http://localhost:3001','https://localhost:3000','http://localhost.evil.test:3000','http://localhost:3000/']) expect((await challenge(app, invalid)).statusCode).toBe(403);
+    const response = await challenge(app, alias); expect(response.statusCode).toBe(200);
+    const data = response.json(); expect(data.message).toContain('localhost:3000 wants you to sign in'); expect(data.message).toContain(`URI: ${alias}`);
+    const signature = await account.signMessage({ message: data.message });
+    const verify = (site: string) => app.inject({ method: 'POST', url: '/api/auth/verify', headers: { origin: site }, payload: { challengeId: data.id, binding, signature } });
+    expect((await verify(origin)).statusCode).toBe(401);
+    expect((await verify(alias)).statusCode).toBe(200);
+  } finally {
+    await app.close(); await strict.close(); await db.walletSession.deleteMany({ where: { address } }); await db.walletChallenge.deleteMany({ where: { address } }); await db.walletIdentity.deleteMany({ where: { address } }); await db.$disconnect();
+  }
+});
+
 it.skipIf(!process.env.DATABASE_TEST_URL)('설정된 기존 구매자 지갑만 데모 소유권과 서버 지갑 권한에 연결한다', async () => {
   const db = createPrismaClient(process.env.DATABASE_TEST_URL!), owner = privateKeyToAccount(generatePrivateKey());
   const origin = 'http://127.0.0.1:3000', address = owner.address.toLowerCase(), binding = 'c'.repeat(64);

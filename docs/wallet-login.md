@@ -10,7 +10,7 @@ pnpm db:migrate
 pnpm dev
 ```
 
-`DATABASE_ENABLED=true`가 필요합니다. `AUTH_WEB_ORIGIN`을 생략하면 루트 `PORT`로 만든 `http://127.0.0.1:PORT`를 사용합니다. localhost·도메인·HTTPS 주소를 사용하면 해당 Origin을 정확히 설정하세요. Origin에는 경로나 마지막 `/`를 넣지 않습니다. HTTPS에서는 인증 쿠키의 Secure 속성도 설정합니다.
+`DATABASE_ENABLED=true`가 필요합니다. `AUTH_WEB_ORIGIN`을 생략하면 루트 `PORT`로 만든 `http://127.0.0.1:PORT`를 사용합니다. 로컬 개발에서는 같은 프로토콜·포트의 localhost도 허용하며 서명 메시지는 실제 접속한 주소로 만듭니다. 도전값을 발급받은 주소와 검증 주소는 같아야 합니다. `AUTH_WEB_ORIGIN`을 명시하거나 production이면 해당 주소만 허용합니다. 도메인·HTTPS 주소를 사용할 때는 Origin을 정확히 설정하세요. 경로나 마지막 `/`는 넣지 않습니다. HTTPS에서는 인증 쿠키의 Secure 속성도 설정합니다.
 
 ## 사용자와 자금
 
