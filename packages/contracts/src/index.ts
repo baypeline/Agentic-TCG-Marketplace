@@ -152,7 +152,8 @@ export class AppError extends Error {
 }
 
 export interface AuthContext { userId: string; agentId?: string; walletAddress?: string }
-export const walletUserSchema = z.object({ userId: idSchema, agentId: idSchema, address: z.string().regex(/^0x[\da-fA-F]{40}$/), expiresAt: timestampSchema, agentWalletLinked: z.boolean() });
+export const walletUserSchema = z.object({ userId: idSchema, agentId: idSchema, address: z.string().regex(/^0x[\da-fA-F]{40}$/), expiresAt: timestampSchema, agentWalletLinked: z.boolean(), agentWalletAddress: z.string().regex(/^0x[\da-fA-F]{40}$/).optional() });
+export const agentWalletInfoSchema = z.object({ address: z.string().regex(/^0x[\da-fA-F]{40}$/), chainId: z.number().int().positive(), network: z.string().min(1), currency: currencySchema, decimals: z.number().int(), balance: amountSchema.nullable(), balanceUpdatedAt: timestampSchema.nullable(), createdAt: timestampSchema });
 export const walletSessionSchema = z.object({ user: walletUserSchema.nullable() });
 export const walletChallengeSchema = z.object({ id: idSchema, message: z.string().min(1), chainId: z.number().int().positive(), expiresAt: timestampSchema });
 export const walletChallengeInputSchema = z.object({ address: z.string().regex(/^0x[\da-fA-F]{40}$/) }).strict();

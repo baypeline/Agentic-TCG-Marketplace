@@ -19,8 +19,8 @@ function data<T>(result: ToolResult, schema: z.ZodType<T>): T {
 }
 
 /** 정책·예산·소유권·정산은 각 모듈에 맡기고 승인된 구매의 MCP 호출만 조립한다. */
-export function createDemoPurchaseHandler({ env, trading, policies, getMcpUrl, signAgentPayment, resolvePaymentRecipient,includeKorean=false }: {
-  env: ApiEnv; trading: TradingService; policies: PolicyService; getMcpUrl(): string; signAgentPayment?: AgentPaymentSigner; resolvePaymentRecipient?: (listingId: string) => Promise<string>;includeKorean?:boolean;
+export function createDemoPurchaseHandler({ env, trading, policies, getMcpUrl, signAgentPayment, resolvePaymentRecipient,includeKorean=false, resolveAgentWallet }: {
+  env: ApiEnv; trading: TradingService; policies: PolicyService; getMcpUrl(): string; signAgentPayment?: AgentPaymentSigner; resolvePaymentRecipient?: (listingId: string) => Promise<string>;includeKorean?:boolean; resolveAgentWallet?: (actor: { userId: string; agentId: string }) => Promise<string | null>;
 }): NonNullable<AgentSessionPluginOptions['purchase']> {
   const profile = getPaymentProfile(env.PAYMENT_CHAIN);
   let submitQueue: Promise<unknown> = Promise.resolve();
@@ -30,7 +30,8 @@ export function createDemoPurchaseHandler({ env, trading, policies, getMcpUrl, s
     if (!pack.scenarios.some(scene => scene.cardId === input.offer.card.id)) throw new AppError('FORBIDDEN', '시나리오 데모 카드만 구매할 수 있습니다.', 403);
     const expectedRecipient = await resolvePaymentRecipient?.(input.offer.listingId) ?? env.PAYMENT_RECIPIENT;
     const buyer = input.auth.walletAddress ? { userId: input.auth.userId, agentId: input.auth.agentId! } : { userId: demoBuyerId, agentId: demoBuyerAgentId };
-    if (input.auth.walletAddress && (buyer.userId !== demoBuyerId || buyer.agentId !== demoBuyerAgentId)) throw new AppError('PAYMENT_UNAVAILABLE', '이 계정에는 결제용 에이전트 지갑이 연결되지 않았습니다. 기존 공통 지갑의 자금은 사용할 수 없습니다.', 409);
+    const payer = resolveAgentWallet ? await resolveAgentWallet(buyer) : buyer.userId === demoBuyerId && buyer.agentId === demoBuyerAgentId ? env.AGENT_WALLET_ADDRESS : null;
+    if (!payer) throw new AppError('PAYMENT_UNAVAILABLE', '이 계정의 결제용 에이전트 지갑을 확인하지 못했습니다.', 409);
     const policy = await ensureDemoPurchasePolicy(env, policies, includeKorean, buyer);
     const key = `${input.sessionId}:${input.requestId}`;
     const run = await policies.startRun(buyer, { policyId: policy.id, instruction: `${input.offer.card.name} 구매 · 사용자 확인 ${input.requestId}` }, { idempotencyKey: `scenario-run:${key}` });
@@ -38,7 +39,7 @@ export function createDemoPurchaseHandler({ env, trading, policies, getMcpUrl, s
     let quote;
     try { quote = data(await mcp.call('quote_fixed_purchase', { listingId: input.offer.listingId, maxPrice: input.offer.price }, 'quote'), matchQuoteSchema); }
     catch (error) { await policies.stopRun(buyer, run.id).catch(() => undefined); throw error; }
-    const base = { requestId: input.requestId, listingId: input.offer.listingId, card: input.offer.card, amount: quote.amount, matchQuoteId: quote.id, expiresAt: quote.expiresAt, paymentMode: input.offer.rwa ? 'X402_MAROO_RWA' : profile.paymentMode, currency: profile.currency, signingMode: env.AGENT_SIGNING_MODE, payer: env.AGENT_WALLET_ADDRESS, recipient: expectedRecipient };
+    const base = { requestId: input.requestId, listingId: input.offer.listingId, card: input.offer.card, amount: quote.amount, matchQuoteId: quote.id, expiresAt: quote.expiresAt, paymentMode: input.offer.rwa ? 'X402_MAROO_RWA' : profile.paymentMode, currency: profile.currency, signingMode: env.AGENT_SIGNING_MODE, payer, recipient: expectedRecipient };
     if (input.action === 'cancel') {
       await trading.releaseQuote(buyer, quote.id);
       await policies.stopRun(buyer, run.id);
@@ -75,7 +76,7 @@ export function createDemoPurchaseHandler({ env, trading, policies, getMcpUrl, s
           if (result.isError && challenge.success) {
             const requirements = challenge.data.accepts[0]!;
             if (requirements.amount !== quote.amount || requirements.amount !== input.offer.price || requirements.payTo.toLowerCase() !== expectedRecipient.toLowerCase()) throw new AppError('PAYMENT_FAILED', '결제 금액이나 수납 주소가 매물과 일치하지 않습니다.', 409);
-            payload = await signAgentPayment({ requirements, amount: quote.amount, matchQuoteId: quote.id });
+            payload = await signAgentPayment({ requirements, amount: quote.amount, matchQuoteId: quote.id, auth: buyer });
           } else status = data(result, purchaseStatusSchema);
         }
       }

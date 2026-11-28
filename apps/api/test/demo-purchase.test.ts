@@ -14,10 +14,11 @@ import { demoBuyerId, demoBuyerAgentId } from '../src/demo-auth.js';
 const apps: ReturnType<typeof Fastify>[] = [];
 afterEach(async () => { await Promise.all(apps.splice(0).map(app => app.close())); });
 
-async function fixture(unknown = false, serverSigning = false, paymentChain: PaymentChain = 'base-sepolia', includeKorean = false) {
+async function fixture(unknown = false, serverSigning = false, paymentChain: PaymentChain = 'base-sepolia', includeKorean = false, walletIdentity = false) {
   const pack = await readDemoScenarios(paymentChain, includeKorean);
   const profile = getPaymentProfile(paymentChain);
-  const buyer = { userId: demoBuyerId, agentId: demoBuyerAgentId };
+  const buyer = walletIdentity ? { userId: randomUUID(), agentId: randomUUID() } : { userId: demoBuyerId, agentId: demoBuyerAgentId };
+  const walletToken = `Bearer wallet_${'a'.repeat(64)}`;
   const wallet = `0x${'2'.repeat(40)}`;
   const recipient = `0x${'1'.repeat(40)}`;
   const env = parseApiEnv({ NODE_ENV: 'test', PAYMENT_CHAIN: paymentChain, PAYMENT_FACILITATOR_URL: 'http://127.0.0.1:4022', AGENT_SIGNING_MODE: serverSigning ? 'server' : 'browser', AGENT_SERVER_WALLET_ADDRESS: wallet, DATABASE_ENABLED: 'true', DATABASE_URL: 'postgresql://localhost/unused', CARD_DATA_SOURCE: 'database', TRADING_DATA_SOURCE: 'database', DEMO_SCENARIOS_ENABLED: 'true', PAYMENT_ENABLED: 'true', AGENT_WALLET_ADDRESS: wallet, PAYMENT_RECIPIENT: recipient, DEMO_BUYER_TOKEN: 'b'.repeat(32), DEMO_SELLER_TOKEN: 's'.repeat(32) });
@@ -33,12 +34,12 @@ async function fixture(unknown = false, serverSigning = false, paymentChain: Pay
     offers.push({ listingId: listing.id, card: { id: scene.cardId, game: 'POKEMON', name: scene.id, setCode: 'demo', cardNumber: String(index), language: 'EN', edition: scene.edition, condition: scene.condition }, price: listing.price, dataSource: 'SYNTHETIC_DEMO', paymentMode: profile.paymentMode, currency: profile.currency, paymentReady: true });
   }
   const app = Fastify(); apps.push(app);
-  await app.register(createMcpPlugin({ aggregatorService: { async searchCards() { return offers.map(offer => offer.card); }, async getCardVariant(id) { return offers.find(offer => offer.card.id === id)?.card ?? null; } }, valuationService: { async getValuation() { throw new Error('Not used'); } }, tradingService: trading, paymentService: payments, getAuth: request => request.headers.authorization === `Bearer ${env.DEMO_BUYER_TOKEN}` ? buyer : null }));
+  await app.register(createMcpPlugin({ aggregatorService: { async searchCards() { return offers.map(offer => offer.card); }, async getCardVariant(id) { return offers.find(offer => offer.card.id === id)?.card ?? null; } }, valuationService: { async getValuation() { throw new Error('Not used'); } }, tradingService: trading, paymentService: payments, getAuth: request => request.headers.authorization === (walletIdentity ? walletToken : `Bearer ${env.DEMO_BUYER_TOKEN}`) ? buyer : null }));
   const url = await app.listen({ host: '127.0.0.1', port: 0 });
-  const input = (offer: AgentPurchaseOffer) => ({ offer, listingId: offer.listingId, requestId: randomUUID(), sessionId: randomUUID(), auth: { userId: randomUUID() } });
+  const input = (offer: AgentPurchaseOffer) => ({ offer, listingId: offer.listingId, requestId: randomUUID(), sessionId: randomUUID(), auth: walletIdentity ? {...buyer,walletAddress:`0x${'8'.repeat(40)}`} : { userId: randomUUID() }, ...(walletIdentity ? {authorization:walletToken} : {}) });
   const payload = (prepared: AgentPurchaseProgress) => ({ x402Version: 2, accepted: prepared.requirements!, payload: { authorization: { from: wallet, to: recipient, value: prepared.amount, nonce: `0x${'b'.repeat(64)}`, validAfter: '0', validBefore: '9999999999' }, signature: `0x${'c'.repeat(130)}` } });
   const signer = vi.fn(async (value: { requirements: NonNullable<AgentPurchaseProgress['requirements']>; amount: string }) => payload(value as AgentPurchaseProgress));
-  const purchase = createDemoPurchaseHandler({ includeKorean, env: { ...env, AGENT_SIGNING_MODE: serverSigning ? 'server' : 'browser' }, trading, policies, signAgentPayment: serverSigning ? signer : undefined, getMcpUrl: () => `${url}/mcp` });
+  const purchase = createDemoPurchaseHandler({ includeKorean, ...(walletIdentity ? {resolveAgentWallet:async(actor:{userId:string;agentId:string})=>actor.userId===buyer.userId&&actor.agentId===buyer.agentId?wallet:null} : {}), env: { ...env, AGENT_SIGNING_MODE: serverSigning ? 'server' : 'browser' }, trading, policies, signAgentPayment: serverSigning ? signer : undefined, getMcpUrl: () => `${url}/mcp` });
   return { purchase, input, payload, offers, adapter, trading, policies, buyer, store, inventory, signer };
 }
 
@@ -95,6 +96,16 @@ it('이전 한국어판 기본 정책을 확장해 새 추천 카드를 예약�
   expect((await f.policies.get(f.buyer, policy.id)).allowedCardVariantIds).toHaveLength(23);
   expect((await f.purchase({ ...input, action: 'cancel' })).status).toBe('CANCELLED');
   expect(await f.policies.budget(f.buyer, policy.id)).toMatchObject({ spentAmount: '0', reservedAmount: '0', availableAmount: profile.totalBudget });
+});
+
+it('사용자 지갑과 로그인 토큰을 MCP에 연결해 개인 정책·재고로 결제한다', async () => {
+  const f=await fixture(false,true,'maroo',true,true),input=f.input(f.offers[0]!);
+  const prepared=await f.purchase({...input,action:'prepare'});
+  expect(prepared.payer).toBe(`0x${'2'.repeat(40)}`);
+  expect((await f.purchase({...input,action:'submit'})).status).toBe('COMPLETED');
+  expect(f.signer.mock.calls[0]![0]).toMatchObject({auth:f.buyer});
+  expect(await f.policies.list({userId:demoBuyerId,agentId:demoBuyerAgentId})).toEqual([]);
+  expect(await f.store.transaction(tx=>tx.inventory.find({ownerId:f.buyer.userId}))).toHaveLength(1);
 });
 
 it('새 지갑 로그인 계정은 기존 공통 에이전트 지갑으로 결제하지 않는다', async () => {

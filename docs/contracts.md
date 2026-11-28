@@ -1,5 +1,7 @@
 # 공통 계약 결정 사항
 
+사용자 지갑 계약: `walletUserSchema.agentWalletAddress`와 `agentWalletInfoSchema`를 제공합니다. Core `GET /api/agent/wallet`은 본인 공개 주소·체인·통화·최소 단위 잔액(조회 실패 시 null)·시각만 반환합니다. [자동 발급](managed-agent-wallet.md)을 참고하세요.
+
 `AuthContext.walletAddress`는 서명 검증·유효 세션 조회를 거쳐 서버가 설정합니다. `walletChallengeSchema`, `walletSessionSchema`와 로그인 입력 DTO를 추가했습니다. 웹 로그인 응답에는 세션 토큰을 포함하지 않으며 HttpOnly 쿠키로만 전달합니다. `/api/me`는 인증된 사용자·Agent에 `agentWalletLinked`, `rwaAvailable`을 함께 반환합니다. [지갑 로그인](wallet-login.md)을 참고하세요.
 
 채팅 응답에는 선택적 `budgetProposal`을 추가했습니다. `agentBudgetPatchSchema`는 현재 통화와 사람이 입력한 십진수 금액을, `agentBudgetProposalSchema`는 변경 전후 최소 단위 금액·정책 버전·지출·예약·만료를 정의합니다. 확인 요청은 `agentBudgetActionSchema`의 `proposalId`·`confirm/cancel`만 받으며 클라이언트 금액이나 정책 ID를 쓰기 입력으로 받지 않습니다. `agentBudgetResultSchema`는 적용 결과와 실제 예산을 반환합니다. [상세 흐름](agent-budget.md)을 참고하세요.

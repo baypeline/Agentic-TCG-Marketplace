@@ -1,0 +1,11 @@
+model ManagedAgentWallet {
+  userId String @id @db.Uuid
+  agentId String @unique @db.Uuid
+  address String @unique @db.VarChar(42)
+  ciphertext String
+  iv String @db.VarChar(24)
+  authTag String @db.VarChar(32)
+  keyVersion Int @default(1)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@schema("auth")
+}

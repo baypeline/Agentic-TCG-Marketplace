@@ -15,12 +15,12 @@ import { createCommercePlugin, createPaymentEvidenceReader, createPaymentService
 import { createMockTradingStore, createPrismaTradingStore, createTradingPlugin, createTradingService, demoSellerId, type TradingService } from '@tcg/trading';
 import { requireAuth, type IntegrationDependencies } from './app.js';
 
-export async function createIntegrationPlugins({ env, prisma, aggregatorService, valuationService, tradingExecutionContext, paymentOptions, executeAgentRun }: IntegrationDependencies, options: { signAgentPayment?: AgentPaymentSigner; rwaVariables?: NodeJS.ProcessEnv; onDemoPurchaseReady?: (handler: NonNullable<AgentSessionPluginOptions['purchase']>) => void; onAgentBudgetReady?: (handler: NonNullable<AgentSessionPluginOptions['budget']>) => void } = {}): Promise<FastifyPluginAsync[]> {
+export async function createIntegrationPlugins({ env, prisma, aggregatorService, valuationService, tradingExecutionContext, paymentOptions, executeAgentRun }: IntegrationDependencies, options: { signAgentPayment?: AgentPaymentSigner; rwaVariables?: NodeJS.ProcessEnv; onDemoPurchaseReady?: (handler: NonNullable<AgentSessionPluginOptions['purchase']>) => void; onAgentBudgetReady?: (handler: NonNullable<AgentSessionPluginOptions['budget']>) => void; resolveAgentWallet?: (actor: {userId:string;agentId:string}) => Promise<string|null>; resolveRwaWallet?: (userId:string) => Promise<import('viem').PrivateKeyAccount|null>; resolveWalletUserId?: (address:string) => Promise<string|null> } = {}): Promise<FastifyPluginAsync[]> {
   const store = env.TRADING_DATA_SOURCE === 'database' ? createPrismaTradingStore(prisma!) : createMockTradingStore();
   const profile = getPaymentProfile(env.PAYMENT_CHAIN);
   const deployment = env.RWA_ENABLED ? readRwaDeployment(env) : null;
   let trading: TradingService;
-  const rwa = deployment ? createRwaService({ prisma: prisma!, deployment, deployBlock: env.RWA_DEPLOY_BLOCK!, buyerKey: z.string().regex(/^0x[\da-fA-F]{64}$/).parse(options.rwaVariables?.AGENT_SERVER_PRIVATE_KEY) as `0x${string}`, operatorKey: z.string().regex(/^0x[\da-fA-F]{64}$/).parse(options.rwaVariables?.RWA_OPERATOR_PRIVATE_KEY) as `0x${string}`, buyerUserId: demoBuyerId, sellerUserId: demoSellerId, releaseQuote:(userId,agentId,id)=>trading.releaseQuote({userId,agentId},id) }) : null;
+  const rwa = deployment ? createRwaService({ prisma: prisma!, deployment, deployBlock: env.RWA_DEPLOY_BLOCK!, buyerKey: z.string().regex(/^0x[\da-fA-F]{64}$/).parse(options.rwaVariables?.AGENT_SERVER_PRIVATE_KEY) as `0x${string}`, operatorKey: z.string().regex(/^0x[\da-fA-F]{64}$/).parse(options.rwaVariables?.RWA_OPERATOR_PRIVATE_KEY) as `0x${string}`, buyerUserId: demoBuyerId, sellerUserId: demoSellerId, resolveWallet: options.resolveRwaWallet, resolveUserId: options.resolveWalletUserId, releaseQuote:(userId,agentId,id)=>trading.releaseQuote({userId,agentId},id) }) : null;
   const policies = createPolicyService({ store, onInactive: auth => trading.pauseAgentOrders(auth) });
   trading = createTradingService({ store, currency: profile.currency, payment: createPaymentEvidenceReader(store, profile.currency), valuationService,
     ...(prisma ? {
@@ -38,14 +38,14 @@ export async function createIntegrationPlugins({ env, prisma, aggregatorService,
     if (rwa) { await rwa.sync(); await app.register(createRwaPlugin(rwa)); }
     if (env.DEMO_SCENARIOS_ENABLED) {
       options.onAgentBudgetReady?.(createAgentBudgetHandler(env, policies));
-      const handler=createDemoPurchaseHandler({ env, trading, policies, includeKorean:true,signAgentPayment: options.signAgentPayment, resolvePaymentRecipient: async listingId => prisma && await prisma.rwaListing.findUnique({where:{id:listingId}}) ? deployment?.market ?? '' : env.PAYMENT_RECIPIENT!, getMcpUrl: () => {
+      const handler=createDemoPurchaseHandler({ env, trading, policies, includeKorean:true,resolveAgentWallet:options.resolveAgentWallet,signAgentPayment: options.signAgentPayment, resolvePaymentRecipient: async listingId => prisma && await prisma.rwaListing.findUnique({where:{id:listingId}}) ? deployment?.market ?? '' : env.PAYMENT_RECIPIENT!, getMcpUrl: () => {
       const address = app.server.address();
       if (!address || typeof address === 'string') throw new AppError('PAYMENT_UNAVAILABLE', 'MCP 서버가 수신 중이 아닙니다.', 503);
       return `http://${address.family === 'IPv6' ? `[${address.address}]` : address.address}:${address.port}/mcp`;
       } });
-      options.onDemoPurchaseReady?.(input => rwa && input.action==='submit' ? withWalletLock(env.AGENT_WALLET_ADDRESS!,()=>handler(input)) : handler(input));
+      options.onDemoPurchaseReady?.(async input => { const address = input.auth.agentId ? await options.resolveAgentWallet?.({userId:input.auth.userId,agentId:input.auth.agentId}) : null; return rwa && input.action==='submit' ? withWalletLock(address ?? env.AGENT_WALLET_ADDRESS!,()=>handler(input)) : handler(input); });
     }
-    app.get('/api/me', async request => { const { userId, agentId, walletAddress } = requireAuth(request); return { userId, ...(agentId ? { agentId } : {}), ...(walletAddress ? { walletAddress } : {}), agentWalletLinked: userId === demoBuyerId, rwaAvailable: userId === demoBuyerId || userId === demoSellerId }; });
+    app.get('/api/me', async request => { const { userId, agentId, walletAddress } = requireAuth(request); const managed = agentId ? !!await options.resolveAgentWallet?.({userId,agentId}) : false; return { userId, ...(agentId ? { agentId } : {}), ...(walletAddress ? { walletAddress } : {}), agentWalletLinked: managed || userId === demoBuyerId, rwaAvailable: managed || userId === demoBuyerId || userId === demoSellerId }; });
     await app.register(createTradingPlugin({ tradingService: trading, requireAuth }), { prefix: '/api' });
     await app.register(createCommercePlugin({ policies, payments, requireAuth }), { prefix: '/api' });
     await app.register(createServerRunPlugin({ runs: policies, requireAuth, execute: executeAgentRun }));

@@ -1,0 +1,10 @@
+CREATE TABLE "auth"."ManagedAgentWallet" (
+  "userId" UUID PRIMARY KEY,
+  "agentId" UUID NOT NULL UNIQUE,
+  "address" VARCHAR(42) NOT NULL UNIQUE,
+  "ciphertext" TEXT NOT NULL,
+  "iv" VARCHAR(24) NOT NULL,
+  "authTag" VARCHAR(32) NOT NULL,
+  "keyVersion" INTEGER NOT NULL DEFAULT 1,
+  "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

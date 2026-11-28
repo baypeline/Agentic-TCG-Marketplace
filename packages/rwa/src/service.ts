@@ -14,14 +14,14 @@ export function withWalletLock<T>(address: string, work: () => Promise<T>): Prom
 }
 function rowId(key: string) { const h = createHash('sha256').update(key).digest('hex'); return `${h.slice(0,8)}-${h.slice(8,12)}-4${h.slice(13,16)}-8${h.slice(17,20)}-${h.slice(20,32)}`; }
 const deny = () => new AppError('FORBIDDEN', '이 NFT를 처리할 지갑 권한이 없습니다.', 403);
-export function createRwaService({ prisma, deployment, deployBlock, buyerKey, operatorKey, buyerUserId, sellerUserId, rpcUrl, releaseQuote }: {
-  prisma: PrismaClient; deployment: RwaDeployment; deployBlock: bigint; buyerKey: Hex; operatorKey: Hex; buyerUserId: string; sellerUserId: string; rpcUrl?: string; releaseQuote?: (userId:string,agentId:string,quoteId:string)=>Promise<unknown>;
+export function createRwaService({ prisma, deployment, deployBlock, buyerKey, operatorKey, buyerUserId, sellerUserId, rpcUrl, releaseQuote, resolveWallet, resolveUserId }: {
+  prisma: PrismaClient; deployment: RwaDeployment; deployBlock: bigint; buyerKey: Hex; operatorKey: Hex; buyerUserId: string; sellerUserId: string; rpcUrl?: string; resolveWallet?: (userId:string)=>Promise<PrivateKeyAccount|null>; resolveUserId?: (address:string)=>Promise<string|null>; releaseQuote?: (userId:string,agentId:string,quoteId:string)=>Promise<unknown>;
 }) {
   const buyer = privateKeyToAccount(buyerKey), operator = privateKeyToAccount(operatorKey);
   if (operator.address.toLowerCase() !== deployment.quoteSigner.toLowerCase() || buyer.address === operator.address) throw new Error('RWA wallet configuration mismatch');
   const chain = createPublicClient({ chain: marooTestnet, transport: http(rpcUrl, { timeout: 15_000, retryCount: 1 }) });
-  const wallet = (userId: string) => userId === buyerUserId ? buyer : userId === sellerUserId ? operator : null;
-  const userFor = (address: string) => address.toLowerCase() === buyer.address.toLowerCase() ? buyerUserId : address.toLowerCase() === operator.address.toLowerCase() ? sellerUserId : '00000000-0000-4000-8000-000000000000';
+  const wallet = async (userId: string) => userId === sellerUserId ? operator : await resolveWallet?.(userId) ?? (userId === buyerUserId ? buyer : null);
+  const userFor = async (address: string) => address.toLowerCase() === buyer.address.toLowerCase() ? buyerUserId : address.toLowerCase() === operator.address.toLowerCase() ? sellerUserId : await resolveUserId?.(address) ?? '00000000-0000-4000-8000-000000000000';
   let syncing: Promise<void> | undefined;
   const cursorId = `${450815}:${deployment.market}`;
   async function syncWork() {
@@ -56,13 +56,13 @@ export function createRwaService({ prisma, deployment, deployBlock, buyerKey, op
             if (toWallet !== deployment.market && toWallet !== deployment.nft && toWallet !== '0x0000000000000000000000000000000000000000') {
               await tx.rwaAsset.update({ where: { id: asset.id }, data: { ownerWallet: toWallet, state: 'ACTIVE' } });
               const inFlight = await tx.matchQuote.count({ where: { inventoryItemId: asset.inventoryItemId, status: { in: ['PAYMENT_PENDING','RECONCILING','SETTLED'] } } });
-              if (!inFlight) await tx.inventoryItem.update({ where: { id: asset.inventoryItemId }, data: { ownerId: userFor(toWallet), status: 'AVAILABLE' } });
+              if (!inFlight) await tx.inventoryItem.update({ where: { id: asset.inventoryItemId }, data: { ownerId: await userFor(toWallet), status: 'AVAILABLE' } });
             }
           }
           if (asset && event.eventName === 'ListingCreated') {
             const listingId = rowId(`${deployment.market}:${a.listingId}`), sellerWallet = String(a.seller).toLowerCase();
-            await tx.inventoryItem.update({ where: { id: asset.inventoryItemId }, data: { ownerId: userFor(sellerWallet), status: 'LISTED' } });
-            await tx.listing.upsert({ where: { id: listingId }, create: { id: listingId, inventoryItemId: asset.inventoryItemId, cardVariantId: asset.cardVariantId, sellerId: userFor(sellerWallet), price: String(a.price), status: 'ACTIVE', createdAt: new Date() }, update: {} });
+            await tx.inventoryItem.update({ where: { id: asset.inventoryItemId }, data: { ownerId: await userFor(sellerWallet), status: 'LISTED' } });
+            await tx.listing.upsert({ where: { id: listingId }, create: { id: listingId, inventoryItemId: asset.inventoryItemId, cardVariantId: asset.cardVariantId, sellerId: await userFor(sellerWallet), price: String(a.price), status: 'ACTIVE', createdAt: new Date() }, update: {} });
             await tx.rwaListing.upsert({ where: { id: listingId }, create: { id: listingId, assetId: asset.id, chainListingId: String(a.listingId), marketAddress: deployment.market, sellerWallet, price: String(a.price), txHash: log.transactionHash! }, update: {} });
             await tx.rwaAsset.update({ where: { id: asset.id }, data: { state: 'LISTED', ownerWallet: sellerWallet } });
           }
@@ -101,7 +101,7 @@ export function createRwaService({ prisma, deployment, deployBlock, buyerKey, op
         const quotes=await prisma.matchQuote.findMany({where:{listingId:mapping.id,status:{in:['RESERVED','PAYMENT_PENDING','RECONCILING','SETTLED']}}});
         if(quotes.some(q=>q.status!=='RESERVED'))continue;
         for(const quote of quotes){if(!releaseQuote)throw new Error('Quote release unavailable');await releaseQuote(quote.buyerId,quote.buyerAgentId,quote.id);}
-        await prisma.$transaction(async tx=>{await tx.listing.update({where:{id:mapping.id},data:{status:'CANCELLED'}});await tx.inventoryItem.update({where:{id:mapping.asset.inventoryItemId},data:{status:'AVAILABLE',ownerId:userFor(mapping.sellerWallet)}});});
+        await prisma.$transaction(async tx=>{await tx.listing.update({where:{id:mapping.id},data:{status:'CANCELLED'}});await tx.inventoryItem.update({where:{id:mapping.asset.inventoryItemId},data:{status:'AVAILABLE',ownerId:await userFor(mapping.sellerWallet)}});});
       }
     }
   }
@@ -116,7 +116,7 @@ export function createRwaService({ prisma, deployment, deployBlock, buyerKey, op
     } catch { return row; }
   }
   async function action(userId: string, requestId: string, kind: string, input: Record<string, unknown>) {
-    const account = wallet(userId); if (!account) throw deny();
+    const account = await wallet(userId); if (!account) throw deny();
     return withWalletLock(account.address, async () => {
       const inputHash = keccak256(toBytes(JSON.stringify({ kind, input })));
       const previous = await prisma.rwaAction.findUnique({ where: { id: requestId } });
@@ -168,7 +168,7 @@ export function createRwaService({ prisma, deployment, deployBlock, buyerKey, op
     sync, action, deployment,
     async status(userId:string,id:string) { const row=await prisma.rwaAction.findUnique({where:{id}}); if(!row||row.userId!==userId)throw deny(); return completeAction(id); },
     async view(userId:string) {
-      await sync(); const account=wallet(userId); if(!account)throw deny();
+      await sync(); const account=await wallet(userId); if(!account)throw deny();
       const assets=await prisma.rwaAsset.findMany({include:{listings:true,redemptions:true}});
       const cards=await prisma.cardVariant.findMany({where:{id:{in:assets.map(a=>a.cardVariantId)}},include:{localizedNames:true}});
       const listings=await prisma.listing.findMany({where:{id:{in:assets.flatMap(a=>a.listings.map(l=>l.id))}}});
@@ -178,7 +178,7 @@ export function createRwaService({ prisma, deployment, deployBlock, buyerKey, op
       const mapping=await prisma.rwaListing.findUnique({where:{id:quote.listingId},include:{asset:true}}); if(!mapping)return null;
       const live=await chain.readContract({address:deployment.market,abi:cardMarketplaceAbi,functionName:'listings',args:[BigInt(mapping.chainListingId)]});
       if(live[4]!==1||live[2]!==BigInt(quote.amount))throw new AppError('LISTING_UNAVAILABLE','온체인 매물 상태나 가격이 변경됐습니다.',409);
-      const account=wallet(auth.userId); if(!account)throw deny();
+      const account=await wallet(auth.userId); if(!account)throw deny();
       const q:RwaQuote={quoteId:keccak256(toBytes(quote.id)),listingId:mapping.chainListingId,nft:deployment.nft,tokenId:mapping.asset.tokenId,buyer:account.address.toLowerCase() as Hex,recipient:account.address.toLowerCase() as Hex,seller:mapping.sellerWallet as Hex,amount:quote.amount,deadline:String(Math.floor(quote.expiresAt.getTime()/1000)),policyHash:keccak256(toBytes(`${policy.id}:${policy.version}`))};
       const signature=await operator.signTypedData({domain:quoteDomain(deployment.market),types:quoteTypes,primaryType:'Quote',message:quoteMessage(q)});
       const data=encodeFunctionData({abi:cardMarketplaceAbi,functionName:'buyListing',args:[quoteMessage(q),signature]});

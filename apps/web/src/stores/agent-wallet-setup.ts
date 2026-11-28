@@ -20,6 +20,6 @@ export function createAgentWalletSetupStore(storage?: StateStorage) {
   ));
 }
 export const useAgentWalletSetupStore = createAgentWalletSetupStore();
-export function needsAgentWalletSetup(user: { userId: string; agentWalletLinked: boolean } | null | undefined, visitedUsers: readonly string[]) {
-  return !!user && !user.agentWalletLinked && !visitedUsers.includes(user.userId);
+export function needsAgentWalletSetup(user: { userId: string; agentWalletLinked: boolean; agentWalletAddress?: string } | null | undefined, visitedUsers: readonly string[]) {
+  return !!user && (!user.agentWalletLinked || !!user.agentWalletAddress) && !visitedUsers.includes(user.userId);
 }

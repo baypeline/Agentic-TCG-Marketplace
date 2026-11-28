@@ -39,6 +39,7 @@ try {
     '# Optional local demo auth: set distinct DEMO_SELLER_TOKEN and DEMO_BUYER_TOKEN (32+ characters).',
     'DATABASE_ENABLED=false',
     `AGENT_LOCAL_SECRET=${randomBytes(32).toString('base64url')}`,
+    `AGENT_WALLET_ENCRYPTION_KEY=${randomBytes(32).toString('hex')}`,
     `POSTGRES_USER=${user}`,
     `POSTGRES_PASSWORD=${password}`,
     `POSTGRES_DB=${database}`,

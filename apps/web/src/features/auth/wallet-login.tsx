@@ -39,7 +39,7 @@ export function WalletLogin() {
       const showSetup = needsAgentWalletSetup(result.user, setup.visitedUsers);
       if (showSetup) { try { setup.markVisited(result.user!.userId); } catch { /* 저장 실패는 로그인과 설정 안내 진입을 막지 않는다. */ } }
       client.clear(); client.setQueryData(walletQueryKey, result);
-      if (showSetup) router.push('/agent/wallet'); else router.refresh();
+      if (showSetup) router.push('/agent'); else router.refresh();
     } catch (failure) { setError((failure as { code?: number }).code === 4001 ? '로그인 서명을 취소했어요.' : failure instanceof Error && !('details' in failure) ? failure.message : '지갑 연결과 로그인 서명을 확인해 주세요.'); }
     finally { setBusy(false); }
   }

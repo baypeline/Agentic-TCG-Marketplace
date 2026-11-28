@@ -9,6 +9,7 @@
     "postinstall": "pnpm db:generate",
     "env:init": "node scripts/init-env.mjs",
     "agent:wallet:init": "pnpm --filter @tcg/api wallet:init",
+    "agent:wallet:key:init": "node apps/api/scripts/init-wallet-encryption.mjs",
     "facilitator:init": "pnpm --filter @tcg/facilitator wallet:init",
     "maroo:init": "pnpm --filter @tcg/api maroo:init",
     "rwa:build": "pnpm --filter @tcg/solidity build && pnpm --filter @tcg/solidity abi",

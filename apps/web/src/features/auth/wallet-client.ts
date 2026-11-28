@@ -1,11 +1,12 @@
 import { createWalletClient, custom, type EIP1193Provider } from 'viem';
 import { baseSepolia } from 'viem/chains';
 import { marooTestnet } from '@tcg/payment-client/native';
-import { walletChallengeSchema, walletSessionSchema } from '@tcg/contracts';
+import { walletChallengeSchema, walletSessionSchema, agentWalletInfoSchema } from '@tcg/contracts';
 
 export const walletQueryKey = ['wallet-session'] as const;
 async function response(result: Response) { const data = await result.json(); if (!result.ok) throw new Error(data.message ?? '지갑 인증에 실패했습니다.'); return data; }
 export async function getWalletSession() { return walletSessionSchema.parse(await response(await fetch('/api/auth/session', { cache: 'no-store' }))); }
+export async function getAgentWallet() { return agentWalletInfoSchema.parse(await response(await fetch('/api/agent-wallet', { cache: 'no-store' }))); }
 export async function logoutWallet() { await response(await fetch('/api/auth/logout', { method: 'POST' })); }
 export async function loginWallet(provider: EIP1193Provider) {
   const wallet = createWalletClient({ transport: custom(provider) });

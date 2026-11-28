@@ -1,5 +1,7 @@
 # Fastify Core API
 
+`managed-agent-wallet.ts`는 로그인 시 전용 지갑을 자동 발급하고 개인키를 암호화해 저장합니다. `/api/agent/wallet`은 본인 주소와 잔액만 반환하며 결제·NFT는 인증된 사용자 지갑을 선택합니다. [설정과 키 보관](../../docs/managed-agent-wallet.md)을 참고하세요.
+
 `wallet-auth.ts`는 DB에 보존한 SIWE 메시지와 EOA 서명을 검증해 사용자·Agent 세션을 발급합니다. 세션의 SHA-256 해시만 DB에 저장하며 요청마다 만료·폐기를 검사합니다. `AUTH_WEB_ORIGIN` 또는 `http://127.0.0.1:PORT`에 웹 주소를 맞춰 주세요. 기존 구매자 지갑 매핑과 새 사용자 분리는 [지갑 로그인](../../docs/wallet-login.md)을 참고하세요.
 
 로컬 채팅 예산 설정은 `agent-budget.ts`가 기존 PolicyService에 연결합니다. 총예산·건당 한도만 수정하며 기존 소비·예약·허용 카드·유효기간·활성 상태를 보존합니다. 모델은 변경안만 제시하고 웹의 확인 버튼으로 저장합니다. [예산 설정과 검증](../../docs/agent-budget.md)을 참고하세요.

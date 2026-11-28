@@ -10,7 +10,7 @@ import { demoBuyerId, demoBuyerAgentId } from './demo-auth.js';
 const addressSchema = z.string().regex(/^0x[\da-fA-F]{40}$/);
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 const denied = () => new AppError('UNAUTHORIZED', '지갑 로그인 서명 또는 세션을 확인해 주세요.', 401);
-export function createWalletAuth({ prisma, origin, chainId, ownerAddress, allowLocalhostAlias = false, now = () => new Date() }: { prisma: PrismaClient; origin: string; chainId: number; ownerAddress?: string; allowLocalhostAlias?: boolean; now?: () => Date }) {
+export function createWalletAuth({ prisma, origin, chainId, ownerAddress, allowLocalhostAlias = false, now = () => new Date(), provisionAgentWallet }: { prisma: PrismaClient; origin: string; chainId: number; ownerAddress?: string; allowLocalhostAlias?: boolean; now?: () => Date; provisionAgentWallet?: (db: Pick<PrismaClient, 'managedAgentWallet'>, actor: { userId: string; agentId: string }) => Promise<{ address: string }> }) {
   const site = new URL(origin);
   if (site.origin !== origin || !['http:', 'https:'].includes(site.protocol)) throw new Error('AUTH_WEB_ORIGIN에는 경로 없는 웹 Origin이 필요합니다.');
   const linked = (address: string) => !!ownerAddress && address.toLowerCase() === ownerAddress.toLowerCase();
@@ -19,7 +19,10 @@ export function createWalletAuth({ prisma, origin, chainId, ownerAddress, allowL
     const row = await prisma.walletSession.findUnique({ where: { tokenHash: hash(token) } });
     return row && !row.revokedAt && row.expiresAt > now() && (row.userId !== demoBuyerId || linked(row.address)) ? row : null;
   }
-  const user = (row: NonNullable<Awaited<ReturnType<typeof session>>>) => ({ userId: row.userId, agentId: row.agentId, address: getAddress(row.address), expiresAt: row.expiresAt.toISOString(), agentWalletLinked: row.userId === demoBuyerId && linked(row.address) });
+  const user = async (row: NonNullable<Awaited<ReturnType<typeof session>>>) => {
+    const wallet = await provisionAgentWallet?.(prisma, row);
+    return { userId: row.userId, agentId: row.agentId, address: getAddress(row.address), expiresAt: row.expiresAt.toISOString(), agentWalletLinked: !!wallet || row.userId === demoBuyerId && linked(row.address), ...(wallet ? { agentWalletAddress: getAddress(wallet.address) } : {}) };
+  };
   return {
     async resolveAuth(authorization?: string): Promise<AuthContext | null> {
       if (!authorization?.startsWith('Bearer wallet_')) return null;
@@ -59,14 +62,15 @@ export function createWalletAuth({ prisma, origin, chainId, ownerAddress, allowL
           const consumed = await tx.walletChallenge.updateMany({ where: { id: challenge.id, consumedAt: null, expiresAt: { gt: time } }, data: { consumedAt: time } });
           if (consumed.count !== 1) throw denied();
           const identity = await tx.walletIdentity.upsert({ where: { address: challenge.address }, update: { lastLoginAt: time }, create: { address: challenge.address, userId: linked(challenge.address) ? demoBuyerId : randomUUID(), agentId: linked(challenge.address) ? demoBuyerAgentId : randomUUID(), lastLoginAt: time } });
+          await provisionAgentWallet?.(tx, identity);
           return tx.walletSession.create({ data: { tokenHash: hash(token), userId: identity.userId, agentId: identity.agentId, address: identity.address, expiresAt: new Date(time.getTime() + 8 * 60 * 60_000) } });
         });
-        return { token, user: user(row) };
+        return { token, user: await user(row) };
       });
       app.get('/api/auth/session', async request => {
         const row = await session(request.headers.authorization?.replace(/^Bearer /, ''));
         if (!row) throw denied();
-        return { user: user(row) };
+        return { user: await user(row) };
       });
       app.post('/api/auth/logout', async request => {
         requireOrigin(request.headers.origin);

@@ -9,6 +9,7 @@ import { AppError, agentPaymentRequirementsSchema, idSchema, type AgentPurchaseP
 import type { ApiEnv } from '@tcg/config';
 
 export type AgentPaymentSigner = (input: {
+  auth?: { userId: string; agentId: string };
   requirements: NonNullable<AgentPurchaseProgress['requirements']>;
   amount: string;
   matchQuoteId: string;
