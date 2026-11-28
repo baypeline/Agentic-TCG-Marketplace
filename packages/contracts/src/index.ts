@@ -207,6 +207,7 @@ export type PurchaseCondition = z.infer<typeof purchaseConditionSchema>;
 export const policyInputSchema = spendingPolicySchema.omit({ id: true, version: true, agentId: true });
 export const policyUpdateSchema = policyInputSchema.extend({ expectedVersion: z.number().int().positive() });
 export const budgetSchema = z.object({ policyId: idSchema, totalBudget: amountSchema, spentAmount: amountSchema, reservedAmount: amountSchema, availableAmount: amountSchema });
+export const agentBudgetStateSchema = z.object({ policy: spendingPolicySchema, budget: budgetSchema, currency: currencySchema, signerMaxPerTrade: amountSchema });
 export const agentBudgetPatchSchema = z.object({ currency: currencySchema, totalBudget: z.string().regex(/^\d+(\.\d+)?$/).max(60).nullable(), maxPerTrade: z.string().regex(/^\d+(\.\d+)?$/).max(60).nullable() }).strict().refine(value => value.totalBudget !== null || value.maxPerTrade !== null);
 export type AgentBudgetPatch = z.infer<typeof agentBudgetPatchSchema>;
 export const agentBudgetProposalSchema = z.object({ id: idSchema, policyId: idSchema, expectedVersion: z.number().int().positive(), currency: currencySchema, previousTotalBudget: amountSchema, previousMaxPerTrade: amountSchema, totalBudget: amountSchema, maxPerTrade: amountSchema, spentAmount: amountSchema, reservedAmount: amountSchema, availableAmount: amountSchema, signerMaxPerTrade: amountSchema, expiresAt: timestampSchema });

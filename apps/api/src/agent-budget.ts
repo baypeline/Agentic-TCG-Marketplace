@@ -6,6 +6,20 @@ import type { PolicyService } from '@tcg/payment-server';
 import type { AgentSessionPluginOptions } from '@tcg/agent';
 import { ensureDemoPurchasePolicy } from './demo-purchase.js';
 import { demoBuyerId, demoBuyerAgentId } from './demo-auth.js';
+import type { FastifyPluginAsync } from 'fastify';
+import { requireAuth } from './app.js';
+import { agentBudgetStateSchema } from '@tcg/contracts';
+
+export function createAgentBudgetStatePlugin(env: ApiEnv, policies: PolicyService): FastifyPluginAsync {
+  return async app => { app.get('/api/agent/budget', async (request, reply) => {
+    const auth = requireAuth(request);
+    if (!auth.walletAddress || !auth.agentId) throw new AppError('UNAUTHORIZED', '지갑 로그인이 필요합니다.', 401);
+    const actor = { userId: auth.userId, agentId: auth.agentId };
+    const initial = await ensureDemoPurchasePolicy(env, policies, true, actor);
+    const policy = await policies.get(actor, initial.id);
+    return reply.header('Cache-Control', 'private, no-store').send(agentBudgetStateSchema.parse({ policy, budget: await policies.budget(actor, policy.id), currency: getPaymentProfile(env.PAYMENT_CHAIN).currency, signerMaxPerTrade: getPaymentProfile(env.PAYMENT_CHAIN).maxPerTrade }));
+  }); };
+}
 
 export function createAgentBudgetHandler(env: ApiEnv, policies: PolicyService, now = () => new Date()): NonNullable<AgentSessionPluginOptions['budget']> {
   const profile = getPaymentProfile(env.PAYMENT_CHAIN);

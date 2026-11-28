@@ -11,6 +11,7 @@ import { createTradingClient } from '../../lib/trading-client';
 import { parseUsdcInput, usdcDecimal } from './demo-model';
 import { LiveTradingStatus } from './live-status';
 import { LiveCollection } from './live-collection';
+import { AgentBudgetSettings } from './agent-budget-settings';
 import { AgentWalletStatus } from '../auth/agent-wallet-status';
 import { Actions, EmptyRows, ErrorText, Field, FormGrid, QuietButton, RecordTable, ResultNote, Section, StateBadge } from './trading-ui';
 
@@ -27,6 +28,10 @@ async function read(path: string): Promise<unknown> {
   return data;
 }
 export function LiveTradingWorkspace({ mode, mine = false }: { mode: Mode; mine?: boolean }) {
+  if (mode === 'agent') return <AgentBudgetSettings advanced={<AdvancedTradingWorkspace mode="agent" />} />;
+  return <AdvancedTradingWorkspace mode={mode} mine={mine} />;
+}
+function AdvancedTradingWorkspace({ mode, mine = false }: { mode: Mode; mine?: boolean }) {
   const [data, setData] = useState<Data | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('');
   const client = useRef<ReturnType<typeof createTradingClient> | null>(null);
   const inflight = useRef(false), mounted = useRef(true);
@@ -69,7 +74,7 @@ export function LiveTradingWorkspace({ mode, mine = false }: { mode: Mode; mine?
   const cardName = (id: string) => { const card = data?.cards.find(card => card.id === id); return card ? getCardDisplayName(card) : '카드 상세에서 확인'; };
   return <div>
     <WorkspaceHeading><div><h1>{titles[mode]}</h1><p>{descriptions[mode]}</p></div><QuietButton disabled={busy} onClick={() => void run(load, true)}>새로고침</QuietButton></WorkspaceHeading>
-    {mode === 'agent' && <AgentWalletStatus />}
+    
     {error && <ErrorText role="alert">{error}</ErrorText>}{notice && <ResultNote role="status">{notice}</ResultNote>}
     {busy && <ResultNote role="status">서버 응답을 확인하고 있어요.</ResultNote>}
     {unresolved && <Section><h2>이전 요청 확인 필요</h2><ResultNote>응답을 받지 못한 요청이 있습니다. 새 작업 전에 같은 요청 키로 결과를 확인해 주세요. 새 결제나 서명을 만들지 않습니다.</ResultNote><QuietButton disabled={busy} onClick={() => void run(() => client.current!.retry())}>같은 요청 다시 확인</QuietButton></Section>}
@@ -103,11 +108,11 @@ function MarketQuote({ currency, cards, mutate }: { currency: Currency; cards: C
   return <Section><h2>시장가 예약</h2><Field id="market-card" label="카드"><select id="market-card" value={id} onChange={e => setId(e.target.value)}>{cards.map(card => <option key={card.id} value={card.id}>{getCardDisplayName(card)}</option>)}</select></Field>{id && <AmountForm currency={currency} id="market" label={`최대 구매 가격 (${currency})`} button="최적 매물 탐색·예약" submit={maxPrice => mutate('POST','purchases/market/quote',{ cardVariantId: id, maxPrice })} />}</Section>;
 }
 function PolicyAndRuns({ currency, data, mutate }: { currency: Currency; data: Data; mutate: Mutate }) {
-  const [selected, setSelected] = useState('');
+  const [selected, setSelected] = useState(data.policies[0]?.id ?? '');
   const policy = data.policies.find(policy => policy.id === selected);
   return <>
     <Section><h2>구매 승인 정책</h2><Field id="select-policy" label="편집할 정책"><select id="select-policy" value={selected} onChange={e => setSelected(e.target.value)}><option value="">새 정책 만들기</option>{data.policies.map(policy => <option key={policy.id} value={policy.id}>정책 #{policy.id.slice(-6)} · v{policy.version}</option>)}</select></Field><PolicyEditor currency={currency} key={`${policy?.id}:${policy?.version}`} policy={policy} cards={data.cards} mutate={mutate} /></Section>
-    <Section><h2>수동 거래 허용</h2><ResultNote>선택한 정책으로 주문 재개·카드 예약을 허용합니다. LLM은 실행하지 않으며 자동 구매·서명·지급은 발생하지 않습니다. 중단해도 기존 미제출 예약은 원래 만료 시간까지 유지됩니다.</ResultNote>{data.policies.filter(policy => policy.enabled).map(policy => <QuietButton key={policy.id} disabled={data.runs.some(run => run.status === 'RUNNING')} onClick={() => void mutate('POST','sessions',{ policyId: policy.id, instruction: '사용자 수동 거래 검증' })}>정책 #{policy.id.slice(-6)}로 거래 허용</QuietButton>)}{data.runs.filter(run => run.status === 'RUNNING').map(run => <Actions key={run.id}><span>서버 실행 #{run.id.slice(-6)}</span><QuietButton onClick={() => void mutate('POST',`sessions/${run.id}/stop`)}>거래 실행 중단</QuietButton></Actions>)}</Section>
+    <details><summary>수동 주문 실행 관리</summary><Section><h2>수동 거래 허용</h2><ResultNote>선택한 정책으로 주문 재개·카드 예약을 허용합니다. LLM은 실행하지 않으며 자동 구매·서명·지급은 발생하지 않습니다. 중단해도 기존 미제출 예약은 원래 만료 시간까지 유지됩니다.</ResultNote>{data.policies.filter(policy => policy.enabled).map(policy => <QuietButton key={policy.id} disabled={data.runs.some(run => run.status === 'RUNNING')} onClick={() => void mutate('POST','sessions',{ policyId: policy.id, instruction: '사용자 수동 거래 검증' })}>정책 #{policy.id.slice(-6)}로 거래 허용</QuietButton>)}{data.runs.filter(run => run.status === 'RUNNING').map(run => <Actions key={run.id}><span>서버 실행 #{run.id.slice(-6)}</span><QuietButton onClick={() => void mutate('POST',`sessions/${run.id}/stop`)}>거래 실행 중단</QuietButton></Actions>)}</Section></details>
   </>;
 }
 function PolicyEditor({ currency, policy, cards, mutate }: { currency: Currency; policy?: SpendingPolicy; cards: CardVariant[]; mutate: Mutate }) {
@@ -119,8 +124,8 @@ function PolicyEditor({ currency, policy, cards, mutate }: { currency: Currency;
     setError(''); const input = { enabled, totalBudget, maxPerTrade, validUntil: policy && policy.validUntil.slice(0,10) === until ? policy.validUntil : `${until}T23:59:59.000Z`, ...(discount === '' ? {} : { minDiscountPercent: Number(discount) }), ...(allowed.length ? { allowedCardVariantIds: allowed } : {}) };
     void mutate(policy ? 'PUT' : 'POST', policy ? `policies/${policy.id}` : 'policies', { ...input, ...(policy ? { expectedVersion: policy.version } : {}) });
   }
-  return <form onSubmit={save}><FormGrid><Field id="live-budget" label={`총예산 (${currency})`}><input id="live-budget" required inputMode="decimal" value={total} onChange={e => setTotal(e.target.value)} /></Field><Field id="live-per" label={`건당 한도 (${currency})`}><input id="live-per" required inputMode="decimal" value={per} onChange={e => setPer(e.target.value)} /></Field><Field id="live-discount" label="최소 할인율 (%)" hint="비워두면 가격 상한만 검사합니다. 입력하면 유효한 실제 적정가가 필요합니다."><input id="live-discount" inputMode="decimal" value={discount} onChange={e => setDiscount(e.target.value)} /></Field><Field id="live-until" label="정책 유효 날짜 (UTC)"><input id="live-until" required type="date" value={until} onChange={e => setUntil(e.target.value)} /></Field></FormGrid>
-    <Section><h3>허용 카드</h3><ResultNote>선택하지 않으면 카드 제한을 두지 않습니다. 기존에 허용한 카드는 현재 매물에 없어도 유지됩니다.</ResultNote>{cards.map(card => <label key={card.id} style={{ display: 'block', minHeight: 44 }}><input type="checkbox" checked={allowed.includes(card.id)} onChange={e => setAllowed(e.target.checked ? [...allowed,card.id] : allowed.filter(id => id !== card.id))} /> {getCardDisplayName(card)}</label>)}<label style={{ display: 'block', minHeight: 44 }}><input type="checkbox" checked={enabled} onChange={e => setEnabled(e.target.checked)} /> 이 정책으로 거래 허용</label></Section>{error && <ErrorText role="alert">{error}</ErrorText>}<Button type="submit">{policy ? '정책 수정 저장' : '새 정책 저장'}</Button>
+  return <form onSubmit={save}><FormGrid><Field id="live-budget" label={`총예산 (${currency})`}><input id="live-budget" required inputMode="decimal" value={total} onChange={e => setTotal(e.target.value)} /></Field><Field id="live-per" label={`건당 한도 (${currency})`}><input id="live-per" required inputMode="decimal" value={per} onChange={e => setPer(e.target.value)} /></Field></FormGrid><details><summary style={{ minHeight: 48, paddingBlock: 14, cursor: 'pointer' }}>할인 조건·유효기간·허용 카드</summary><FormGrid><Field id="live-discount" label="최소 할인율 (%)" hint="비워두면 가격 상한만 검사합니다. 입력하면 유효한 실제 적정가가 필요합니다."><input id="live-discount" inputMode="decimal" value={discount} onChange={e => setDiscount(e.target.value)} /></Field><Field id="live-until" label="정책 유효 날짜 (UTC)"><input id="live-until" required type="date" value={until} onChange={e => setUntil(e.target.value)} /></Field></FormGrid>
+    <Section><h3>허용 카드</h3><ResultNote>선택하지 않으면 카드 제한을 두지 않습니다. 기존에 허용한 카드는 현재 매물에 없어도 유지됩니다.</ResultNote>{cards.map(card => <label key={card.id} style={{ display: 'block', minHeight: 44 }}><input type="checkbox" checked={allowed.includes(card.id)} onChange={e => setAllowed(e.target.checked ? [...allowed,card.id] : allowed.filter(id => id !== card.id))} /> {getCardDisplayName(card)}</label>)}<label style={{ display: 'block', minHeight: 44 }}><input type="checkbox" checked={enabled} onChange={e => setEnabled(e.target.checked)} /> 이 정책으로 거래 허용</label></Section></details>{error && <ErrorText role="alert">{error}</ErrorText>}<Button type="submit">{policy ? '정책 수정 저장' : '새 정책 저장'}</Button>
   </form>;
 }
 

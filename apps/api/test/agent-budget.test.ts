@@ -3,7 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { parseApiEnv } from '@tcg/config';
 import { createMockTradingStore } from '@tcg/trading';
 import { createPolicyService } from '@tcg/payment-server';
-import { createAgentBudgetHandler } from '../src/agent-budget.js';
+import { createAgentBudgetHandler, createAgentBudgetStatePlugin } from '../src/agent-budget.js';
+import Fastify from 'fastify';
 import { demoBuyerId, demoBuyerAgentId } from '../src/demo-auth.js';
 
 async function fixture() {
@@ -13,7 +14,7 @@ async function fixture() {
   const handler = createAgentBudgetHandler(env, policies, () => time);
   const buyer = { userId: demoBuyerId, agentId: demoBuyerAgentId };
   const proposal = await handler.propose({ currency: 'tOKRW', totalBudget: '120', maxPerTrade: '10' });
-  return { handler, policies, store, buyer, proposal, expire: () => { time = new Date('2026-11-28T00:06:00Z'); } };
+  return { env, handler, policies, store, buyer, proposal, expire: () => { time = new Date('2026-11-28T00:06:00Z'); } };
 }
 it('확인 전에는 요청 예산을 저장하지 않고 확인 후 기존 소비·예약과 다른 정책 필드를 유지한다', async () => {
   const f = await fixture();
@@ -24,6 +25,24 @@ it('확인 전에는 요청 예산을 저장하지 않고 확인 후 기존 소�
   expect(result.policy).toMatchObject({ totalBudget: '120000000000000000000', maxPerTrade: '10000000000000000000', enabled: before.enabled, allowedCardVariantIds: before.allowedCardVariantIds, validUntil: before.validUntil });
   expect(result.budget).toMatchObject({ spentAmount: '10000000000000000000', reservedAmount: '5000000000000000000', availableAmount: '105000000000000000000' });
   expect((await f.handler.confirm(f.proposal)).policy?.version).toBe(result.policy?.version);
+});
+
+it('현재 예산 조회는 채팅과 같은 정책을 사용하고 로그인 사용자별로 분리한다', async () => {
+  const f = await fixture();
+  const alice = { userId: randomUUID(), agentId: randomUUID(), walletAddress: `0x${'8'.repeat(40)}` };
+  const bob = { userId: randomUUID(), agentId: randomUUID(), walletAddress: `0x${'9'.repeat(40)}` };
+  const proposal = await f.handler.propose({ currency: 'tOKRW', totalBudget: '80', maxPerTrade: '20' }, alice);
+  await f.handler.confirm(proposal, alice);
+  const app = Fastify(); app.decorateRequest('auth', null);
+  app.addHook('onRequest', async request => { request.auth = request.headers.authorization === 'alice' ? alice : request.headers.authorization === 'bob' ? bob : null; });
+  try {
+    await app.register(createAgentBudgetStatePlugin(f.env, f.policies));
+    const a = await app.inject({ url: '/api/agent/budget', headers: { authorization: 'alice' } });
+    expect(a.json()).toMatchObject({ policy: { id: proposal.policyId, totalBudget: '80000000000000000000', maxPerTrade: '20000000000000000000' }, budget: { availableAmount: '80000000000000000000' }, currency: 'tOKRW' });
+    const b = await app.inject({ url: '/api/agent/budget', headers: { authorization: 'bob' } });
+    expect(b.json().policy.id).not.toBe(proposal.policyId);
+    expect((await app.inject('/api/agent/budget')).statusCode).toBe(401);
+  } finally { await app.close(); }
 });
 it('총예산만 변경해도 건당 한도를 임의로 바꾸지 않으며 통화·정밀도·서명 상한을 검증한다', async () => {
   const f = await fixture();

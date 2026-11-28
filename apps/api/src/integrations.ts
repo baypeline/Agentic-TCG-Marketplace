@@ -9,7 +9,7 @@ import { AppError } from '@tcg/contracts';
 import { createMcpPlugin } from '@tcg/mcp-server';
 import { createServerRunPlugin, type AgentSessionPluginOptions } from '@tcg/agent';
 import { createDemoPurchaseHandler } from './demo-purchase.js';
-import { createAgentBudgetHandler } from './agent-budget.js';
+import { createAgentBudgetHandler, createAgentBudgetStatePlugin } from './agent-budget.js';
 import type { AgentPaymentSigner } from './agent-wallet.js';
 import { createCommercePlugin, createPaymentEvidenceReader, createPaymentService, createPolicyService, getPolicyExecutionContext } from '@tcg/payment-server';
 import { createMockTradingStore, createPrismaTradingStore, createTradingPlugin, createTradingService, demoSellerId, type TradingService } from '@tcg/trading';
@@ -38,6 +38,7 @@ export async function createIntegrationPlugins({ env, prisma, aggregatorService,
     if (rwa) { await rwa.sync(); await app.register(createRwaPlugin(rwa)); }
     if (env.DEMO_SCENARIOS_ENABLED) {
       options.onAgentBudgetReady?.(createAgentBudgetHandler(env, policies));
+      await app.register(createAgentBudgetStatePlugin(env, policies));
       const handler=createDemoPurchaseHandler({ env, trading, policies, includeKorean:true,resolveAgentWallet:options.resolveAgentWallet,signAgentPayment: options.signAgentPayment, resolvePaymentRecipient: async listingId => prisma && await prisma.rwaListing.findUnique({where:{id:listingId}}) ? deployment?.market ?? '' : env.PAYMENT_RECIPIENT!, getMcpUrl: () => {
       const address = app.server.address();
       if (!address || typeof address === 'string') throw new AppError('PAYMENT_UNAVAILABLE', 'MCP 서버가 수신 중이 아닙니다.', 503);
