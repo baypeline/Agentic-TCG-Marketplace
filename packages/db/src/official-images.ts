@@ -11,7 +11,7 @@ export const officialImageEntrySchema=z.object({cardVariantId:z.uuid(),provider:
  if(image.origin!=='https://pokemoncard.co.kr'||!image.pathname.startsWith('/public-assets/home/data/cards.image_www/data/wmimages/')||!image.pathname.endsWith(suffix)||image.username||image.password||image.hash||image.searchParams.get('w')!=='512'||params.some(k=>!['w','v'].includes(k))||new Set(params).size!==params.length||(image.searchParams.has('v')&&!/^\d+$/.test(image.searchParams.get('v')!)))ctx.addIssue({code:'custom',message:'공식 이미지의 세트·카드 번호가 일치하지 않습니다.'});
  if(value.printedNumber.split('/')[0]!==value.cardNumber)ctx.addIssue({code:'custom',message:'인쇄 번호가 일치하지 않습니다.'});
 });
-export const officialImagesSchema=z.object({version:z.literal(1),entries:z.array(officialImageEntrySchema).min(1).max(15)}).strict().superRefine((value,ctx)=>{
+export const officialImagesSchema=z.object({version:z.literal(1),entries:z.array(officialImageEntrySchema).min(1).max(30)}).strict().superRefine((value,ctx)=>{
  if(new Set(value.entries.map(e=>e.cardVariantId)).size!==value.entries.length||new Set(value.entries.map(e=>e.officialCardId)).size!==value.entries.length)ctx.addIssue({code:'custom',message:'공식 이미지 식별자가 중복됩니다.'});
 });
 export type OfficialImageEntry=z.infer<typeof officialImageEntrySchema>;

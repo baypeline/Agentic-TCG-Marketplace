@@ -1,21 +1,15 @@
 import 'server-only';
 import { searchCards, getMarketPrices } from './api';
-import { sameNameCards, type DiscoveryData } from '../lib/discovery';
+import type { DiscoveryData } from '../lib/discovery';
 
 export async function getDiscovery(): Promise<DiscoveryData> {
-  const names = ['Pikachu', 'Eevee', 'Vaporeon', 'Jolteon', 'Flareon'];
-  const queries = ['피카츄','이브이','샤미드','쥬피썬더','부스터'];
-  const results = await Promise.allSettled(queries.map(searchCards));
-  const lead = results[0]!;
-  const cards = lead.status === 'fulfilled' ? sameNameCards(lead.value.items, 'Pikachu').slice(0, 2) : [];
-  const spotlight = await Promise.all(cards.map(async card => {
+  let cards;
+  try { cards = (await searchCards('')).items; }
+  catch { return { spotlight: [], family: [], spotlightFailed: true, familyFailed: true }; }
+  const unique = cards.filter((card, index) => cards.findIndex(item => item.id === card.id) === index);
+  const spotlight = await Promise.all(unique.slice(0, 2).map(async card => {
     try { return { card, prices: await getMarketPrices(card.id), pricesFailed: false }; }
     catch { return { card, prices: null, pricesFailed: true }; }
   }));
-  const family = results.slice(1).flatMap((result, index) => {
-    if (result.status === 'rejected') return [];
-    const card = sameNameCards(result.value.items, names[index + 1]!)[0];
-    return card ? [card] : [];
-  });
-  return { spotlight, family, spotlightFailed: lead.status === 'rejected', familyFailed: results.slice(1).some(result => result.status === 'rejected') };
+  return { spotlight, family: unique.slice(2, 6), spotlightFailed: false, familyFailed: false };
 }

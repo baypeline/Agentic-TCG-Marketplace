@@ -5,6 +5,7 @@ export { PrismaClient };
 export { seedDemoCatalog } from './seed.js';
 export { readDemoScenarios, seedDemoScenarios, demoRowId } from './demo-scenarios.js';
 export type { DemoScenarioPack } from './demo-scenarios.js';
+export { getDemoShowcase } from './demo-scenarios.js';
 export { readCatalogFixtures, seedCollectedCatalog, validateCatalogFixtures } from './catalog-fixtures.js';
 export type { CatalogFixtures } from './catalog-fixtures.js';
 export function createPrismaClient(databaseUrl: string): PrismaClient {

@@ -5,7 +5,7 @@ import Fastify, { type FastifyPluginAsync, type FastifyRequest } from 'fastify';
 import { ZodError } from 'zod';
 import { AppError, type AggregatorService, type AuthContext, type ValuationService, type TradingExecutionContextReader } from '@tcg/contracts';
 import { parseApiEnv, type ApiEnv } from '@tcg/config';
-import { createPrismaClient, readDemoScenarios, ensureMonetaryContext, type PrismaClient } from '@tcg/db';
+import { createPrismaClient, readDemoScenarios, getDemoShowcase, ensureMonetaryContext, type PrismaClient } from '@tcg/db';
 import { createAggregatorPlugin, createAggregatorService, createMockCardAdapter, createPrismaCardAdapter } from '@tcg/aggregator';
 import { createMarketPriceServices, createMockPriceAdapter, createPrismaMockPriceAdapter, createValuationPlugin, createValuationService } from '@tcg/valuation';
 
@@ -55,7 +55,8 @@ export async function buildApp(options: AppOptions = {}) {
     if (prisma) { await prisma.$connect(); await ensureMonetaryContext(prisma, env.PAYMENT_CHAIN); }
     const useDatabase = env.CARD_DATA_SOURCE === 'database';
     const demoScenarios = env.DEMO_SCENARIOS_ENABLED ? await readDemoScenarios(env.PAYMENT_CHAIN,true) : null;
-    const aggregatorService = createAggregatorService({ adapter: useDatabase ? createPrismaCardAdapter(prisma!, { includeOfficialReferences:true, cardIds: demoScenarios?.scenarios.map(card => card.cardId), ...(env.CATALOG_MODE === 'curated' ? {curation:{priceSource:demoScenarios ? 'mock' : env.PRICE_DATA_SOURCE,maxCards:env.CATALOG_MAX_CARDS}} : {}) }) : createMockCardAdapter() });
+    const showcase = demoScenarios ? getDemoShowcase(demoScenarios) : [];
+    const aggregatorService = createAggregatorService({ adapter: useDatabase ? createPrismaCardAdapter(prisma!, { includeOfficialReferences:true, cardIds: demoScenarios?.scenarios.map(card => card.cardId), ...(env.CATALOG_MODE === 'curated' ? {curation:{priceSource:demoScenarios ? 'mock' : env.PRICE_DATA_SOURCE,maxCards:env.CATALOG_MAX_CARDS,preferredCardIds:showcase.map(card => card.cardId)}} : {}) }) : createMockCardAdapter() });
     const market = useDatabase ? createMarketPriceServices({ prisma: prisma! }) : null;
     const marketAdapter = env.MARKET_VALUATION_MODE === 'demo' ? market?.demoAdapter : market?.adapter;
     const priceDataSource = demoScenarios ? 'mock' : env.PRICE_DATA_SOURCE;
@@ -66,7 +67,7 @@ export async function buildApp(options: AppOptions = {}) {
     } };
     const plugins = await options.createIntegrationPlugins?.({ env, prisma, aggregatorService, valuationService, tradingExecutionContext: options.tradingExecutionContext, paymentOptions: options.paymentOptions, executeAgentRun: options.executeAgentRun }) ?? [];
     app.get('/health', async () => ({ status: 'ok', dataMode: env.DATA_MODE, cardDataSource: env.CARD_DATA_SOURCE, priceDataSource, scenarioDemo: !!demoScenarios, paymentEnabled: env.PAYMENT_ENABLED, marketValuationMode: env.MARKET_VALUATION_MODE, tradingDataSource: env.TRADING_DATA_SOURCE, database: prisma ? 'connected' : 'disabled' }));
-    app.get('/api/demo', async () => ({ ...(env.RWA_ENABLED ? {rwaEnabled:true} : {}), enabled: !!demoScenarios, paymentEnabled: env.PAYMENT_ENABLED, signingMode: env.AGENT_SIGNING_MODE, paymentChain: env.PAYMENT_CHAIN, currency: profile.currency, decimals: profile.decimals, suggestions: demoScenarios?.scenarios.filter(s=>['koreangengar','koreantorterra','koreanfluttermane'].includes(s.id)).map(item=>item.suggestion) ?? [], payer: demoScenarios ? env.AGENT_WALLET_ADDRESS ?? null : null, recipient: demoScenarios ? env.PAYMENT_RECIPIENT ?? null : null }));
+    app.get('/api/demo', async () => ({ ...(env.RWA_ENABLED ? {rwaEnabled:true} : {}), enabled: !!demoScenarios, paymentEnabled: env.PAYMENT_ENABLED, signingMode: env.AGENT_SIGNING_MODE, paymentChain: env.PAYMENT_CHAIN, currency: profile.currency, decimals: profile.decimals, suggestions: showcase.filter(s=>['koreanminccino','koreanshaymin','koreansnom'].includes(s.id)).map(item=>item.suggestion), payer: demoScenarios ? env.AGENT_WALLET_ADDRESS ?? null : null, recipient: demoScenarios ? env.PAYMENT_RECIPIENT ?? null : null }));
     await app.register(createAggregatorPlugin({ aggregatorService }), { prefix: '/api' });
     await app.register(createValuationPlugin({ valuationService, marketPriceService }), { prefix: '/api' });
     for (const plugin of plugins) await app.register(plugin);

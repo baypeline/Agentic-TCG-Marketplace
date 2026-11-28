@@ -82,5 +82,61 @@
     "setCode": "SV5K",
     "cardNumber": "088",
     "officialCardId": "BS2024004088"
+  },
+  {
+    "cardVariantId": "d195b2e5-6fdd-487d-a0e8-9bb82267ef30",
+    "name": "치라미",
+    "setCode": "SV5K",
+    "cardNumber": "082",
+    "officialCardId": "BS2024004082"
+  },
+  {
+    "cardVariantId": "435c2325-62bb-4035-b290-eb9f5f09c2e8",
+    "name": "치라치노",
+    "setCode": "SV5K",
+    "cardNumber": "083",
+    "officialCardId": "BS2024004083"
+  },
+  {
+    "cardVariantId": "bdd7db60-ef67-4b23-9de6-a62bda876582",
+    "name": "쉐이미",
+    "setCode": "SV5K",
+    "cardNumber": "006",
+    "officialCardId": "BS2024004006"
+  },
+  {
+    "cardVariantId": "df5a7de3-26f8-45b5-9db5-5ed99bc5df0f",
+    "name": "누니머기",
+    "setCode": "SV5K",
+    "cardNumber": "019",
+    "officialCardId": "BS2024004019"
+  },
+  {
+    "cardVariantId": "e7cde7db-120d-4c19-b901-ca32e21c34b0",
+    "name": "소미안",
+    "setCode": "SV5K",
+    "cardNumber": "007",
+    "officialCardId": "BS2024004007"
+  },
+  {
+    "cardVariantId": "db28a56a-1a77-4554-b25a-5c8d739e32b2",
+    "name": "리아코",
+    "setCode": "SV5K",
+    "cardNumber": "013",
+    "officialCardId": "BS2024004013"
+  },
+  {
+    "cardVariantId": "199fbdfa-38df-4f64-ac89-4ae3c6e61ec6",
+    "name": "란쿨루스",
+    "setCode": "SV5K",
+    "cardNumber": "075",
+    "officialCardId": "BS2024004075"
+  },
+  {
+    "cardVariantId": "db196b41-351c-4d7a-93d2-f1383d29ca58",
+    "name": "페라페",
+    "setCode": "SV5K",
+    "cardNumber": "081",
+    "officialCardId": "BS2024004081"
   }
 ]

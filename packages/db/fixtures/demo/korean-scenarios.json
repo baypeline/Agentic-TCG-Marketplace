@@ -16,7 +16,8 @@
         "3000",
         "4000"
       ],
-      "suggestion": "로젤리아 적정가와 구매 가능한 매물을 알려줘"
+      "suggestion": "로젤리아 적정가와 구매 가능한 매물을 알려줘",
+      "featuredRank": 8
     },
     {
       "id": "koreanroserade",
@@ -46,7 +47,8 @@
         "3000",
         "4000"
       ],
-      "suggestion": "모부기 적정가와 구매 가능한 매물을 알려줘"
+      "suggestion": "모부기 적정가와 구매 가능한 매물을 알려줘",
+      "featuredRank": 4
     },
     {
       "id": "koreangrotle",
@@ -91,7 +93,8 @@
         "5000",
         "6000"
       ],
-      "suggestion": "엘풍 적정가와 구매 가능한 매물을 알려줘"
+      "suggestion": "엘풍 적정가와 구매 가능한 매물을 알려줘",
+      "featuredRank": 6
     },
     {
       "id": "koreangougingfire",
@@ -136,7 +139,8 @@
         "6000",
         "7000"
       ],
-      "suggestion": "케르디오 적정가와 구매 가능한 매물을 알려줘"
+      "suggestion": "케르디오 적정가와 구매 가능한 매물을 알려줘",
+      "featuredRank": 11
     },
     {
       "id": "koreanfluttermane",
@@ -182,6 +186,134 @@
         "11000"
       ],
       "suggestion": "팬텀 ex 적정가와 구매 가능한 매물을 알려줘"
+    },
+    {
+      "id": "koreanminccino",
+      "cardId": "b8767bfc-6a41-4150-8b5c-eabe9dddb885",
+      "sourceCardId": "d195b2e5-6fdd-487d-a0e8-9bb82267ef30",
+      "koreanName": "치라미",
+      "speciesId": 572,
+      "edition": "NORMAL",
+      "condition": "NM",
+      "referencePrice": "7000",
+      "listingPrices": [
+        "5000",
+        "6000"
+      ],
+      "suggestion": "치라미 적정가와 구매 가능한 매물을 알려줘",
+      "featuredRank": 0
+    },
+    {
+      "id": "koreancinccino",
+      "cardId": "f59b788d-87b1-448f-8261-d30545d0a3b1",
+      "sourceCardId": "435c2325-62bb-4035-b290-eb9f5f09c2e8",
+      "koreanName": "치라치노",
+      "speciesId": 573,
+      "edition": "NORMAL",
+      "condition": "NM",
+      "referencePrice": "9000",
+      "listingPrices": [
+        "6000",
+        "7000"
+      ],
+      "suggestion": "치라치노 적정가와 구매 가능한 매물을 알려줘",
+      "featuredRank": 1
+    },
+    {
+      "id": "koreanshaymin",
+      "cardId": "4645d098-91f2-4fc1-8002-9b368bb0bc2c",
+      "sourceCardId": "bdd7db60-ef67-4b23-9de6-a62bda876582",
+      "koreanName": "쉐이미",
+      "speciesId": 492,
+      "edition": "NORMAL",
+      "condition": "NM",
+      "referencePrice": "10000",
+      "listingPrices": [
+        "7000",
+        "8000"
+      ],
+      "suggestion": "쉐이미 적정가와 구매 가능한 매물을 알려줘",
+      "featuredRank": 2
+    },
+    {
+      "id": "koreansnom",
+      "cardId": "51708328-6c1a-4ca0-84a2-56f244282a27",
+      "sourceCardId": "df5a7de3-26f8-45b5-9db5-5ed99bc5df0f",
+      "koreanName": "누니머기",
+      "speciesId": 872,
+      "edition": "NORMAL",
+      "condition": "NM",
+      "referencePrice": "5000",
+      "listingPrices": [
+        "3000",
+        "4000"
+      ],
+      "suggestion": "누니머기 적정가와 구매 가능한 매물을 알려줘",
+      "featuredRank": 3
+    },
+    {
+      "id": "koreancottonee",
+      "cardId": "25594269-6589-4cce-8e4b-b93cbadcfbcd",
+      "sourceCardId": "e7cde7db-120d-4c19-b901-ca32e21c34b0",
+      "koreanName": "소미안",
+      "speciesId": 546,
+      "edition": "NORMAL",
+      "condition": "NM",
+      "referencePrice": "5000",
+      "listingPrices": [
+        "3000",
+        "4000"
+      ],
+      "suggestion": "소미안 적정가와 구매 가능한 매물을 알려줘",
+      "featuredRank": 5
+    },
+    {
+      "id": "koreantotodile",
+      "cardId": "4ebb07d4-7390-4492-80bd-a09f33d126ec",
+      "sourceCardId": "db28a56a-1a77-4554-b25a-5c8d739e32b2",
+      "koreanName": "리아코",
+      "speciesId": 158,
+      "edition": "NORMAL",
+      "condition": "NM",
+      "referencePrice": "6000",
+      "listingPrices": [
+        "4000",
+        "5000"
+      ],
+      "suggestion": "리아코 적정가와 구매 가능한 매물을 알려줘",
+      "featuredRank": 7
+    },
+    {
+      "id": "koreanreuniclus",
+      "cardId": "4103eced-7b85-49b0-8de7-33ec19b58888",
+      "sourceCardId": "199fbdfa-38df-4f64-ac89-4ae3c6e61ec6",
+      "koreanName": "란쿨루스",
+      "speciesId": 579,
+      "edition": "NORMAL",
+      "condition": "NM",
+      "referencePrice": "10000",
+      "listingPrices": [
+        "7000",
+        "8000"
+      ],
+      "suggestion": "란쿨루스 적정가와 구매 가능한 매물을 알려줘",
+      "featuredRank": 9
+    },
+    {
+      "id": "koreanchatot",
+      "cardId": "586f91aa-a0bf-4bb1-86fc-57526c854306",
+      "sourceCardId": "db196b41-351c-4d7a-93d2-f1383d29ca58",
+      "koreanName": "페라페",
+      "speciesId": 441,
+      "edition": "NORMAL",
+      "condition": "NM",
+      "referencePrice": "7000",
+      "listingPrices": [
+        "5000",
+        "6000"
+      ],
+      "suggestion": "페라페 적정가와 구매 가능한 매물을 알려줘",
+      "featuredRank": 10
     }
   ]
 }

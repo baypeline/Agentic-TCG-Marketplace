@@ -10,7 +10,7 @@ const targetsPath=new URL('../../db/fixtures/catalog/official-image-targets.json
 const outputPath=new URL('../../db/fixtures/catalog/official-images.json',import.meta.url);
 const targetSchema=z.object({cardVariantId:z.uuid(),name:z.string().min(1),setCode:z.string(),cardNumber:z.string().regex(/^\d{3}$/),officialCardId:z.string().regex(/^[A-Z0-9]+$/)}).strict();
 try{
- const targets=z.array(targetSchema).min(1).max(15).parse(JSON.parse(await readFile(targetsPath,'utf8')));
+ const targets=z.array(targetSchema).min(1).max(30).parse(JSON.parse(await readFile(targetsPath,'utf8')));
  const source=createOfficialImageSource(),entries=[];
  for(const target of targets)entries.push(await source.collect(target));
  const pack=officialImagesSchema.parse({version:1,entries});

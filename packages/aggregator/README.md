@@ -2,7 +2,7 @@
 
 호스트의 기본 검색은 `CATALOG_MODE=curated`입니다. `createPrismaCardAdapter`의 `curation` 옵션으로 HTTPS 이미지·필수 식별 정보·판본/상태·양수 가격이 있는 카드를 선별하고 실제 한국어판을 우선합니다. 검색어를 적용한 후보에 정렬·개수 제한을 적용합니다. 공식 이미지 출처가 확인된 한국어판 원본은 정보 열람용으로 허용하며 같은 인쇄본의 거래용 카드가 있으면 중복을 제거합니다. 직접 ID 조회·기존 거래 연결은 선별 여부와 별개로 유지합니다. [선별 기준](../../docs/catalog-selection.md)을 참고하세요.
 
-`createOfficialImageSource()`는 공식 한국어 사이트의 카드 정보와 WebP 응답을 검증합니다. `pnpm cards:images:ko`는 명시적 12종 매핑의 이미지 URL·해시를 갱신하고 `--seed`로 DB에 연결합니다. 오프라인 복원은 `pnpm db:seed:collected`에 포함됩니다. [이미지와 거래 시드](../../docs/korean-card-images.md)를 참고하세요.
+`createOfficialImageSource()`는 공식 한국어 사이트의 카드 정보와 WebP 응답을 검증합니다. `pnpm cards:images:ko`는 명시적 20종 매핑의 이미지 URL·해시를 갱신하고 `--seed`로 DB에 연결합니다. 오프라인 복원은 `pnpm db:seed:collected`에 포함됩니다. [이미지와 거래 시드](../../docs/korean-card-images.md)를 참고하세요.
 
 `createAggregatorService({ adapter })`, `createMockCardAdapter()`, `createPrismaCardAdapter(prisma)`, `createTcgdexCardAdapter(options)`, `createAggregatorPlugin({ aggregatorService })`를 제공합니다. 모두 공통 `CardDataAdapter` 인터페이스로 교체합니다.
 

@@ -12,6 +12,13 @@ it('한국어 표시 이름이 있는 영어판보다 실제 한국어판을 먼
  const ko={...base,hasInventory:false,card:{...base.card,id:'00000000-0000-4000-8000-000000000099',language:'KO',name:'피카츄'}};
  expect(selectCuratedCards([base,ko],{...options,maxCards:1})).toEqual([ko.card]);
 });
+it('추천 카드 순서를 개수 제한보다 먼저 적용하고 추천 밖의 기존 카드도 이름으로 찾는다',()=>{
+ const old={...base,card:{...base.card,name:'팬텀 ex',language:'KO'}};
+ const cute={...base,card:{...base.card,id:'00000000-0000-4000-8000-000000000098',name:'치라미',language:'KO'}};
+ const selection={...options,maxCards:1,preferredCardIds:[cute.card.id]};
+ expect(selectCuratedCards([old,cute],selection)).toEqual([cute.card]);
+ expect(selectCuratedCards([old,cute],{...selection,query:'팬텀'})).toEqual([old.card]);
+});
 it('미래 가격과 오래된 시장 가격을 제외하되 고정 Mock 가격은 만료시키지 않는다',()=>{
  const old={...base,prices:[{amount:'12',observedAt:new Date('2026-11-19T00:00:00Z')}]};
  expect(selectCuratedCards([old],options)).toEqual([base.card]);expect(selectCuratedCards([old],{...options,priceSource:'market'})).toEqual([]);

@@ -15,6 +15,7 @@ const scenarioSchema = z.object({
   edition: z.string().min(1), condition: z.string().min(1), referencePrice: price,
   listingPrices: z.array(price).min(1).max(10), suggestion: z.string().min(1),
   observedAt:timestampSchema.optional(),
+  featuredRank: z.number().int().min(0).max(11).optional(),
 });
 const packSchema = z.object({ version: z.literal(1), mode: z.literal('SYNTHETIC_DEMO'), observedAt: timestampSchema, sellerId: idSchema, scenarios: z.array(scenarioSchema).length(3) });
 export type DemoScenarioPack = z.infer<typeof packSchema>;
@@ -22,10 +23,16 @@ export async function readDemoScenarios(chain: PaymentChain = 'base-sepolia', in
   const pack = packSchema.parse(JSON.parse(await readFile(new URL('../fixtures/demo/scenarios.json', import.meta.url), 'utf8')));
   const scale = BigInt(getPaymentProfile(chain).seedMultiplier);
   if(includeKorean){
-    const korean=z.object({version:z.literal(1),mode:z.literal('SYNTHETIC_DEMO'),observedAt:timestampSchema,scenarios:z.array(scenarioSchema).length(12)}).strict().parse(JSON.parse(await readFile(new URL('../fixtures/demo/korean-scenarios.json',import.meta.url),'utf8')));
+    const korean=z.object({version:z.literal(1),mode:z.literal('SYNTHETIC_DEMO'),observedAt:timestampSchema,scenarios:z.array(scenarioSchema).min(12).max(30)}).strict().parse(JSON.parse(await readFile(new URL('../fixtures/demo/korean-scenarios.json',import.meta.url),'utf8')));
+    const ranks = korean.scenarios.flatMap(scene => scene.featuredRank === undefined ? [] : [scene.featuredRank]);
+    if (ranks.length !== 12 || new Set(ranks).size !== 12) throw new Error('추천 카드 순위는 0부터 11까지 중복 없이 지정해야 합니다.');
     pack.scenarios.push(...korean.scenarios.map(scene=>({...scene,observedAt:korean.observedAt})));
   }
   return { ...pack, scenarios: pack.scenarios.map(scene => ({ ...scene, referencePrice: (BigInt(scene.referencePrice) * scale).toString(), listingPrices: scene.listingPrices.map(price => (BigInt(price) * scale).toString()) })) };
+}
+
+export function getDemoShowcase(pack: DemoScenarioPack) {
+  return pack.scenarios.filter(scene => scene.featuredRank !== undefined).sort((a, b) => a.featuredRank! - b.featuredRank!);
 }
 
 export function demoRowId(key: string) {

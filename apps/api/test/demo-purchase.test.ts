@@ -80,7 +80,21 @@ it('한국어 매물을 기존 정책에 추가해도 기존 지출과 예산을
  const f=await fixture(false,true,'maroo',true);
  const legacy=f.input(f.offers[0]!);await f.purchase({...legacy,action:'prepare'});await f.purchase({...legacy,action:'submit'});
  const korean=f.input(f.offers[3]!);await f.purchase({...korean,action:'prepare'});expect((await f.purchase({...korean,action:'submit'})).status).toBe('COMPLETED');
- const [policy]=await f.policies.list(f.buyer);expect(policy!.allowedCardVariantIds).toHaveLength(15);expect(await f.policies.budget(f.buyer,policy!.id)).toMatchObject({spentAmount:'13000000000000000000',availableAmount:'87000000000000000000'});
+ const [policy]=await f.policies.list(f.buyer);expect(policy!.allowedCardVariantIds).toHaveLength(23);expect(await f.policies.budget(f.buyer,policy!.id)).toMatchObject({spentAmount:'13000000000000000000',availableAmount:'87000000000000000000'});
+});
+
+it('이전 한국어판 기본 정책을 확장해 새 추천 카드를 예약하고 취소할 수 있다', async () => {
+  const f = await fixture(false, true, 'maroo', true);
+  const pack = await readDemoScenarios('maroo', true);
+  const original = await readDemoScenarios('maroo');
+  const profile = getPaymentProfile('maroo');
+  const policy = await f.policies.create(f.buyer, { enabled: true, totalBudget: profile.totalBudget, maxPerTrade: profile.maxPerTrade, allowedCardVariantIds: original.scenarios.map(scene=>scene.cardId), validUntil: '2099-01-01T00:00:00.000Z' }, { idempotencyKey: 'scenario-demo-policy-v1' });
+  await f.policies.update(f.buyer, policy.id, { ...policy, expectedVersion: 1, allowedCardVariantIds: pack.scenarios.slice(0,15).map(scene=>scene.cardId) }, { idempotencyKey: 'scenario-korean-cards-v1' });
+  const input = f.input(f.offers[15]!);
+  expect((await f.purchase({ ...input, action: 'prepare' })).status).toBe('PAYMENT_REQUIRED');
+  expect((await f.policies.get(f.buyer, policy.id)).allowedCardVariantIds).toHaveLength(23);
+  expect((await f.purchase({ ...input, action: 'cancel' })).status).toBe('CANCELLED');
+  expect(await f.policies.budget(f.buyer, policy.id)).toMatchObject({ spentAmount: '0', reservedAmount: '0', availableAmount: profile.totalBudget });
 });
 
 it('사용자 지정 정책에는 한국어판 허용 목록을 자동 추가하지 않는다', async () => {

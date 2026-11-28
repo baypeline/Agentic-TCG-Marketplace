@@ -18,17 +18,19 @@ const exampleSteps = [
 
 export function LandingView({ discovery, currency = 'USDC' }: { discovery: DiscoveryData; currency?: Currency }) {
   const [step, setStep] = useState(0);
-  const text = (value: string) => value.replaceAll('USDC', currency).replaceAll('Base Sepolia', currency === 'tOKRW' ? 'Maroo Testnet' : 'Base Sepolia');
-  const original = exampleSteps[step]!;
-  const current = { ...original, description: text(original.description), note: text(original.note), rows: original.rows.map(row => row.map(text)) };
   const cards = [...discovery.spotlight.map(item => item.card), ...discovery.family]
     .filter((card, index, all) => all.findIndex(item => item.id === card.id) === index).slice(0, 4);
+  const featuredName = cards[0] ? getCardDisplayName(cards[0]) : '치라미';
+  const featuredLanguage = cards[0]?.language === 'EN' ? '영문판' : '한국어판';
+  const text = (value: string) => value.replaceAll('USDC', currency).replaceAll('Base Sepolia', currency === 'tOKRW' ? 'Maroo Testnet' : 'Base Sepolia').replaceAll('영문판 피카츄', `${featuredLanguage} ${featuredName}`).replaceAll('피카츄 · 영문판', `${featuredName} · ${featuredLanguage}`);
+  const original = exampleSteps[step]!;
+  const current = { ...original, description: text(original.description), note: text(original.note), rows: original.rows.map(row => row.map(text)) };
   return <>
     <Hero>
       <Introduction><h1>카드 구매는<br />AI 에이전트에게</h1><p>원하는 카드와 예산을 정해 구매를 맡겨요. 보유 카드는 내가 정한 가격으로 직접 판매 등록할 수 있어요.</p><HeroActions><PrimaryLink href="/agent">구매 조건 정하기</PrimaryLink><SellerLink href="/collection#owned-cards">보유 카드 판매하기</SellerLink></HeroActions><TextLink href="/cards">카드 먼저 찾아보기</TextLink><Availability>현재는 카드 검색과 구매·판매 화면 미리보기를 이용할 수 있어요.</Availability></Introduction>
       <Example aria-labelledby="example-heading">
         <ExampleHeading><h2 id="example-heading">에이전트에게 구매를 맡기면</h2><span>설명용 예시</span></ExampleHeading>
-        <Request><span>내가 원하는 거래</span><p>“영문 피카츄 한 장을<br /><strong>10 {currency} 이하</strong>로 구해줘.”</p></Request>
+        <Request><span>내가 원하는 거래</span><p>“{featuredLanguage} {featuredName} 한 장을<br /><strong>10 {currency} 이하</strong>로 구해줘.”</p></Request>
         <StepButtons aria-label="거래 과정 살펴보기">{exampleSteps.map((item, index) => <StepButton key={item.label} type="button" aria-pressed={step === index} aria-controls="trade-example-detail" onClick={() => setStep(index)}><span aria-hidden="true">{index + 1}</span>{item.label}</StepButton>)}</StepButtons>
         <StepDetail id="trade-example-detail" aria-live="polite" aria-atomic="true"><h3>{current.title}</h3><p>{current.description}</p><Facts>{current.rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</Facts><ExampleNote>{current.note}</ExampleNote></StepDetail>
       </Example>
@@ -39,7 +41,7 @@ export function LandingView({ discovery, currency = 'USDC' }: { discovery: Disco
       <ControlItem><h3>필요할 때 멈추고</h3><p>실행 상태를 확인하고 신규 거래를 일시중지하거나 중지할 수 있어요.</p><TextLink href="/agent">실행 관리 미리보기</TextLink></ControlItem>
       <ControlItem><h3>과정까지 확인해요</h3><p>주문과 결제 상태, 에이전트의 판단 기록을 나누어 살펴볼 수 있어요.</p><TextLink href="/activity">거래 내역 미리보기</TextLink></ControlItem>
     </ControlGrid></ControlSection>
-    <CatalogSection aria-labelledby="catalog-heading"><CatalogHeading><SectionIntro><h2 id="catalog-heading">어떤 카드를 맡길지 살펴보세요</h2><p>영문판 카드 정보와 해외 참고 시세를 확인하고 거래 기준을 정해 보세요.</p></SectionIntro><TextLink href="/cards">카드 검색으로 이동</TextLink></CatalogHeading><CardGrid>{cards.map(card => <CatalogCard key={card.id}><ArtworkLink href={`/cards/${card.id}?${new URLSearchParams({ q: card.name })}`} aria-label={`${getCardDisplayName(card)} ${formatSet(card.setCode)} ${card.cardNumber} 상세 보기`}><CardImage card={card} /></ArtworkLink><h3><TextLink href={`/cards/${card.id}?${new URLSearchParams({ q: card.name })}`}>{getCardDisplayName(card)}</TextLink></h3><p>{formatSet(card.setCode)} / {card.cardNumber} / {card.language}</p></CatalogCard>)}</CardGrid>{(discovery.spotlightFailed || discovery.familyFailed) && <CatalogNote role="status">일부 카드 정보를 불러오지 못했어요. 카드 검색에서 다시 확인해 주세요.</CatalogNote>}{!cards.length && !discovery.spotlightFailed && !discovery.familyFailed && <CatalogNote>아직 보여드릴 카드가 없어요. 카드 검색에서 이름으로 찾아보세요.</CatalogNote>}<CatalogNote>해외 참고 시세는 판매 희망가·집계가로, 실제 매물 가격이나 USDC 적정가와는 구분해요. 출처와 판본·상태는 카드 상세에서 확인해 주세요.</CatalogNote></CatalogSection>
+    <CatalogSection aria-labelledby="catalog-heading"><CatalogHeading><SectionIntro><h2 id="catalog-heading">어떤 카드를 맡길지 살펴보세요</h2><p>눈길이 가는 카드를 고르고, 원하는 가격으로 구매를 맡겨 보세요.</p></SectionIntro><TextLink href="/cards">카드 검색으로 이동</TextLink></CatalogHeading><CardGrid>{cards.map(card => <CatalogCard key={card.id}><ArtworkLink href={`/cards/${card.id}?${new URLSearchParams({ q: card.name })}`} aria-label={`${getCardDisplayName(card)} ${formatSet(card.setCode)} ${card.cardNumber} 상세 보기`}><CardImage card={card} /></ArtworkLink><h3><TextLink href={`/cards/${card.id}?${new URLSearchParams({ q: card.name })}`}>{getCardDisplayName(card)}</TextLink></h3><p>{formatSet(card.setCode)} / {card.cardNumber} / {card.language}</p></CatalogCard>)}</CardGrid>{(discovery.spotlightFailed || discovery.familyFailed) && <CatalogNote role="status">일부 카드 정보를 불러오지 못했어요. 카드 검색에서 다시 확인해 주세요.</CatalogNote>}{!cards.length && !discovery.spotlightFailed && !discovery.familyFailed && <CatalogNote>아직 보여드릴 카드가 없어요. 카드 검색에서 이름으로 찾아보세요.</CatalogNote>}<CatalogNote>해외 참고 시세는 판매 희망가·집계가로, 실제 매물 가격이나 USDC 적정가와는 구분해요. 출처와 판본·상태는 카드 상세에서 확인해 주세요.</CatalogNote></CatalogSection>
   </>;
 }
 
