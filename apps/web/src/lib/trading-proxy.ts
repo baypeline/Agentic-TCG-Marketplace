@@ -43,7 +43,7 @@ export async function proxyTrading(request: Request, parts: string[], authorizat
     if (!sameOrigin || ['cross-site','same-site'].includes(request.headers.get('sec-fetch-site') ?? '')) return respond('같은 사이트에서 요청해 주세요.', 403);
     if (!mutationContextSchema.safeParse({ idempotencyKey: request.headers.get('idempotency-key') }).success) return respond('안정적인 요청 키가 필요합니다.', 400);
   }
-  if (!authorization) return respond('로그인 또는 로컬 시연 역할 설정이 필요합니다.', 401);
+  if (!authorization) return respond('지갑을 연결하면 거래를 진행할 수 있어요.', 401);
   let body: string | undefined;
   if (['POST','PUT'].includes(request.method)) {
     // 정책·주문 입력만 받는다. 서명과 대용량 데이터는 이 경계로 전달하지 않는다.

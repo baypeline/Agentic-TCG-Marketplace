@@ -1,17 +1,18 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useWalletSession } from './use-wallet-session';
+import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import styled from '@emotion/styled';
 import type { EIP1193Provider } from 'viem';
-import { getWalletSession, loginWallet, logoutWallet, walletQueryKey } from './wallet-client';
+import { loginWallet, logoutWallet, walletQueryKey } from './wallet-client';
 import { needsAgentWalletSetup, useAgentWalletSetupStore } from '../../stores/agent-wallet-setup';
 
 type BrowserWallet = EIP1193Provider & { on?(name: string, callback: (...args: unknown[]) => void): void; removeListener?(name: string, callback: (...args: unknown[]) => void): void };
 export function WalletLogin() {
   const client = useQueryClient(), router = useRouter();
-  const session = useQuery({ queryKey: walletQueryKey, queryFn: getWalletSession, staleTime: 30_000, refetchInterval: 60_000, retry: false });
+  const session = useWalletSession(true);
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
   const user = session.data?.user;
   async function signOut() {

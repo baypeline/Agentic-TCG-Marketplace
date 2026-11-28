@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode, type MouseEvent } from 'react';
+import { useWalletSession } from '../features/auth/use-wallet-session';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import styled from '@emotion/styled';
@@ -10,20 +11,30 @@ import { demoStatusSchema } from '@tcg/contracts';
 import { AgentChat } from '../features/chat/agent-chat';
 import { useAgentPanelStore } from '../stores/agent-panel';
 import { WalletLogin } from '../features/auth/wallet-login';
-import { getWalletSession, walletQueryKey } from '../features/auth/wallet-client';
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { color } = useTheme();
   const pathname = usePathname();
-  const wallet = useQuery({ queryKey: walletQueryKey, queryFn: getWalletSession, staleTime: 30_000, retry: false });
+  const wallet = useWalletSession();
   const demo = useQuery({ queryKey: ['demo-status'], queryFn: async () => { const response = await fetch('/api/demo'); if (!response.ok) throw new Error('Unavailable'); return demoStatusSchema.parse(await response.json()); }, staleTime: Infinity, retry: false });
   const chatOpen = useAgentPanelStore(state => state.chatOpen);
   const setChatOpen = useAgentPanelStore(state => state.setChatOpen);
   const isLanding = pathname === '/';
   const chatToggle = useRef<HTMLButtonElement>(null);
+  const moreMenu = useRef<HTMLDetailsElement>(null);
   const browse = useRef<HTMLDivElement>(null);
   useEffect(() => { void useAgentPanelStore.persist?.rehydrate(); }, []);
   useEffect(() => { if (browse.current) browse.current.scrollTop = 0; }, [pathname]);
+  useEffect(() => {
+    const dismiss = (event: PointerEvent) => { if (moreMenu.current?.open && event.target instanceof Node && !moreMenu.current.contains(event.target)) moreMenu.current.open = false; };
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape' && moreMenu.current?.open) { moreMenu.current.open = false; moreMenu.current.querySelector('summary')?.focus(); } };
+    document.addEventListener('pointerdown', dismiss); document.addEventListener('keydown', escape);
+    return () => { document.removeEventListener('pointerdown', dismiss); document.removeEventListener('keydown', escape); };
+  }, []);
+  function followInternalLink(event: MouseEvent<HTMLElement>) {
+    const link = event.target instanceof Element ? event.target.closest('a') : null;
+    if (chatOpen && link?.getAttribute('href')?.startsWith('/') && window.matchMedia('(max-width:899px)').matches) closeChat();
+  }
   function closeChat() { setChatOpen(false); chatToggle.current?.focus({ preventScroll: true }); }
   function toggleChat() {
     if (chatOpen) { closeChat(); return; }
@@ -32,18 +43,18 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
   return <>
     <SkipLink href={chatOpen ? '#agent-message' : '#main-content'}>{chatOpen ? '대화 입력으로 바로가기' : '본문으로 바로가기'}</SkipLink>
-    <Header><HeaderInner data-chat-open={chatOpen}><Brand href="/" aria-label="Agentic TCG 홈">
+    <Header onClick={followInternalLink}><HeaderInner data-chat-open={chatOpen}><Brand href="/" aria-label="Agentic TCG 홈">
       <svg width="30" height="36" viewBox="0 0 30 36" fill="none" aria-hidden="true"><rect x="1" y="6" width="21" height="28" rx="2" stroke={color.ink} /><rect x="8" y="1" width="21" height="28" rx="2" fill={color.coral} /><path d="m18.5 9 5 6-5 6-5-6 5-6Z" stroke={color.surface} strokeWidth="1.5" /></svg>
       Agentic TCG</Brand><AccountArea><WalletLogin /></AccountArea><Navigation aria-label="주요 메뉴"><Link href={isLanding ? '/cards' : '/'}>{isLanding ? <>마켓<NavDetail> 둘러보기</NavDetail></> : '홈'}</Link><ChatToggle ref={chatToggle} type="button" aria-controls="agent-panel" aria-expanded={chatOpen} onClick={toggleChat}>에이전트 {chatOpen ? '닫기' : '열기'}</ChatToggle></Navigation>
     </HeaderInner></Header>
     <Workspace data-chat-open={chatOpen}><BrowsePane ref={browse} id="browse-pane">
-    {!isLanding && <ServiceNav aria-label="서비스 메뉴"><ServiceNavInner>{[['/cards', '카드 검색'], ['/marketplace', '매물'], ['/collection', '내 카드'], ['/agent', '에이전트 설정']].map(([href, label]) => <Link key={href} href={href!} aria-current={(pathname === href || href === '/agent' && pathname === '/agent/wallet' || href === '/cards' && pathname.startsWith('/cards/')) ? 'page' : undefined}>{label}</Link>)}<MoreMenu><summary aria-label="추가 메뉴">더보기</summary><MoreLinks>{[['/activity', '거래 내역'], ['/rwa', 'NFT 관리'], ['/agent/logs', '에이전트 로그']].map(([href, label]) => <Link key={href} href={href!} aria-current={pathname === href ? 'page' : undefined} onClick={event => event.currentTarget.closest('details')?.removeAttribute('open')}>{label}</Link>)}</MoreLinks></MoreMenu></ServiceNavInner></ServiceNav>}
+    {!isLanding && <ServiceNav aria-label="서비스 메뉴"><ServiceNavInner>{[['/cards', '카드 검색'], ['/marketplace', '매물'], ['/collection', '내 카드'], ['/agent', '에이전트 설정']].map(([href, label]) => <Link key={href} href={href!} aria-current={(pathname === href || href === '/agent' && pathname === '/agent/wallet' || href === '/cards' && pathname.startsWith('/cards/')) ? 'page' : undefined}>{label}</Link>)}<MoreMenu ref={moreMenu}><summary aria-label="추가 메뉴">더보기</summary><MoreLinks>{[['/activity', '거래 내역'], ['/rwa', 'NFT 관리'], ['/agent/logs', '에이전트 로그']].map(([href, label]) => <Link key={href} href={href!} aria-current={pathname === href ? 'page' : undefined} onClick={event => event.currentTarget.closest('details')?.removeAttribute('open')}>{label}</Link>)}</MoreLinks></MoreMenu></ServiceNavInner></ServiceNav>}
     <PageFrame key={wallet.data?.user?.userId ?? 'anonymous'} id="main-content" tabIndex={-1}>{children}</PageFrame>
     <Footer id="data-guide"><FooterBrand>Agentic TCG</FooterBrand><details><summary>서비스 안내</summary>
       <p>영어판의 한국어 이름은 포켓몬 종명 표기이며, 한국어판은 원문 이름을 표시합니다. 해외 참고 시세는 제공자의 집계·판매 희망 가격으로, 한국어판 실거래가와 다를 수 있습니다.</p>
       <p>이 서비스는 테스트넷에서 실행되며, 매물·가격·보관 기록에는 시연용 데이터가 포함돼요. 구매하면 {demo.data?.paymentChain === 'maroo' ? 'Maroo Testnet tOKRW' : 'Base Sepolia 테스트 USDC'}와 NFT가 실제로 이동합니다. NFT 이전은 NFT 매물에만 해당해요.</p>
       <p>실물 카드의 보관·감정·배송은 제공하지 않으며, 인출 기능은 절차를 체험하는 용도예요. 참고 가격은 실제 시세나 체결가를 보장하지 않아요. {demo.data?.paymentChain === 'maroo' ? 'tOKRW 참고 가격은 시연용 기준으로, 원화 실거래가를 뜻하지 않아요.' : 'USD 기준 추정가는 1 USD ≈ 1 USDC로 표시하며 판본·보존 상태를 보정하지 않습니다.'} ‘화면 미리보기’의 기록은 예시입니다.</p>
-    </details></Footer></BrowsePane><ChatPane inert={!chatOpen} aria-hidden={!chatOpen}><AgentChat key={wallet.data?.user?.userId ?? 'anonymous'} onClose={closeChat} /></ChatPane></Workspace>
+    </details></Footer></BrowsePane><ChatPane onClick={followInternalLink} inert={!chatOpen} aria-hidden={!chatOpen}><AgentChat key={wallet.data?.user?.userId ?? 'anonymous'} onClose={closeChat} /></ChatPane></Workspace>
   </>;
 }
 

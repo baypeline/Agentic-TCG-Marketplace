@@ -1,5 +1,7 @@
 # Next.js Web
 
+실제 구매 예산·충전 안내·모바일 헤더 및 탐색 개선은 [거래 UI/UX 개선](../../docs/ui-ux-improvements.md)에 정리했습니다. `/agent`는 채팅 구매가 사용하는 현재 정책을 기본으로 표시합니다.
+
 순백 배경의 랜딩(`/`), 카드 검색(`/cards`), 카드 상세(`/cards/[id]`) 화면입니다. 랜딩은 거래 조건 설정과 에이전트의 구매 과정을 설명하며 카드 탐색을 보조 콘텐츠로 제공합니다. 검색은 좌측 검색과 우측 갤러리, 상세는 큰 이미지와 가격·근거를 담당합니다. 페이지는 Server Component로 유지하고 `server/api.ts`에서 `CORE_API_URL`의 Fastify를 호출한 뒤 공통 Zod Schema로 응답을 검증합니다. Emotion을 사용하는 표현 컴포넌트에 DTO를 전달하며 API 주소·환경변수를 브라우저 코드에서 읽지 않습니다.
 
 [디자인 기준](../../design-system/agentic-tcg/MASTER.md)을 `@emotion/styled`로 구현했습니다. `ui-ux-pro-max`의 E-commerce·제목 균형·정보 위계·색 이외 상태 전달 가이드를 참고했습니다. 배경은 사용자 지정에 따라 `#FFFFFF`로 고정하고 코랄은 검색·링크 등 조작에 사용합니다. [이전 코랄 플레이룸 HTML](../../docs/design/archive/coral-playroom.html)은 비교용 보관본으로 현재 UI와 다릅니다.

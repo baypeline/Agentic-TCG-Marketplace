@@ -1,11 +1,12 @@
 'use client';
 import { useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useWalletSession } from '../auth/use-wallet-session';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import styled from '@emotion/styled';
 import { agentBudgetStateSchema } from '@tcg/contracts';
 import { useAgentBudget } from '../auth/agent-budget-client';
 import { AgentWalletStatus } from '../auth/agent-wallet-status';
-import { getWalletSession, walletQueryKey } from '../auth/wallet-client';
+import { getAgentWallet } from '../auth/wallet-client';
 import { WalletLogin } from '../auth/wallet-login';
 import { useAgentPanelStore } from '../../stores/agent-panel';
 import { createTradingClient } from '../../lib/trading-client';
@@ -16,18 +17,20 @@ import { Field, FormGrid, QuietButton, ErrorText } from './trading-ui';
 
 type BudgetState = ReturnType<typeof agentBudgetStateSchema.parse>;
 export function AgentBudgetSettings({ advanced }: { advanced: ReactNode }) {
-  const session = useQuery({ queryKey: walletQueryKey, queryFn: getWalletSession, retry: false });
+  const session = useWalletSession();
   const current = useAgentBudget();
+  const wallet = useQuery({ queryKey: ['agent-wallet', session.data?.user?.userId], queryFn: getAgentWallet, enabled: !!session.data?.user, staleTime: 15_000, retry: false });
   const [expanded, setExpanded] = useState(false), [notice, setNotice] = useState('');
   const query = useQueryClient();
   const openChat = useAgentPanelStore(state => state.setChatOpen);
   return <Root><Intro><h1>에이전트 설정</h1><p>구매에 사용할 예산을 정하고, 에이전트 지갑에 충전해 주세요.</p></Intro>
-    {session.isPending ? <p role="status">로그인 상태를 확인하고 있어요.</p> : !session.data?.user ? <LoginCard><h2>지갑을 연결하면 시작할 수 있어요</h2><p>로그인하면 전용 에이전트 지갑이 자동으로 생성돼요. 예산은 내 계정에 저장됩니다.</p><WalletLogin /></LoginCard> : <>
+    {session.isPending ? <p role="status">로그인 상태를 확인하고 있어요.</p> : session.isError ? <LoginCard><h2>로그인 상태를 확인하지 못했어요</h2><p>연결 상태를 확인하고 다시 시도해 주세요.</p><QuietButton onClick={() => void session.refetch()}>다시 확인</QuietButton></LoginCard> : !session.data?.user ? <LoginCard><h2>지갑을 연결하면 시작할 수 있어요</h2><p>로그인하면 전용 에이전트 지갑이 자동으로 생성돼요. 예산은 내 계정에 저장됩니다.</p><WalletLogin /></LoginCard> : <>
+      <Readiness><div><strong>전용 지갑 생성 완료</strong><p>{wallet.data?.balance != null ? BigInt(wallet.data.balance) === 0n ? '구매를 시작하려면 지갑에 충전해 주세요.' : `지갑 잔액 ${formatUsdc(wallet.data.balance, wallet.data.currency)}` : wallet.isError ? '잔액을 확인하지 못했어요. 다시 조회해 주세요.' : '지갑 잔액을 확인하고 있어요.'}</p></div><a href="#agent-wallet-address" onClick={() => { const details = document.querySelector<HTMLDetailsElement>('#agent-wallet-funding details'); if (details) details.open = true; }}>충전 주소 확인</a></Readiness>
       {notice && <p role="status">{notice}</p>}
       {current.isPending ? <p role="status">현재 구매 예산을 확인하고 있어요.</p> : current.isError ? <LoginCard><ErrorText role="alert">{current.error.message}</ErrorText><QuietButton onClick={() => void current.refetch()}>예산 다시 조회</QuietButton></LoginCard> : current.data && <>
         <BudgetOverview state={current.data} />
         <BudgetEditor key={`${current.data.policy.id}:${current.data.policy.version}`} state={current.data} owner={session.data.user} onSaved={async () => { setNotice('예산을 저장했어요. 다음 구매부터 적용됩니다.'); await query.invalidateQueries(); }} />
-        <StartRow><Button onClick={() => openChat(true)}>에이전트에게 카드 구매 요청</Button><p>구매 버튼을 누르면 설정한 예산 안에서 결제를 진행해요.</p></StartRow>
+        <StartRow><Button onClick={() => { openChat(true); requestAnimationFrame(() => document.getElementById('agent-message')?.focus({ preventScroll: true })); }}>에이전트에게 카드 구매 요청</Button><p>구매 버튼을 누르면 설정한 예산 안에서 결제를 진행해요.</p></StartRow>
       </>}
       <AgentWalletStatus compact />
       <Advanced onToggle={event => setExpanded(event.currentTarget.open)}><summary>상세 거래 조건과 실행 내역</summary><p>허용 카드, 할인 조건, 유효기간과 별도 정책을 관리할 수 있어요.</p>{expanded && advanced}</Advanced>
@@ -60,6 +63,7 @@ function BudgetEditor({ state, owner, onSaved }: { state: BudgetState; owner: { 
   return <Editor onSubmit={save}><h2>예산 변경</h2><fieldset disabled={busy}><FormGrid><Field id="purchase-total" label={`총예산 (${state.currency})`}><input id="purchase-total" required inputMode="decimal" value={total} onChange={e => setTotal(e.target.value)} /></Field><Field id="purchase-per" label={`건당 한도 (${state.currency})`} hint={`결제 시스템의 건당 최대 금액은 ${formatUsdc(state.signerMaxPerTrade, state.currency)}예요.`}><input id="purchase-per" required inputMode="decimal" value={per} onChange={e => setPer(e.target.value)} /></Field></FormGrid>{error && <ErrorText role="alert">{error}</ErrorText>}<Button type="submit">{busy ? '저장 중…' : '예산 저장'}</Button></fieldset>{client.current?.pending() && <QuietButton type="button" disabled={busy} onClick={() => { setBusy(true); void client.current!.retry().then(onSaved).catch(() => setError('저장 결과를 확인하지 못했어요. 다시 확인해 주세요.')).finally(() => setBusy(false)); }}>이전 저장 결과 확인</QuietButton>}</Editor>;
 }
 const Root = styled.div({ maxWidth: 1000, '& p': { lineHeight: 1.8 }, '& button': { maxWidth: '100%' } });
+const Readiness = styled.div(({ theme }) => ({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '8px 20px', marginBottom: 20, '& strong': { fontSize: 14, fontWeight: 600 }, '& p': { fontSize: 13, color: theme.color.muted, marginTop: 4 }, '& a': { display: 'inline-flex', alignItems: 'center', minHeight: 44, color: theme.color.link, fontSize: 14 } }));
 const Intro = styled.div(({ theme }) => ({ marginBottom: 28, '& h1': { fontSize: 30, fontWeight: 600 }, '& p': { marginTop: 10, color: theme.color.muted, fontSize: 15 } }));
 const LoginCard = styled.section(({ theme }) => ({ padding: '28px 0', '& h2': { fontSize: 20 }, '& p': { margin: '12px 0 20px', color: theme.color.muted } }));
 const Summary = styled.section(({ theme }) => ({ padding: '24px 0', borderBlock: `1px solid ${theme.color.line}` }));

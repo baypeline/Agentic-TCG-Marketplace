@@ -1,6 +1,7 @@
 'use client';
 
 import { lazy, Suspense, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useWalletSession } from '../auth/use-wallet-session';
 import styled from '@emotion/styled';
 import { keyframes } from '@emotion/react';
 import { readAgentMessage } from './agent-client';
@@ -8,7 +9,7 @@ import { CardChoices, cardChoiceLabel, cardChoiceQuestion } from './card-choices
 import { useAgentBudget } from '../auth/agent-budget-client';
 import { PurchaseOffers, PurchaseReceipt } from './purchase-offers';
 import { BudgetProposal } from './budget-proposal';
-import { getWalletSession, getAgentWallet, walletQueryKey } from '../auth/wallet-client';
+import { getAgentWallet } from '../auth/wallet-client';
 import { agentBudgetResultSchema, type AgentBudgetProposal, type AgentBudgetResult } from '@tcg/contracts';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
@@ -45,7 +46,7 @@ export function AgentChat({ onClose }: { onClose: () => void }) {
   const queryClient = useQueryClient();
   const router = useRouter();
   const currentBudget = useAgentBudget();
-  const wallet = useQuery({ queryKey: walletQueryKey, queryFn: getWalletSession, staleTime: 30_000, retry: false });
+  const wallet = useWalletSession();
   const demo = useQuery({ queryKey: ['demo-status'], queryFn: async () => { const result = await fetch('/api/demo'); if (!result.ok) throw new Error('Unavailable'); return demoStatusSchema.parse(await result.json()); }, staleTime: Infinity, retry: false });
   const examples = demo.data?.enabled ? demo.data.suggestions : suggestions;
   const walletInfo = useQuery({ queryKey: ['agent-wallet', wallet.data?.user?.userId], queryFn: getAgentWallet, enabled: !!wallet.data?.user, staleTime: 15_000, retry: false });

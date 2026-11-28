@@ -1,10 +1,11 @@
 'use client';
 import type { Currency } from '@tcg/contracts/payment-profile';
+import { useWalletSession } from '../auth/use-wallet-session';
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import styled from '@emotion/styled';
-import { rwaViewSchema, demoStatusSchema, agentRunSchema, buyOrderSchema, cardVariantSchema, inventoryItemSchema, listingSchema, spendingPolicySchema, tradeSchema, type AgentRun, type BuyOrder, type CardVariant, type InventoryItem, type Listing, type SpendingPolicy, type Trade } from '@tcg/contracts';
+import { rwaViewSchema, demoStatusSchema, agentBudgetStateSchema, agentRunSchema, buyOrderSchema, cardVariantSchema, inventoryItemSchema, listingSchema, spendingPolicySchema, tradeSchema, type AgentRun, type BuyOrder, type CardVariant, type InventoryItem, type Listing, type SpendingPolicy, type Trade } from '@tcg/contracts';
 import { Button } from '../../components/ui';
 import { formatUsdc, getCardDisplayName } from '../../lib/formatters';
 import { createTradingClient } from '../../lib/trading-client';
@@ -12,12 +13,12 @@ import { parseUsdcInput, usdcDecimal } from './demo-model';
 import { LiveTradingStatus } from './live-status';
 import { LiveCollection } from './live-collection';
 import { AgentBudgetSettings } from './agent-budget-settings';
-import { AgentWalletStatus } from '../auth/agent-wallet-status';
+import { WalletLogin } from '../auth/wallet-login';
 import { Actions, EmptyRows, ErrorText, Field, FormGrid, QuietButton, RecordTable, ResultNote, Section, StateBadge } from './trading-ui';
 
 type Mode = 'agent' | 'marketplace' | 'collection' | 'activity';
 type Identity = { userId: string; agentId?: string; currency?: Currency; rwaAvailable?: boolean };
-type Data = { rwaIds: string[]; me: Identity; policies: SpendingPolicy[]; runs: AgentRun[]; orders: BuyOrder[]; items: InventoryItem[]; listings: Listing[]; trades: Trade[]; cards: CardVariant[]; matches: { id: string; status: string }[] };
+type Data = { chatPolicyId?: string; rwaIds: string[]; me: Identity; policies: SpendingPolicy[]; runs: AgentRun[]; orders: BuyOrder[]; items: InventoryItem[]; listings: Listing[]; trades: Trade[]; cards: CardVariant[]; matches: { id: string; status: string }[] };
 type Mutate = (method: string, path: string, input?: unknown) => Promise<void>;
 const titles: Record<Mode, string> = { agent: '거래 정책과 실행 허용', marketplace: '고정가 매물', collection: '내 카드', activity: '거래 관리' };
 const descriptions: Record<Mode, string> = { agent: '에이전트가 거래할 수 있는 조건과 예산을 설정하세요.', marketplace: '판매 중인 카드를 둘러보고 구매 조건을 정하세요.', collection: '구매한 카드를 모아 보고, 판매할 카드를 관리하세요.', activity: '주문부터 결제, 거래 완료까지 진행 상황을 확인하세요.' };
@@ -28,7 +29,10 @@ async function read(path: string): Promise<unknown> {
   return data;
 }
 export function LiveTradingWorkspace({ mode, mine = false }: { mode: Mode; mine?: boolean }) {
+  const session = useWalletSession();
   if (mode === 'agent') return <AgentBudgetSettings advanced={<AdvancedTradingWorkspace mode="agent" />} />;
+  if (session.isPending) return <p role="status">로그인 상태를 확인하고 있어요.</p>;
+  if (!session.data?.user) return <Section><h1>{titles[mode]}</h1><ResultNote>지갑을 연결하면 내 카드와 매물, 거래 내역을 확인할 수 있어요.</ResultNote><WalletLogin /></Section>;
   return <AdvancedTradingWorkspace mode={mode} mine={mine} />;
 }
 function AdvancedTradingWorkspace({ mode, mine = false }: { mode: Mode; mine?: boolean }) {
@@ -38,7 +42,7 @@ function AdvancedTradingWorkspace({ mode, mine = false }: { mode: Mode; mine?: b
   const load = useCallback(async () => {
     const me = await read('me') as Identity;
     const demoResponse = await fetch('/api/demo', { cache: 'no-store' });
-    if (!demoResponse.ok) throw new Error('Cannot determine settlement currency');
+    if (!demoResponse.ok) throw new Error('현재 결제 통화를 확인하지 못했어요.');
     const demo = demoStatusSchema.parse(await demoResponse.json());
     me.currency = demo.currency;
     const rwaIds = demo.rwaEnabled && me.rwaAvailable !== false ? rwaViewSchema.parse(await read('rwa')).assets.map(a=>a.inventoryItemId) : [];
@@ -46,10 +50,13 @@ function AdvancedTradingWorkspace({ mode, mine = false }: { mode: Mode; mine?: b
     const [items, listings, policies, runs, orders, trades, matches] = await Promise.all([
       read('inventory'), read('listings'), me.agentId ? read('policies') : [], me.agentId ? read('sessions') : [], me.agentId ? read('buy-orders') : [], read('trades'), me.agentId ? read('matches') : [],
     ]);
+    const budgetResponse = mode === 'agent' ? await fetch('/api/agent-budget', { cache: 'no-store' }) : null;
+    if (budgetResponse && !budgetResponse.ok) throw new Error('현재 구매 정책을 확인하지 못했어요.');
+    const chatPolicyId = budgetResponse ? agentBudgetStateSchema.parse(await budgetResponse.json()).policy.id : undefined;
     const inventory = inventoryItemSchema.array().parse(items), offers = listingSchema.array().parse(listings);
     const cardIds = [...new Set([...inventory, ...offers].map(item => item.cardVariantId))];
     const cards = await Promise.all(cardIds.map(async id => cardVariantSchema.parse(await read(`cards/${id}`))));
-    if (mounted.current) setData({ rwaIds, me, items: inventory, listings: offers, policies: spendingPolicySchema.array().parse(policies), runs: agentRunSchema.array().parse(runs), orders: buyOrderSchema.array().parse(orders), trades: tradeSchema.array().parse(trades), cards, matches: matches as Data['matches'] });
+    if (mounted.current) setData({ chatPolicyId, rwaIds, me, items: inventory, listings: offers, policies: spendingPolicySchema.array().parse(policies), runs: agentRunSchema.array().parse(runs), orders: buyOrderSchema.array().parse(orders), trades: tradeSchema.array().parse(trades), cards, matches: matches as Data['matches'] });
   }, []);
   useEffect(() => {
     mounted.current = true;
@@ -108,7 +115,7 @@ function MarketQuote({ currency, cards, mutate }: { currency: Currency; cards: C
   return <Section><h2>시장가 예약</h2><Field id="market-card" label="카드"><select id="market-card" value={id} onChange={e => setId(e.target.value)}>{cards.map(card => <option key={card.id} value={card.id}>{getCardDisplayName(card)}</option>)}</select></Field>{id && <AmountForm currency={currency} id="market" label={`최대 구매 가격 (${currency})`} button="최적 매물 탐색·예약" submit={maxPrice => mutate('POST','purchases/market/quote',{ cardVariantId: id, maxPrice })} />}</Section>;
 }
 function PolicyAndRuns({ currency, data, mutate }: { currency: Currency; data: Data; mutate: Mutate }) {
-  const [selected, setSelected] = useState(data.policies[0]?.id ?? '');
+  const [selected, setSelected] = useState(data.chatPolicyId ?? data.policies[0]?.id ?? '');
   const policy = data.policies.find(policy => policy.id === selected);
   return <>
     <Section><h2>구매 승인 정책</h2><Field id="select-policy" label="편집할 정책"><select id="select-policy" value={selected} onChange={e => setSelected(e.target.value)}><option value="">새 정책 만들기</option>{data.policies.map(policy => <option key={policy.id} value={policy.id}>정책 #{policy.id.slice(-6)} · v{policy.version}</option>)}</select></Field><PolicyEditor currency={currency} key={`${policy?.id}:${policy?.version}`} policy={policy} cards={data.cards} mutate={mutate} /></Section>

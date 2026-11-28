@@ -3,7 +3,7 @@ import { agentRunSchema, budgetSchema, currencySchema, idSchema, purchaseStatusS
 
 export async function GET(request: Request) {
   const authorization = await tradingAuthorization(request);
-  if (!authorization) return Response.json({ error: '상태 조회에는 로그인 또는 로컬 시연 역할 설정이 필요합니다.' }, { status: 401 });
+  if (!authorization) return Response.json({ error: '지갑을 연결하면 거래 상태를 확인할 수 있어요.' }, { status: 401 });
   async function get(path: string, optionalAgent = false): Promise<unknown> {
     const result = await fetch(new URL(path, process.env.CORE_API_URL ?? 'http://127.0.0.1:4000'), { headers: { authorization: authorization! }, cache: 'no-store', signal: AbortSignal.timeout(5000) });
     if (optionalAgent && result.status === 403) return [];
